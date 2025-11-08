@@ -70,18 +70,21 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [elevatorCustomManufacturers, setElevatorCustomManufacturers] = useState<{[key: number]: string}>({});
 
   const manufacturerOptions = [
-    'Schindler',
-    'Otis',
-    'KONE',
-    'ThyssenKrupp',
-    'Mitsubishi Electric',
-    'Hyundai',
-    'Sigma',
-    'Orona',
-    'Another',
-    'Electra',
-    'Otros'
-  ];
+  'Orona',
+  'Otis',
+  'Schindler',
+  'Mitsubishi Electric',
+  'TK Elevator (ThyssenKrupp)',
+  'KONE',
+  'FUJI Elevators',
+  'HEAVENWARD',
+  'MAC PUARSA',
+  'FBLT',
+  'SAITEK',
+  'CARLOS SILVA',
+  'CEA',
+  'Otros', // importante mantener "Otros" exactamente así por la lógica del formulario
+];
 
   const [templateElevator, setTemplateElevator] = useState<ElevatorData>({
     location_name: '',
