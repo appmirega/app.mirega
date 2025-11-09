@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { Bolt Database } from '../../lib/supabase';
 import { Plus, Trash2, Building2, MapPin, Phone, Mail, X, Key, Eye, EyeOff, Copy } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -64,6 +64,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [elevatorCount, setElevatorCount] = useState(1);
   const [useClientAddress, setUseClientAddress] = useState(true);
   const [customAddress, setCustomAddress] = useState('');
+  const [elevatorAddressTypes, setElevatorAddressTypes] = useState<{[key: number]: boolean}>({});
   const [customManufacturer, setCustomManufacturer] = useState('');
   const [selectedManufacturer, setSelectedManufacturer] = useState('');
   const [elevatorManufacturers, setElevatorManufacturers] = useState<{[key: number]: string}>({});
@@ -85,7 +86,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
   const [templateElevator, setTemplateElevator] = useState<ElevatorData>({
     location_name: '',
-    address: '',
+    address: clientData.address,
     elevator_type: 'hydraulic',
     manufacturer: '',
     model: '',
@@ -105,7 +106,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [elevators, setElevators] = useState<ElevatorData[]>([
     {
       location_name: '',
-      address: '',
+      address: clientData.address,
       elevator_type: 'hydraulic',
       manufacturer: '',
       model: '',
@@ -163,19 +164,15 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     setElevators(updated);
   };
 
-  // Sincronizar dirección del cliente con ascensores cuando cambia
   const handleClientAddressChange = (newAddress: string) => {
     setClientData({ ...clientData, address: newAddress });
 
-    // Actualizar dirección del template si usa dirección del cliente
     if (useClientAddress && identicalElevators) {
       setTemplateElevator({ ...templateElevator, address: newAddress });
     }
 
-    // Actualizar dirección de ascensores individuales que usan dirección del cliente
     if (!identicalElevators) {
       setElevators(elevators.map((elevator, idx) => {
-        // Solo actualizar si el ascensor está usando la dirección del cliente
         if (elevator.address === clientData.address) {
           return { ...elevator, address: newAddress };
         }
@@ -198,7 +195,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           return;
         }
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await Bolt Database
           .from('clients')
           .update({
             company_name: clientData.company_name,
@@ -235,7 +232,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       return;
     }
 
-    // Validar datos completos del cliente
     if (!clientData.company_name || !clientData.building_name || !clientData.contact_name ||
         !clientData.contact_email || !clientData.contact_phone || !clientData.address) {
       setError('Todos los campos del cliente son obligatorios');
@@ -243,7 +239,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       return;
     }
 
-    // Validar datos completos de cada ascensor
     const elevatorList = identicalElevators ? [templateElevator] : elevators;
     for (let i = 0; i < elevatorList.length; i++) {
       const elevator = elevatorList[i];
@@ -290,7 +285,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         return;
       }
 
-      // Validar que solo uno de sala de máquinas esté marcado
       if (elevator.has_machine_room && elevator.no_machine_room) {
         setError(`El ascensor ${i + 1} no puede tener ambas opciones de sala de máquinas marcadas`);
         setLoading(false);
@@ -303,7 +297,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         return;
       }
 
-      // Validar que solo una opción de paradas esté marcada
       const floorStops = [elevator.stops_all_floors, elevator.stops_odd_floors, elevator.stops_even_floors];
       const selectedFloorStops = floorStops.filter(Boolean).length;
 
@@ -335,6 +328,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
       const apiUrl = `${import.meta.env.VITE_DATABASE_URL}/functions/v1/create-user`;
 
+      console.log('Calling Edge Function:', apiUrl);
+      console.log('Request payload:', {
+        email: clientData.contact_email,
+        full_name: clientData.contact_name,
+        role: 'client',
+      });
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -351,17 +351,28 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         }),
       });
 
-      const result = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      let result;
+      try {
+        result = await response.json();
+        console.log('Response body:', result);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+      }
 
       if (!result.success) {
-        throw new Error(result.error || 'Error al crear el cliente');
+        console.error('Edge Function error:', result);
+        throw new Error(result.error || result.details || 'Error al crear el cliente');
       }
 
       const profile = result.user;
 
       const clientCode = `CLI-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-      const { data: client, error: clientError } = await supabase
+      const { data: client, error: clientError } = await Bolt Database
           .from('clients')
           .insert({
             profile_id: profile.id,
@@ -425,7 +436,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           }));
         }
 
-        const { error: elevatorsError } = await supabase
+        const { error: elevatorsError } = await Bolt Database
           .from('elevators')
           .insert(elevatorsToInsert);
 
@@ -723,7 +734,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               </h4>
 
               <div className="space-y-6">
-                {/* SECCIÓN: IDENTIFICACIÓN */}
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                   <h5 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                     <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
@@ -776,7 +786,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   </div>
                 </div>
 
-                {/* SECCIÓN: UBICACIÓN */}
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                   <h5 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                     <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
@@ -794,6 +803,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                             checked={useClientAddress}
                             onChange={() => {
                               setUseClientAddress(true);
+                              setCustomAddress('');
                               setTemplateElevator({ ...templateElevator, address: clientData.address });
                             }}
                             className="border-slate-300"
@@ -804,7 +814,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                           <input
                             type="radio"
                             checked={!useClientAddress}
-                            onChange={() => setUseClientAddress(false)}
+                            onChange={() => {
+                              setUseClientAddress(false);
+                              setTemplateElevator({ ...templateElevator, address: customAddress });
+                            }}
                             className="border-slate-300"
                           />
                           <span className="text-sm">Dirección diferente</span>
@@ -831,7 +844,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   </div>
                 </div>
 
-                {/* SECCIÓN: ESPECIFICACIONES TÉCNICAS */}
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                   <h5 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                     <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
@@ -961,7 +973,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   </div>
                 </div>
 
-                {/* SECCIÓN: CONFIGURACIÓN */}
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                   <h5 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                     <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
@@ -1110,8 +1121,11 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                               <input
                                 type="radio"
                                 name={`address-type-${index}`}
-                                checked={elevator.address === clientData.address}
-                                onChange={() => updateElevator(index, 'address', clientData.address)}
+                                checked={elevatorAddressTypes[index] !== false}
+                                onChange={() => {
+                                  setElevatorAddressTypes({...elevatorAddressTypes, [index]: true});
+                                  updateElevator(index, 'address', clientData.address);
+                                }}
                                 className="border-slate-300"
                               />
                               <span className="text-sm">Usar dirección del cliente</span>
@@ -1120,14 +1134,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                               <input
                                 type="radio"
                                 name={`address-type-${index}`}
-                                checked={elevator.address !== clientData.address}
-                                onChange={() => updateElevator(index, 'address', '')}
+                                checked={elevatorAddressTypes[index] === false}
+                                onChange={() => {
+                                  setElevatorAddressTypes({...elevatorAddressTypes, [index]: false});
+                                  updateElevator(index, 'address', '');
+                                }}
                                 className="border-slate-300"
                               />
                               <span className="text-sm">Dirección diferente</span>
                             </label>
                           </div>
-                          {elevator.address === clientData.address ? (
+                          {elevatorAddressTypes[index] !== false ? (
                             <div className="px-4 py-2 bg-slate-100 rounded-lg border border-slate-300">
                               <p className="text-sm text-slate-700">{clientData.address || '(Ingrese primero la dirección del cliente)'}</p>
                             </div>
