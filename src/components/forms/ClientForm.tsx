@@ -24,7 +24,7 @@ type Classification =
   | 'montaplatos';
 
 interface ElevatorData {
-  location_name: string;
+  location_name: string; // Torre / Nombre
   useClientAddress: boolean;
   address: string;
   elevator_type: ElevatorType;
@@ -86,9 +86,9 @@ const createEmptyElevator = (clientAddress: string): ElevatorData => ({
   serial_number: '',
   serial_number_not_legible: false,
   capacity_kg: 450,
-  floors: 0,
+  floors: 1,
   installation_date: new Date().toISOString().split('T')[0],
-  has_machine_room: false,
+  has_machine_room: true, // valor por defecto válido
   no_machine_room: false,
   stops_all_floors: true,
   stops_odd_floors: false,
@@ -114,21 +114,22 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     confirmPassword: '',
   });
 
-  const [generatedClientCode, setGeneratedClientCode] = useState<string | null>(
-    null
-  );
-  const [generatedQRCode, setGeneratedQRCode] = useState<string | null>(null);
+  const [generatedClientCode, setGeneratedClientCode] =
+    useState<string | null>(null);
+  const [generatedQRCode, setGeneratedQRCode] =
+    useState<string | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
-  // Configuración de ascensores
+  // Config ascensores
   const [totalEquipments, setTotalEquipments] = useState(1);
   const [identicalElevators, setIdenticalElevators] = useState(false);
   const [elevatorCount, setElevatorCount] = useState(1);
 
-  const [templateElevator, setTemplateElevator] = useState<ElevatorData>(() =>
-    createEmptyElevator(clientData.address)
+  const [templateElevator, setTemplateElevator] = useState<ElevatorData>(
+    () => createEmptyElevator(clientData.address)
   );
   const [elevators, setElevators] = useState<ElevatorData[]>([
     createEmptyElevator(clientData.address),
@@ -140,7 +141,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     return false;
   };
 
-  // --- Sincronizar dirección del cliente con los ascensores que la usan ---
+  // Sincronizar dirección cliente con ascensores que la usan
   const handleClientAddressChange = (address: string) => {
     const prev = clientData.address;
 
@@ -152,7 +153,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
     setElevators((old) =>
       old.map((e) =>
-        e.useClientAddress && e.address === prev ? { ...e, address } : e
+        e.useClientAddress && e.address === prev
+          ? { ...e, address }
+          : e
       )
     );
   };
@@ -160,7 +163,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const updateElevator = (
     index: number,
     patch: Partial<ElevatorData>
-  ): void => {
+  ) => {
     setElevators((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index], ...patch };
@@ -173,12 +176,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       alert(`No puedes agregar más de ${totalEquipments} ascensores.`);
       return;
     }
-    setElevators((prev) => [...prev, createEmptyElevator(clientData.address)]);
+    setElevators((prev) => [
+      ...prev,
+      createEmptyElevator(clientData.address),
+    ]);
   };
 
   const removeElevator = (index: number) => {
     setElevators((prev) =>
-      prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
+      prev.length <= 1
+        ? prev
+        : prev.filter((_, i) => i !== index)
     );
   };
 
@@ -190,36 +198,50 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       const n = i + 1;
       const addr = e.useClientAddress ? clientData.address : e.address;
 
-      if (!e.location_name) return fail(`El ascensor ${n} debe tener un nombre`);
-      if (!addr) return fail(`El ascensor ${n} debe tener una dirección`);
+      if (!e.location_name)
+        return fail(`El ascensor ${n} debe tener un nombre / torre`);
+      if (!addr)
+        return fail(`El ascensor ${n} debe tener una dirección`);
       if (!e.manufacturer)
-        return fail(`El ascensor ${n} debe tener un fabricante`);
-      if (!e.model) return fail(`El ascensor ${n} debe tener un modelo`);
+        return fail(
+          `El ascensor ${n} debe tener un fabricante seleccionado`
+        );
+      if (!e.model)
+        return fail(`El ascensor ${n} debe tener un modelo`);
       if (!e.serial_number && !e.serial_number_not_legible)
         return fail(
-          `El ascensor ${n} debe tener número de serie o marcar "no legible"`
+          `El ascensor ${n} debe tener número de serie o marcar "N° de serie no legible"`
         );
       if (e.capacity_kg <= 0)
-        return fail(`El ascensor ${n} debe tener capacidad válida`);
-      if (e.floors <= 0)
-        return fail(`El ascensor ${n} debe tener N° de paradas válido`);
-      if (e.has_machine_room && e.no_machine_room)
         return fail(
-          `El ascensor ${n} no puede tener y no tener sala de máquinas a la vez`
+          `El ascensor ${n} debe tener una capacidad (kg) válida`
         );
-      if (!e.has_machine_room && !e.no_machine_room)
+      if (e.floors <= 0)
+        return fail(
+          `El ascensor ${n} debe tener N° de paradas válido`
+        );
+
+      // Sala de máquinas: exactamente una opción
+      if (
+        (e.has_machine_room && e.no_machine_room) ||
+        (!e.has_machine_room && !e.no_machine_room)
+      ) {
         return fail(
           `El ascensor ${n} debe indicar si tiene o no sala de máquinas`
         );
+      }
+
+      // Paradas: exactamente una opción
       const stopCount = [
         e.stops_all_floors,
         e.stops_odd_floors,
         e.stops_even_floors,
       ].filter(Boolean).length;
-      if (stopCount !== 1)
+      if (stopCount !== 1) {
         return fail(
-          `El ascensor ${n} debe tener exactamente una opción de paradas seleccionada`
+          `El ascensor ${n} debe tener una sola opción de paradas seleccionada`
         );
+      }
     }
 
     return true;
@@ -242,13 +264,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     alert('Código de cliente copiado');
   };
 
-  // --- SUBMIT ---
+  // SUBMIT
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // -------- EDITAR CLIENTE --------
+    // EDITAR CLIENTE
     if (isEditMode) {
       try {
         if (
@@ -258,7 +280,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           !clientData.contact_phone ||
           !clientData.address
         ) {
-          return fail('Todos los campos del cliente son obligatorios');
+          return fail(
+            'Todos los campos del cliente son obligatorios'
+          );
         }
 
         const { error: upErr } = await supabase
@@ -284,8 +308,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       return;
     }
 
-    // -------- NUEVO CLIENTE --------
-
+    // NUEVO CLIENTE
     if (
       !clientData.company_name ||
       !clientData.building_name ||
@@ -294,7 +317,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       !clientData.contact_phone ||
       !clientData.address
     ) {
-      return fail('Todos los campos del cliente son obligatorios');
+      return fail(
+        'Todos los campos del cliente son obligatorios'
+      );
     }
 
     if (!identicalElevators && elevators.length !== totalEquipments) {
@@ -316,20 +341,22 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
 
     if (clientData.password.length < 8) {
-      return fail('La contraseña debe tener al menos 8 caracteres');
+      return fail(
+        'La contraseña debe tener al menos 8 caracteres'
+      );
     }
 
     try {
-      // Sesión actual (usuario administrador logueado)
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
-        throw new Error('No hay sesión activa para crear el usuario del cliente.');
+        throw new Error(
+          'No hay sesión activa para crear el usuario del cliente.'
+        );
       }
 
-      // Llamada a Edge Function create-user (Supabase)
       const apiUrl = `${import.meta.env.VITE_DATABASE_URL}/functions/v1/create-user`;
 
       const response = await fetch(apiUrl, {
@@ -355,7 +382,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           result = JSON.parse(raw);
         } catch {
           throw new Error(
-            'La función create-user no retornó JSON válido. Revisa la configuración en Supabase.'
+            'La función create-user no retornó JSON válido. Revisa la Edge Function en Supabase.'
           );
         }
       }
@@ -371,10 +398,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
       const clientCode = `CLI-${Date.now()}-${Math.random()
         .toString(36)
-        .slice(2, 11)
+        .slice(2, 8)
         .toUpperCase()}`;
 
-      // Crear cliente en tabla clients
       const { data: createdClient, error: clientErr } = await supabase
         .from('clients')
         .insert({
@@ -396,7 +422,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         throw clientErr || new Error('No se pudo crear el cliente');
       }
 
-      // Preparar ascensores
       const elevatorsToInsert: any[] = identicalElevators
         ? Array(elevatorCount)
             .fill(null)
@@ -404,15 +429,19 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               const e = templateElevator;
               return {
                 client_id: createdClient.id,
-                location_name: e.location_name || `Ascensor ${idx + 1}`,
-                address: e.useClientAddress ? clientData.address : e.address,
+                location_name:
+                  e.location_name || `Ascensor ${idx + 1}`,
+                address: e.useClientAddress
+                  ? clientData.address
+                  : e.address,
                 elevator_type: e.elevator_type,
                 manufacturer: e.manufacturer,
                 model: e.model,
                 serial_number: e.serial_number
                   ? `${e.serial_number}-${idx + 1}`
                   : '',
-                serial_number_not_legible: e.serial_number_not_legible,
+                serial_number_not_legible:
+                  e.serial_number_not_legible,
                 capacity_kg: e.capacity_kg,
                 floors: e.floors,
                 installation_date: e.installation_date,
@@ -428,12 +457,15 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         : elevators.map((e) => ({
             client_id: createdClient.id,
             location_name: e.location_name,
-            address: e.useClientAddress ? clientData.address : e.address,
+            address: e.useClientAddress
+              ? clientData.address
+              : e.address,
             elevator_type: e.elevator_type,
             manufacturer: e.manufacturer,
             model: e.model,
             serial_number: e.serial_number,
-            serial_number_not_legible: e.serial_number_not_legible,
+            serial_number_not_legible:
+              e.serial_number_not_legible,
             capacity_kg: e.capacity_kg,
             floors: e.floors,
             installation_date: e.installation_date,
@@ -468,8 +500,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
   };
 
-  // ---------------- RENDER ----------------
-
+  // RENDER
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 max-h-[90vh] overflow-y-auto">
       <div className="flex items-center justify-between mb-6">
@@ -503,7 +534,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             Información del Cliente
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Razón Social */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Razón Social *
@@ -521,7 +551,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {/* Nombre Edificio */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Nombre Edificio *
@@ -529,7 +558,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               <input
                 type="text"
                 required
-                placeholder="Ej: Torre A, Edificio Central"
                 value={clientData.building_name}
                 onChange={(e) =>
                   setClientData((p) => ({
@@ -540,10 +568,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <p className="text-xs text-slate-500 mt-1">
-                Este nombre aparecerá en todos los documentos PDF y búsquedas.
+                Este nombre aparecerá en documentos PDF y búsquedas.
               </p>
             </div>
-            {/* RUT */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 RUT
@@ -552,12 +579,14 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 type="text"
                 value={clientData.rut}
                 onChange={(e) =>
-                  setClientData((p) => ({ ...p, rut: e.target.value }))
+                  setClientData((p) => ({
+                    ...p,
+                    rut: e.target.value,
+                  }))
                 }
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {/* Contacto */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Contacto *
@@ -575,7 +604,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {/* Email */}
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                 <Mail className="w-4 h-4" />
@@ -594,7 +622,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {/* Teléfono */}
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                 <Phone className="w-4 h-4" />
@@ -613,7 +640,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {/* Dirección */}
             <div className="md:col-span-2">
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                 <MapPin className="w-4 h-4" />
@@ -623,21 +649,22 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 type="text"
                 required
                 value={clientData.address}
-                onChange={(e) => handleClientAddressChange(e.target.value)}
+                onChange={(e) =>
+                  handleClientAddressChange(e.target.value)
+                }
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
         </section>
 
-        {/* Credenciales de Acceso (solo crear) */}
+        {/* Credenciales */}
         {!isEditMode && (
           <section className="border-b border-slate-200 pb-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
               Credenciales de Acceso
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Password */}
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                   <Key className="w-4 h-4" />
@@ -659,7 +686,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword((s) => !s)}
+                    onClick={() =>
+                      setShowPassword((s) => !s)
+                    }
                     className="absolute inset-y-0 right-3 flex items-center text-slate-400"
                   >
                     {showPassword ? (
@@ -670,7 +699,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   </button>
                 </div>
               </div>
-              {/* Confirm password */}
               <div>
                 <label className="text-sm font-medium text-slate-700 mb-1">
                   Confirmar contraseña *
@@ -716,7 +744,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             </h3>
           </div>
 
-          {/* Config general */}
+          {/* Configuración general */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -727,14 +755,22 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 min={1}
                 value={totalEquipments}
                 onChange={(e) => {
-                  const v = Number(e.target.value) || 1;
+                  const v = Math.max(
+                    1,
+                    Number(e.target.value) || 1
+                  );
                   setTotalEquipments(v);
                   if (!identicalElevators) {
-                    setElevators((prev) =>
-                      prev.slice(0, v).length
-                        ? prev.slice(0, v)
-                        : [createEmptyElevator(clientData.address)]
-                    );
+                    setElevators((prev) => {
+                      const next = [...prev];
+                      while (next.length < v)
+                        next.push(
+                          createEmptyElevator(
+                            clientData.address
+                          )
+                        );
+                      return next.slice(0, v);
+                    });
                   }
                 }}
                 className="w-full px-3 py-2 border rounded-lg"
@@ -776,7 +812,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                     setElevatorCount(
                       Math.min(
                         totalEquipments,
-                        Math.max(1, Number(e.target.value) || 1)
+                        Math.max(
+                          1,
+                          Number(e.target.value) || 1
+                        )
                       )
                     )
                   }
@@ -786,18 +825,18 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             )}
           </div>
 
-          {/* Template si son idénticos */}
+          {/* Si son idénticos: un solo bloque */}
           {identicalElevators ? (
             <div className="border rounded-xl p-4 bg-slate-50 space-y-3">
               <h4 className="font-semibold text-slate-800">
                 Datos del ascensor (se aplica a los {elevatorCount})
               </h4>
-              {/* Campos del templateElevator */}
-              {/* Nombre ubicación */}
+
+              {/* Nombre + dirección */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
-                    Nombre / Torre *
+                    Torre / Nombre *
                   </label>
                   <input
                     type="text"
@@ -811,18 +850,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
-
-                {/* Dirección: usar cliente o distinta */}
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
                     Dirección
                   </label>
                   <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
                       <input
                         type="radio"
-                        id="tpl-use-client-address"
-                        checked={templateElevator.useClientAddress}
+                        checked={
+                          templateElevator.useClientAddress
+                        }
                         onChange={() =>
                           setTemplateElevator((p) => ({
                             ...p,
@@ -831,18 +869,14 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                           }))
                         }
                       />
-                      <label
-                        htmlFor="tpl-use-client-address"
-                        className="text-xs text-slate-700"
-                      >
-                        Usar dirección del cliente
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2">
+                      Usar dirección del cliente
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
                       <input
                         type="radio"
-                        id="tpl-use-other-address"
-                        checked={!templateElevator.useClientAddress}
+                        checked={
+                          !templateElevator.useClientAddress
+                        }
                         onChange={() =>
                           setTemplateElevator((p) => ({
                             ...p,
@@ -851,13 +885,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                           }))
                         }
                       />
-                      <label
-                        htmlFor="tpl-use-other-address"
-                        className="text-xs text-slate-700"
-                      >
-                        Dirección diferente
-                      </label>
-                    </div>
+                      Dirección diferente
+                    </label>
                     {!templateElevator.useClientAddress && (
                       <input
                         type="text"
@@ -876,19 +905,19 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 </div>
               </div>
 
-              {/* Tipo, fabricante, modelo, serie, etc */}
+              {/* Tipo / fabricante / modelo */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
-                    Tipo de Ascensor *
+                    Tipo *
                   </label>
                   <select
                     value={templateElevator.elevator_type}
                     onChange={(e) =>
                       setTemplateElevator((p) => ({
                         ...p,
-                        elevator_type: e.target
-                          .value as ElevatorType,
+                        elevator_type:
+                          e.target.value as ElevatorType,
                       }))
                     }
                     className="w-full px-3 py-2 border rounded-lg"
@@ -913,7 +942,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                     }
                     className="w-full px-3 py-2 border rounded-lg"
                   >
-                    <option value="">Seleccionar fabricante</option>
+                    <option value="">
+                      Seleccionar fabricante
+                    </option>
                     {MANUFACTURERS.map((m) => (
                       <option key={m} value={m}>
                         {m}
@@ -939,15 +970,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 </div>
               </div>
 
+              {/* Serie / capacidad / paradas */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Serie */}
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
-                    Número de Serie
+                    N° de Serie
                   </label>
                   <input
                     type="text"
-                    disabled={templateElevator.serial_number_not_legible}
+                    disabled={
+                      templateElevator.serial_number_not_legible
+                    }
                     value={templateElevator.serial_number}
                     onChange={(e) =>
                       setTemplateElevator((p) => ({
@@ -957,7 +990,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                     }
                     className="w-full px-3 py-2 border rounded-lg"
                   />
-                  <div className="flex items-center gap-2 mt-1">
+                  <label className="flex items-center gap-2 mt-1 text-xs text-slate-600">
                     <input
                       type="checkbox"
                       checked={
@@ -974,12 +1007,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                         }))
                       }
                     />
-                    <span className="text-xs text-slate-600">
-                      N° de serie no legible / no disponible
-                    </span>
-                  </div>
+                    N° de serie no legible / no disponible
+                  </label>
                 </div>
-                {/* Capacidad */}
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
                     Capacidad (kg) *
@@ -991,13 +1021,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                     onChange={(e) =>
                       setTemplateElevator((p) => ({
                         ...p,
-                        capacity_kg: Number(e.target.value) || 0,
+                        capacity_kg:
+                          Number(e.target.value) || 0,
                       }))
                     }
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
-                {/* Paradas */}
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
                     N° de Paradas *
@@ -1016,9 +1046,126 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   />
                 </div>
               </div>
+
+              {/* Sala de máquinas / paradas / clasificación */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <p className="text-sm text-slate-700 mb-1">
+                    Sala de máquinas *
+                  </p>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={templateElevator.has_machine_room}
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          has_machine_room: true,
+                          no_machine_room: false,
+                        }))
+                      }
+                    />
+                    Con sala de máquinas
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={templateElevator.no_machine_room}
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          has_machine_room: false,
+                          no_machine_room: true,
+                        }))
+                      }
+                    />
+                    Sin sala de máquinas
+                  </label>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-700 mb-1">
+                    Paradas *
+                  </p>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={templateElevator.stops_all_floors}
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          stops_all_floors: true,
+                          stops_odd_floors: false,
+                          stops_even_floors: false,
+                        }))
+                      }
+                    />
+                    Todas las plantas
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={templateElevator.stops_odd_floors}
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          stops_all_floors: false,
+                          stops_odd_floors: true,
+                          stops_even_floors: false,
+                        }))
+                      }
+                    />
+                    Solo pisos impares
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={templateElevator.stops_even_floors}
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          stops_all_floors: false,
+                          stops_odd_floors: false,
+                          stops_even_floors: true,
+                        }))
+                      }
+                    />
+                    Solo pisos pares
+                  </label>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Clasificación *
+                  </label>
+                  <select
+                    value={templateElevator.classification}
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        classification:
+                          e.target
+                            .value as Classification,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="ascensor_corporativo">
+                      Ascensor Corporativo
+                    </option>
+                    <option value="ascensor_residencial">
+                      Ascensor Residencial
+                    </option>
+                    <option value="montacargas">
+                      Montacargas
+                    </option>
+                    <option value="montaplatos">
+                      Montaplatos
+                    </option>
+                  </select>
+                </div>
+              </div>
             </div>
           ) : (
-            // Lista de ascensores individuales
+            // Ascensores individuales
             <div className="space-y-4">
               {elevators.map((e, idx) => (
                 <div
@@ -1043,41 +1190,40 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-sm text-slate-700 mb-1 block">
-                        Nombre / Torre *
+                        Torre / Nombre *
                       </label>
                       <input
                         type="text"
                         value={e.location_name}
                         onChange={(ev) =>
                           updateElevator(idx, {
-                            location_name: ev.target.value,
+                            location_name:
+                              ev.target.value,
                           })
                         }
                         className="w-full px-3 py-2 border rounded-lg"
                       />
                     </div>
-                    {/* Dirección: usar cliente / diferente */}
                     <div>
                       <label className="text-sm text-slate-700 mb-1 block">
                         Dirección
                       </label>
                       <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-2 text-xs text-slate-700">
                           <input
                             type="radio"
                             checked={e.useClientAddress}
                             onChange={() =>
                               updateElevator(idx, {
                                 useClientAddress: true,
-                                address: clientData.address,
+                                address:
+                                  clientData.address,
                               })
                             }
                           />
-                          <span className="text-xs text-slate-700">
-                            Usar dirección del cliente
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
+                          Usar dirección del cliente
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-700">
                           <input
                             type="radio"
                             checked={!e.useClientAddress}
@@ -1088,10 +1234,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                               })
                             }
                           />
-                          <span className="text-xs text-slate-700">
-                            Dirección diferente
-                          </span>
-                        </div>
+                          Dirección diferente
+                        </label>
                         {!e.useClientAddress && (
                           <input
                             type="text"
@@ -1099,7 +1243,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                             value={e.address}
                             onChange={(ev) =>
                               updateElevator(idx, {
-                                address: ev.target.value,
+                                address:
+                                  ev.target.value,
                               })
                             }
                             className="w-full mt-1 px-3 py-2 border rounded-lg"
@@ -1118,8 +1263,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                         value={e.elevator_type}
                         onChange={(ev) =>
                           updateElevator(idx, {
-                            elevator_type: ev.target
-                              .value as ElevatorType,
+                            elevator_type:
+                              ev.target
+                                .value as ElevatorType,
                           })
                         }
                         className="w-full px-3 py-2 border rounded-lg"
@@ -1140,7 +1286,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                         value={e.manufacturer}
                         onChange={(ev) =>
                           updateElevator(idx, {
-                            manufacturer: ev.target.value,
+                            manufacturer:
+                              ev.target.value,
                           })
                         }
                         className="w-full px-3 py-2 border rounded-lg"
@@ -1164,11 +1311,221 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                         value={e.model}
                         onChange={(ev) =>
                           updateElevator(idx, {
-                            model: ev.target.value,
+                            model:
+                              ev.target.value,
                           })
                         }
                         className="w-full px-3 py-2 border rounded-lg"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        N° de Serie
+                      </label>
+                      <input
+                        type="text"
+                        disabled={
+                          e.serial_number_not_legible
+                        }
+                        value={e.serial_number}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            serial_number:
+                              ev.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                      <label className="flex items-center gap-2 mt-1 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={
+                            e.serial_number_not_legible
+                          }
+                          onChange={(ev) =>
+                            updateElevator(idx, {
+                              serial_number_not_legible:
+                                ev.target
+                                  .checked,
+                              serial_number:
+                                ev.target
+                                  .checked
+                                  ? ''
+                                  : e.serial_number,
+                            })
+                          }
+                        />
+                        N° de serie no legible / no
+                        disponible
+                      </label>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Capacidad (kg) *
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={e.capacity_kg}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            capacity_kg:
+                              Number(
+                                ev.target.value
+                              ) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        N° de Paradas *
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={e.floors}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            floors:
+                              Number(
+                                ev.target.value
+                              ) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-sm text-slate-700 mb-1">
+                        Sala de máquinas *
+                      </p>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={e.has_machine_room}
+                          onChange={() =>
+                            updateElevator(idx, {
+                              has_machine_room:
+                                true,
+                              no_machine_room:
+                                false,
+                            })
+                          }
+                        />
+                        Con sala de máquinas
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={e.no_machine_room}
+                          onChange={() =>
+                            updateElevator(idx, {
+                              has_machine_room:
+                                false,
+                              no_machine_room:
+                                true,
+                            })
+                          }
+                        />
+                        Sin sala de máquinas
+                      </label>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-700 mb-1">
+                        Paradas *
+                      </p>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={e.stops_all_floors}
+                          onChange={() =>
+                            updateElevator(idx, {
+                              stops_all_floors:
+                                true,
+                              stops_odd_floors:
+                                false,
+                              stops_even_floors:
+                                false,
+                            })
+                          }
+                        />
+                        Todas las plantas
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={
+                            e.stops_odd_floors
+                          }
+                          onChange={() =>
+                            updateElevator(idx, {
+                              stops_all_floors:
+                                false,
+                              stops_odd_floors:
+                                true,
+                              stops_even_floors:
+                                false,
+                            })
+                          }
+                        />
+                        Solo pisos impares
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={
+                            e.stops_even_floors
+                          }
+                          onChange={() =>
+                            updateElevator(idx, {
+                              stops_all_floors:
+                                false,
+                              stops_odd_floors:
+                                false,
+                              stops_even_floors:
+                                true,
+                            })
+                          }
+                        />
+                        Solo pisos pares
+                      </label>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Clasificación *
+                      </label>
+                      <select
+                        value={e.classification}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            classification:
+                              ev.target
+                                .value as Classification,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="ascensor_corporativo">
+                          Ascensor Corporativo
+                        </option>
+                        <option value="ascensor_residencial">
+                          Ascensor Residencial
+                        </option>
+                        <option value="montacargas">
+                          Montacargas
+                        </option>
+                        <option value="montaplatos">
+                          Montaplatos
+                        </option>
+                      </select>
                     </div>
                   </div>
                 </div>
