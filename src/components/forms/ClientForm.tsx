@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bolt Database } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Building2, MapPin, Phone, Mail, X, Key, Eye, EyeOff, Copy } from 'lucide-react';
 import QRCode from 'qrcode';
 
