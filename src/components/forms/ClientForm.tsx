@@ -15,10 +15,18 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 
+type ElevatorType = 'hydraulic' | 'electromechanical';
+type Classification =
+  | 'ascensor_corporativo'
+  | 'ascensor_residencial'
+  | 'montacargas'
+  | 'montaplatos';
+
 interface ElevatorData {
   location_name: string;
+  useClientAddress: boolean;
   address: string;
-  elevator_type: 'hydraulic' | 'electromechanical';
+  elevator_type: ElevatorType;
   manufacturer: string;
   model: string;
   serial_number: string;
@@ -31,11 +39,7 @@ interface ElevatorData {
   stops_all_floors: boolean;
   stops_odd_floors: boolean;
   stops_even_floors: boolean;
-  classification:
-    | 'ascensor_corporativo'
-    | 'ascensor_residencial'
-    | 'montacargas'
-    | 'montaplatos';
+  classification: Classification;
 }
 
 interface ClientFormProps {
@@ -54,13 +58,8 @@ interface ClientFormProps {
   onCancel?: () => void;
 }
 
-/**
- * Lista consolidada de fabricantes:
- * - Marcas principales
- * - Marcas menos comunes / modernización
- * - Locales
- */
-const manufacturerOptions = [
+// Lista de fabricantes actualizada
+const MANUFACTURERS = [
   'Orona',
   'Otis',
   'Schindler',
@@ -77,6 +76,29 @@ const manufacturerOptions = [
   'Otros',
 ];
 
+const createEmptyElevator = (
+  clientAddress: string
+): ElevatorData => ({
+  location_name: '',
+  useClientAddress: true,
+  address: clientAddress,
+  elevator_type: 'hydraulic',
+  manufacturer: '',
+  model: '',
+  serial_number: '',
+  serial_number_not_legible: false,
+  capacity_kg: 450,
+  floors: 0,
+  installation_date:
+    new Date().toISOString().split('T')[0],
+  has_machine_room: false,
+  no_machine_room: false,
+  stops_all_floors: true,
+  stops_odd_floors: false,
+  stops_even_floors: false,
+  classification: 'ascensor_corporativo',
+});
+
 export function ClientForm({
   client,
   onSuccess,
@@ -84,184 +106,727 @@ export function ClientForm({
 }: ClientFormProps) {
   const isEditMode = !!client;
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(
-    null
-  );
-
-  const [clientData, setClientData] = useState({
-    company_name: client?.company_name || '',
-    building_name: client?.building_name || '',
-    contact_name: client?.contact_name || '',
-    contact_email: client?.contact_email || '',
-    contact_phone: client?.contact_phone || '',
-    rut: '',
-    address: client?.address || '',
-    password: '',
-    confirmPassword: '',
-  });
-
-  const [generatedClientCode, setGeneratedClientCode] =
+  const [loading, setLoading] =
+    useState(false);
+  const [error, setError] =
     useState<string | null>(null);
-  const [generatedQRCode, setGeneratedQRCode] =
+
+  const [clientData, setClientData] =
+    useState({
+      company_name:
+        client?.company_name || '',
+      building_name:
+        client?.building_name || '',
+      contact_name:
+        client?.contact_name || '',
+      contact_email:
+        client?.contact_email || '',
+      contact_phone:
+        client?.contact_phone || '',
+      rut: '',
+      address: client?.address || '',
+      password: '',
+      confirmPassword: '',
+    });
+
+  const [generatedClientCode,
+    setGeneratedClientCode] =
+    useState<string | null>(null);
+  const [generatedQRCode,
+    setGeneratedQRCode] =
     useState<string | null>(null);
 
   const [showPassword, setShowPassword] =
     useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
-
-  const [totalEquipments, setTotalEquipments] =
-    useState(1);
-  const [identicalElevators, setIdenticalElevators] =
-    useState(false);
-  const [elevatorCount, setElevatorCount] =
-    useState(1);
-
-  // Dirección del cliente vs dirección personalizada (para plantilla)
-  const [useClientAddress, setUseClientAddress] =
-    useState(true);
-  const [customAddress, setCustomAddress] =
-    useState('');
-
-  const [elevatorManufacturers, setElevatorManufacturers] =
-    useState<Record<number, string>>({});
   const [
-    elevatorCustomManufacturers,
-    setElevatorCustomManufacturers,
-  ] = useState<Record<number, string>>({});
+    showConfirmPassword,
+    setShowConfirmPassword,
+  ] = useState(false);
 
-  const [templateElevator, setTemplateElevator] =
-    useState<ElevatorData>({
-      location_name: '',
-      address: '',
-      elevator_type: 'hydraulic',
-      manufacturer: '',
-      model: '',
-      serial_number: '',
-      serial_number_not_legible: false,
-      capacity_kg: 450,
-      floors: 0,
-      installation_date:
-        new Date().toISOString().split('T')[0],
-      has_machine_room: false,
-      no_machine_room: false,
-      stops_all_floors: true,
-      stops_odd_floors: false,
-      stops_even_floors: false,
-      classification: 'ascensor_corporativo',
-    });
+  const [totalEquipments,
+    setTotalEquipments] =
+    useState(1);
+  const [
+    identicalElevators,
+    setIdenticalElevators,
+  ] = useState(false);
+  const [elevatorCount,
+    setElevatorCount] =
+    useState(1);
 
+  const [templateElevator,
+    setTemplateElevator] =
+    useState<ElevatorData>(() =>
+      createEmptyElevator(
+        clientData.address
+      )
+    );
   const [elevators, setElevators] =
     useState<ElevatorData[]>([
-      {
-        location_name: '',
-        address: '',
-        elevator_type: 'hydraulic',
-        manufacturer: '',
-        model: '',
-        serial_number: '',
-        serial_number_not_legible: false,
-        capacity_kg: 450,
-        floors: 0,
-        installation_date:
-          new Date().toISOString().split('T')[0],
-        has_machine_room: false,
-        no_machine_room: false,
-        stops_all_floors: true,
-        stops_odd_floors: false,
-        stops_even_floors: false,
-        classification: 'ascensor_corporativo',
-      },
+      createEmptyElevator(
+        clientData.address
+      ),
     ]);
 
-  // ---- helpers de elevadores ----
-
-  const addElevator = () => {
-    if (elevators.length >= totalEquipments) {
-      alert(
-        `No puedes agregar más de ${totalEquipments} ascensores. Este es el número de equipos especificado.`
-      );
-      return;
-    }
-
-    setElevators([
-      ...elevators,
-      {
-        location_name: '',
-        address: '',
-        elevator_type: 'hydraulic',
-        manufacturer: '',
-        model: '',
-        serial_number: '',
-        serial_number_not_legible: false,
-        capacity_kg: 450,
-        floors: 0,
-        installation_date:
-          new Date().toISOString().split('T')[0],
-        has_machine_room: false,
-        no_machine_room: false,
-        stops_all_floors: true,
-        stops_odd_floors: false,
-        stops_even_floors: false,
-        classification: 'ascensor_corporativo',
-      },
-    ]);
+  // Helpers
+  const fail = (msg: string) => {
+    setError(msg);
+    setLoading(false);
+    return false;
   };
 
-  const removeElevator = (index: number) => {
-    if (elevators.length <= 1) return;
-    setElevators(
-      elevators.filter((_, i) => i !== index)
+  // Actualizar dirección del cliente y ascensores que la usan
+  const handleClientAddressChange = (
+    address: string
+  ) => {
+    const prev = clientData.address;
+    setClientData((p) => ({
+      ...p,
+      address,
+    }));
+
+    setTemplateElevator((prevT) =>
+      prevT.useClientAddress
+        ? { ...prevT, address }
+        : prevT
+    );
+
+    setElevators((prevList) =>
+      prevList.map((e) =>
+        e.useClientAddress &&
+        e.address === prev
+          ? { ...e, address }
+          : e
+      )
     );
   };
 
   const updateElevator = (
     index: number,
-    field: keyof ElevatorData,
-    value: any
+    patch: Partial<ElevatorData>
   ) => {
-    const updated = [...elevators];
-    updated[index] = {
-      ...updated[index],
-      [field]: value,
-    };
-    setElevators(updated);
-  };
-
-  // Cuando cambia la dirección del cliente, replicar en los ascensores que la usaban
-  const handleClientAddressChange = (
-    newAddress: string
-  ) => {
-    const prevAddress = clientData.address;
-
-    setClientData({
-      ...clientData,
-      address: newAddress,
+    setElevators((prev) => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        ...patch,
+      };
+      return copy;
     });
-
-    // Plantilla (cuando se usa dirección del cliente)
-    if (useClientAddress && identicalElevators) {
-      setTemplateElevator({
-        ...templateElevator,
-        address: newAddress,
-      });
-    }
-
-    // Ascensores individuales: si usaban la dirección anterior del cliente, actualizarlos
-    if (!identicalElevators) {
-      setElevators(
-        elevators.map((e) =>
-          e.address === prevAddress
-            ? { ...e, address: newAddress }
-            : e
-        )
-      );
-    }
   };
 
-  // ---- SUBMIT ----
+  const addElevator = () => {
+    if (
+      !identicalElevators &&
+      elevators.length >=
+        totalEquipments
+    ) {
+      alert(
+        `No puedes agregar más de ${totalEquipments} ascensores.`
+      );
+      return;
+    }
+    setElevators((prev) => [
+      ...prev,
+      createEmptyElevator(
+        clientData.address
+      ),
+    ]);
+  };
 
+  const removeElevator = (
+    index: number
+  ) => {
+    setElevators((prev) =>
+      prev.length <= 1
+        ? prev
+        : prev.filter(
+            (_, i) => i !== index
+          )
+    );
+  };
+
+  const validateElevators =
+    (): boolean => {
+      const list = identicalElevators
+        ? [templateElevator]
+        : elevators;
+
+      for (let i = 0; i < list.length; i++) {
+        const e = list[i];
+        const idx = i + 1;
+        const addr = e.useClientAddress
+          ? clientData.address
+          : e.address;
+
+        if (!e.location_name)
+          return fail(
+            `El ascensor ${idx} debe tener un nombre de ubicación`
+          );
+        if (!addr)
+          return fail(
+            `El ascensor ${idx} debe tener una dirección`
+          );
+        if (!e.manufacturer)
+          return fail(
+            `El ascensor ${idx} debe tener un fabricante`
+          );
+        if (!e.model)
+          return fail(
+            `El ascensor ${idx} debe tener un modelo`
+          );
+        if (
+          !e.serial_number &&
+          !e.serial_number_not_legible
+        )
+          return fail(
+            `El ascensor ${idx} debe tener número de serie o marcar que no es legible`
+          );
+        if (e.capacity_kg <= 0)
+          return fail(
+            `El ascensor ${idx} debe tener una capacidad válida`
+          );
+        if (e.floors <= 0)
+          return fail(
+            `El ascensor ${idx} debe tener un número de pisos válido`
+          );
+        if (
+          e.has_machine_room &&
+          e.no_machine_room
+        )
+          return fail(
+            `El ascensor ${idx} no puede tener ambas opciones de sala de máquinas`
+          );
+        if (
+          !e.has_machine_room &&
+          !e.no_machine_room
+        )
+          return fail(
+            `El ascensor ${idx} debe indicar si tiene o no sala de máquinas`
+          );
+        const stopCount = [
+          e.stops_all_floors,
+          e.stops_odd_floors,
+          e.stops_even_floors,
+        ].filter(Boolean).length;
+        if (stopCount !== 1)
+          return fail(
+            `El ascensor ${idx} debe tener exactamente una opción de paradas seleccionada`
+          );
+      }
+
+      return true;
+    };
+
+  // Render de un bloque de ascensor
+  const renderElevator = (
+    elevator: ElevatorData,
+    index: number,
+    isTemplate = false
+  ) => {
+    const set = (
+      patch: Partial<ElevatorData>
+    ) => {
+      if (isTemplate) {
+        setTemplateElevator(
+          (prev) => ({
+            ...prev,
+            ...patch,
+          })
+        );
+      } else {
+        updateElevator(
+          index,
+          patch
+        );
+      }
+    };
+
+    const addr = elevator.useClientAddress
+      ? clientData.address
+      : elevator.address;
+
+    return (
+      <div
+        key={
+          isTemplate
+            ? 'template'
+            : index
+        }
+        className="mt-4 border rounded-xl p-4 bg-white shadow-sm"
+      >
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="font-semibold">
+            {isTemplate
+              ? 'Ascensor (plantilla para idénticos)'
+              : `Ascensor #${
+                  index + 1
+                }`}
+          </h4>
+          {!isTemplate &&
+            elevators.length >
+              1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  removeElevator(
+                    index
+                  )
+                }
+                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+        </div>
+
+        {/* Torre */}
+        <label className="block text-sm font-medium text-slate-700">
+          Torre *
+          <input
+            type="text"
+            value={
+              elevator.location_name
+            }
+            onChange={(e) =>
+              set({
+                location_name:
+                  e.target
+                    .value,
+              })
+            }
+            placeholder="Ej: A, B, Norte, etc."
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          />
+        </label>
+
+        {/* Dirección */}
+        <div className="mt-3">
+          <span className="block text-sm font-medium text-slate-700">
+            Dirección *
+          </span>
+          <div className="flex gap-4 mt-1 text-sm">
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                checked={
+                  elevator.useClientAddress
+                }
+                onChange={() =>
+                  set({
+                    useClientAddress:
+                      true,
+                    address:
+                      clientData.address,
+                  })
+                }
+              />
+              Usar dirección del
+              cliente
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                checked={
+                  !elevator.useClientAddress
+                }
+                onChange={() =>
+                  set({
+                    useClientAddress:
+                      false,
+                    address:
+                      '',
+                  })
+                }
+              />
+              Dirección diferente
+            </label>
+          </div>
+
+          {elevator
+            .useClientAddress ? (
+            <p className="mt-1 text-xs text-slate-500">
+              {clientData.address
+                ? clientData.address
+                : 'Ingrese primero la dirección del cliente.'}
+            </p>
+          ) : (
+            <input
+              type="text"
+              value={addr}
+              onChange={(e) =>
+                set({
+                  address:
+                    e.target
+                      .value,
+                })
+              }
+              placeholder="Dirección del ascensor"
+              className="mt-2 w-full px-3 py-2 border rounded-lg"
+            />
+          )}
+        </div>
+
+        {/* Tipo */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Tipo de Ascensor *
+          </label>
+          <select
+            value={
+              elevator.elevator_type
+            }
+            onChange={(e) =>
+              set({
+                elevator_type:
+                  e.target
+                    .value as ElevatorType,
+              })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="hydraulic">
+              Hidráulico
+            </option>
+            <option value="electromechanical">
+              Electromecánico
+            </option>
+          </select>
+        </div>
+
+        {/* Clasificación */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Clasificación *
+          </label>
+          <select
+            value={
+              elevator
+                .classification
+            }
+            onChange={(e) =>
+              set({
+                classification:
+                  e.target
+                    .value as Classification,
+              })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="ascensor_corporativo">
+              Ascensor
+              Corporativo
+            </option>
+            <option value="ascensor_residencial">
+              Ascensor
+              Residencial
+            </option>
+            <option value="montacargas">
+              Montacargas
+            </option>
+            <option value="montaplatos">
+              Montaplatos
+            </option>
+          </select>
+        </div>
+
+        {/* Fabricante */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Fabricante *
+          </label>
+          <select
+            value={
+              elevator.manufacturer
+            }
+            onChange={(e) =>
+              set({
+                manufacturer:
+                  e.target
+                    .value,
+              })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="">
+              Seleccionar
+              fabricante
+            </option>
+            {MANUFACTURERS.map(
+              (m) => (
+                <option
+                  key={m}
+                  value={m}
+                >
+                  {m}
+                </option>
+              )
+            )}
+          </select>
+          {elevator.manufacturer ===
+            'Otros' && (
+            <input
+              type="text"
+              className="mt-2 w-full px-3 py-2 border rounded-lg"
+              placeholder="Ingrese fabricante"
+              onChange={(e) =>
+                set({
+                  manufacturer:
+                    e.target
+                      .value,
+                })
+              }
+            />
+          )}
+        </div>
+
+        {/* Modelo */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Modelo *
+          </label>
+          <input
+            type="text"
+            value={
+              elevator.model
+            }
+            onChange={(e) =>
+              set({
+                model:
+                  e.target
+                    .value,
+              })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+        {/* N° serie */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Número de Serie *
+          </label>
+          <div className="flex gap-3 items-center">
+            <input
+              type="text"
+              value={
+                elevator
+                  .serial_number
+              }
+              onChange={(e) =>
+                set({
+                  serial_number:
+                    e.target
+                      .value,
+                  serial_number_not_legible:
+                    false,
+                })
+              }
+              disabled={
+                elevator.serial_number_not_legible
+              }
+              className="mt-1 flex-1 px-3 py-2 border rounded-lg"
+            />
+            <label className="inline-flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={
+                  elevator.serial_number_not_legible
+                }
+                onChange={(e) =>
+                  set({
+                    serial_number_not_legible:
+                      e.target
+                        .checked,
+                    serial_number:
+                      e.target
+                        .checked
+                        ? ''
+                        : elevator.serial_number,
+                  })
+                }
+              />
+              N° no legible / no
+              disponible
+            </label>
+          </div>
+        </div>
+
+        {/* Capacidad / pisos */}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium">
+              Capacidad (kg) *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={
+                elevator
+                  .capacity_kg
+              }
+              onChange={(e) =>
+                set({
+                  capacity_kg:
+                    Number(
+                      e
+                        .target
+                        .value
+                    ) || 0,
+                })
+              }
+              className="mt-1 w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">
+              N° de Paradas *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={
+                elevator.floors
+              }
+              onChange={(e) =>
+                set({
+                  floors:
+                    Number(
+                      e
+                        .target
+                        .value
+                    ) || 0,
+                })
+              }
+              className="mt-1 w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+        </div>
+
+        {/* Sala de máquinas */}
+        <div className="mt-3 text-sm">
+          <span className="block font-medium">
+            Sala de Máquinas *
+          </span>
+          <label className="inline-flex items-center gap-2 mr-4">
+            <input
+              type="checkbox"
+              checked={
+                elevator
+                  .has_machine_room
+              }
+              onChange={(e) =>
+                set({
+                  has_machine_room:
+                    e.target
+                      .checked,
+                  no_machine_room:
+                    e.target
+                      .checked
+                      ? false
+                      : elevator.no_machine_room,
+                })
+              }
+            />
+            Con sala de
+            máquinas
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={
+                elevator
+                  .no_machine_room
+              }
+              onChange={(e) =>
+                set({
+                  no_machine_room:
+                    e.target
+                      .checked,
+                  has_machine_room:
+                    e.target
+                      .checked
+                      ? false
+                      : elevator.has_machine_room,
+                })
+              }
+            />
+            Sin sala de
+            máquinas
+          </label>
+        </div>
+
+        {/* Paradas */}
+        <div className="mt-3 text-sm">
+          <span className="block font-medium">
+            Paradas *
+          </span>
+          <label className="inline-flex items-center gap-2 mr-4">
+            <input
+              type="radio"
+              checked={
+                elevator
+                  .stops_all_floors
+              }
+              onChange={() =>
+                set({
+                  stops_all_floors:
+                    true,
+                  stops_odd_floors:
+                    false,
+                  stops_even_floors:
+                    false,
+                })
+              }
+            />
+            Todos los pisos
+          </label>
+          <label className="inline-flex items-center gap-2 mr-4">
+            <input
+              type="radio"
+              checked={
+                elevator
+                  .stops_odd_floors
+              }
+              onChange={() =>
+                set({
+                  stops_all_floors:
+                    false,
+                  stops_odd_floors:
+                    true,
+                  stops_even_floors:
+                    false,
+                })
+              }
+            />
+            Pisos impares
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              checked={
+                elevator
+                  .stops_even_floors
+              }
+              onChange={() =>
+                set({
+                  stops_all_floors:
+                    false,
+                  stops_odd_floors:
+                    false,
+                  stops_even_floors:
+                    true,
+                })
+              }
+            />
+            Pisos pares
+          </label>
+        </div>
+      </div>
+    );
+  };
+
+  // SUBMIT
   const handleSubmit = async (
     e: React.FormEvent
   ) => {
@@ -269,7 +834,7 @@ export function ClientForm({
     setLoading(true);
     setError(null);
 
-    // EDICIÓN: solo actualiza cliente
+    // EDITAR CLIENTE
     if (isEditMode) {
       try {
         if (
@@ -279,14 +844,12 @@ export function ClientForm({
           !clientData.contact_phone ||
           !clientData.address
         ) {
-          setError(
+          return fail(
             'Todos los campos del cliente son obligatorios'
           );
-          setLoading(false);
-          return;
         }
 
-        const { error: updateError } =
+        const { error: upErr } =
           await supabase
             .from('clients')
             .update({
@@ -301,32 +864,29 @@ export function ClientForm({
                 clientData.contact_email,
               contact_phone:
                 clientData.contact_phone,
-              address: clientData.address,
+              address:
+                clientData.address,
             })
             .eq('id', client!.id);
 
-        if (updateError) throw updateError;
+        if (upErr)
+          throw upErr;
 
         alert(
           'Cliente actualizado exitosamente'
         );
         onSuccess?.();
       } catch (err: any) {
-        console.error(
-          'Error updating client:',
-          err
-        );
-        setError(
+        console.error(err);
+        fail(
           err.message ||
             'Error al actualizar el cliente'
         );
-      } finally {
-        setLoading(false);
       }
       return;
     }
 
-    // NUEVO CLIENTE → validaciones
+    // NUEVO CLIENTE
 
     if (
       !clientData.company_name ||
@@ -336,150 +896,51 @@ export function ClientForm({
       !clientData.contact_phone ||
       !clientData.address
     ) {
-      setError(
+      return fail(
         'Todos los campos del cliente son obligatorios'
       );
-      setLoading(false);
-      return;
     }
 
     if (
       !identicalElevators &&
-      elevators.length !== totalEquipments
+      elevators.length !==
+        totalEquipments
     ) {
-      setError(
+      return fail(
         `Debes agregar exactamente ${totalEquipments} ascensores. Actualmente tienes ${elevators.length}.`
       );
-      setLoading(false);
-      return;
     }
 
     if (
       identicalElevators &&
-      elevatorCount !== totalEquipments
+      elevatorCount !==
+        totalEquipments
     ) {
-      setError(
+      return fail(
         `El número de ascensores idénticos (${elevatorCount}) debe coincidir con el N° de Equipos (${totalEquipments}).`
       );
-      setLoading(false);
+    }
+
+    if (!validateElevators())
       return;
-    }
-
-    const elevatorList = identicalElevators
-      ? [templateElevator]
-      : elevators;
-
-    for (let i = 0; i < elevatorList.length; i++) {
-      const elevator = elevatorList[i];
-      const idx = i + 1;
-
-      if (!elevator.location_name) {
-        setError(
-          `El ascensor ${idx} debe tener un nombre de ubicación`
-        );
-        setLoading(false);
-        return;
-      }
-      if (!elevator.address) {
-        setError(
-          `El ascensor ${idx} debe tener una dirección`
-        );
-        setLoading(false);
-        return;
-      }
-      if (!elevator.manufacturer) {
-        setError(
-          `El ascensor ${idx} debe tener un fabricante`
-        );
-        setLoading(false);
-        return;
-      }
-      if (!elevator.model) {
-        setError(
-          `El ascensor ${idx} debe tener un modelo`
-        );
-        setLoading(false);
-        return;
-      }
-      if (
-        !elevator.serial_number &&
-        !elevator.serial_number_not_legible
-      ) {
-        setError(
-          `El ascensor ${idx} debe tener número de serie o marcar que no es legible`
-        );
-        setLoading(false);
-        return;
-      }
-      if (elevator.capacity_kg <= 0) {
-        setError(
-          `El ascensor ${idx} debe tener una capacidad válida`
-        );
-        setLoading(false);
-        return;
-      }
-      if (elevator.floors <= 0) {
-        setError(
-          `El ascensor ${idx} debe tener un número de pisos válido`
-        );
-        setLoading(false);
-        return;
-      }
-      if (
-        elevator.has_machine_room &&
-        elevator.no_machine_room
-      ) {
-        setError(
-          `El ascensor ${idx} no puede tener ambas opciones de sala de máquinas marcadas`
-        );
-        setLoading(false);
-        return;
-      }
-      if (
-        !elevator.has_machine_room &&
-        !elevator.no_machine_room
-      ) {
-        setError(
-          `El ascensor ${idx} debe indicar si tiene o no sala de máquinas`
-        );
-        setLoading(false);
-        return;
-      }
-      const stopsSelected = [
-        elevator.stops_all_floors,
-        elevator.stops_odd_floors,
-        elevator.stops_even_floors,
-      ].filter(Boolean).length;
-      if (stopsSelected !== 1) {
-        setError(
-          `El ascensor ${idx} debe tener exactamente una opción de paradas en pisos seleccionada`
-        );
-        setLoading(false);
-        return;
-      }
-    }
 
     if (
       clientData.password !==
       clientData.confirmPassword
     ) {
-      setError('Las contraseñas no coinciden');
-      setLoading(false);
-      return;
+      return fail(
+        'Las contraseñas no coinciden'
+      );
     }
 
     if (clientData.password.length < 8) {
-      setError(
+      return fail(
         'La contraseña debe tener al menos 8 caracteres'
       );
-      setLoading(false);
-      return;
     }
 
-    // ---- CREACIÓN REAL (usa /api/users/create, NO Supabase Edge Function) ----
-
     try {
-      // 1) Crear usuario vía función serverless en Vercel
+      // 1) Crear usuario vía API interna de Vercel
       const resp = await fetch(
         '/api/users/create',
         {
@@ -490,7 +951,8 @@ export function ClientForm({
           },
           body: JSON.stringify({
             email: clientData.contact_email,
-            password: clientData.password,
+            password:
+              clientData.password,
             full_name:
               clientData.contact_name,
             phone:
@@ -520,22 +982,25 @@ export function ClientForm({
         );
       }
 
-      const profile = data.profile;
+      const profile =
+        data.profile;
 
-      // 2) Crear cliente asociado
+      // 2) Crear cliente
       const clientCode = `CLI-${Date.now()}-${Math.random()
         .toString(36)
-        .substr(2, 9)
+        .slice(2, 11)
         .toUpperCase()}`;
 
       const {
         data: createdClient,
-        error: clientError,
+        error: clientErr,
       } = await supabase
         .from('clients')
         .insert({
-          profile_id: profile.id,
-          company_name: clientData.company_name,
+          profile_id:
+            profile.id,
+          company_name:
+            clientData.company_name,
           building_name:
             clientData.building_name,
           contact_name:
@@ -544,109 +1009,135 @@ export function ClientForm({
             clientData.contact_email,
           contact_phone:
             clientData.contact_phone,
-          rut: clientData.rut || null,
-          address: clientData.address,
+          rut:
+            clientData.rut ||
+            null,
+          address:
+            clientData.address,
           is_active: true,
         })
         .select()
         .single();
 
-      if (clientError || !createdClient) {
+      if (clientErr || !createdClient)
         throw (
-          clientError ||
+          clientErr ||
           new Error(
             'No se pudo crear el cliente'
           )
         );
-      }
 
       // 3) Crear ascensores
-      let elevatorsToInsert;
-
-      if (identicalElevators) {
-        elevatorsToInsert =
-          Array(elevatorCount)
-            .fill(null)
-            .map((_, index) => ({
-              client_id: createdClient.id,
-              location_name:
-                templateElevator.location_name ||
-                `Ascensor ${index + 1}`,
-              address: useClientAddress
-                ? clientData.address
-                : templateElevator.address,
-              elevator_type:
-                templateElevator.elevator_type,
-              manufacturer:
-                templateElevator.manufacturer,
-              model: templateElevator.model,
-              serial_number:
-                templateElevator.serial_number
-                  ? `${templateElevator.serial_number}-${index + 1}`
-                  : '',
-              serial_number_not_legible:
-                templateElevator.serial_number_not_legible,
-              capacity_kg:
-                templateElevator.capacity_kg,
-              floors: templateElevator.floors,
-              installation_date:
-                templateElevator.installation_date,
-              has_machine_room:
-                templateElevator.has_machine_room,
-              no_machine_room:
-                templateElevator.no_machine_room,
-              stops_all_floors:
-                templateElevator.stops_all_floors,
-              stops_odd_floors:
-                templateElevator.stops_odd_floors,
-              stops_even_floors:
-                templateElevator.stops_even_floors,
-              classification:
-                templateElevator.classification,
-              status: 'active' as const,
-            }));
-      } else {
-        elevatorsToInsert = elevators.map(
-          (elev) => ({
-            client_id: createdClient.id,
-            location_name: elev.location_name,
-            address: elev.address,
-            elevator_type: elev.elevator_type,
-            manufacturer: elev.manufacturer,
-            model: elev.model,
-            serial_number: elev.serial_number,
-            serial_number_not_legible:
-              elev.serial_number_not_legible,
-            capacity_kg: elev.capacity_kg,
-            floors: elev.floors,
-            installation_date:
-              elev.installation_date,
-            has_machine_room:
-              elev.has_machine_room,
-            no_machine_room:
-              elev.no_machine_room,
-            stops_all_floors:
-              elev.stops_all_floors,
-            stops_odd_floors:
-              elev.stops_odd_floors,
-            stops_even_floors:
-              elev.stops_even_floors,
-            classification: elev.classification,
-            status: 'active' as const,
-          })
-        );
-      }
+      const elevatorsToInsert =
+        identicalElevators
+          ? Array(
+              elevatorCount
+            )
+              .fill(null)
+              .map(
+                (_,
+                idx) => {
+                  const e =
+                    templateElevator;
+                  const addr =
+                    e.useClientAddress
+                      ? clientData.address
+                      : e.address;
+                  return {
+                    client_id:
+                      createdClient.id,
+                    location_name:
+                      e.location_name ||
+                      `Ascensor ${
+                        idx +
+                        1
+                      }`,
+                    address: addr,
+                    elevator_type:
+                      e.elevator_type,
+                    manufacturer:
+                      e.manufacturer,
+                    model: e.model,
+                    serial_number:
+                      e.serial_number
+                        ? `${e.serial_number}-${idx + 1}`
+                        : '',
+                    serial_number_not_legible:
+                      e.serial_number_not_legible,
+                    capacity_kg:
+                      e.capacity_kg,
+                    floors:
+                      e.floors,
+                    installation_date:
+                      e.installation_date,
+                    has_machine_room:
+                      e.has_machine_room,
+                    no_machine_room:
+                      e.no_machine_room,
+                    stops_all_floors:
+                      e.stops_all_floors,
+                    stops_odd_floors:
+                      e.stops_odd_floors,
+                    stops_even_floors:
+                      e.stops_even_floors,
+                    classification:
+                      e.classification,
+                    status:
+                      'active' as const,
+                  };
+                }
+              )
+          : elevators.map(
+              (e) => ({
+                client_id:
+                  createdClient.id,
+                location_name:
+                  e.location_name,
+                address:
+                  e.useClientAddress
+                    ? clientData.address
+                    : e.address,
+                elevator_type:
+                  e.elevator_type,
+                manufacturer:
+                  e.manufacturer,
+                model: e.model,
+                serial_number:
+                  e.serial_number,
+                serial_number_not_legible:
+                  e.serial_number_not_legible,
+                capacity_kg:
+                  e.capacity_kg,
+                floors:
+                  e.floors,
+                installation_date:
+                  e.installation_date,
+                has_machine_room:
+                  e.has_machine_room,
+                no_machine_room:
+                  e.no_machine_room,
+                stops_all_floors:
+                  e.stops_all_floors,
+                stops_odd_floors:
+                  e.stops_odd_floors,
+                stops_even_floors:
+                  e.stops_even_floors,
+                classification:
+                  e.classification,
+                status:
+                  'active' as const,
+              })
+            );
 
       const {
-        error: elevatorsError,
+        error: elevErr,
       } = await supabase
         .from('elevators')
         .insert(elevatorsToInsert);
 
-      if (elevatorsError)
-        throw elevatorsError;
+      if (elevErr) throw elevErr;
 
-      // 4) Generar QR del cliente
+      // 4) Generar QR
       const qrDataURL =
         await QRCode.toDataURL(
           clientCode,
@@ -660,34 +1151,493 @@ export function ClientForm({
           }
         );
 
-      setGeneratedClientCode(clientCode);
-      setGeneratedQRCode(qrDataURL);
+      setGeneratedClientCode(
+        clientCode
+      );
+      setGeneratedQRCode(
+        qrDataURL
+      );
 
       onSuccess?.();
     } catch (err: any) {
-      console.error('Error:', err);
-      setError(
+      console.error(err);
+      fail(
         err.message ||
           'Error al crear el cliente'
       );
-    } finally {
-      setLoading(false);
     }
   };
 
-  // A partir de aquí mantén el mismo JSX/diseño que ya tienes:
-  // encabezado, secciones de Información del Cliente,
-  // Credenciales de Acceso, Información de Ascensores,
-  // renderizado de elevators/templateElevator, QR y botones.
-  // Si quieres, puedes reutilizar exactamente tu markup anterior
-  // solo apuntando los onChange/onClick a los estados y funciones de arriba.
+  // ============ UI ============
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-6"
-    >
-      {/* ...tu layout original aquí... */}
-    </form>
+    <div className="bg-white rounded-xl shadow-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Building2 className="w-6 h-6 text-blue-600" />
+          <h2 className="text-2xl font-bold text-slate-900">
+            {isEditMode
+              ? 'Editar Cliente'
+              : 'Nuevo Cliente'}
+          </h2>
+        </div>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="p-2 hover:bg-slate-100 rounded-lg transition"
+          >
+            <X className="w-5 h-5 text-slate-600" />
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          {error}
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-6"
+      >
+        {/* Información del Cliente */}
+        <section>
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+            Información del Cliente
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Razón Social *
+              </label>
+              <input
+                type="text"
+                value={
+                  clientData.company_name
+                }
+                onChange={(e) =>
+                  setClientData(
+                    (p) => ({
+                      ...p,
+                      company_name:
+                        e.target
+                          .value,
+                    })
+                  )
+                }
+                className="mt-1 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Nombre Edificio *
+              </label>
+              <input
+                type="text"
+                value={
+                  clientData.building_name
+                }
+                onChange={(e) =>
+                  setClientData(
+                    (p) => ({
+                      ...p,
+                      building_name:
+                        e.target
+                          .value,
+                    })
+                  )
+                }
+                placeholder="Ej: Trinidad 1"
+                className="mt-1 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Este nombre aparecerá en
+                todos los documentos PDF
+                y búsquedas
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                RUT
+              </label>
+              <input
+                type="text"
+                value={
+                  clientData.rut
+                }
+                onChange={(e) =>
+                  setClientData(
+                    (p) => ({
+                      ...p,
+                      rut: e.target
+                        .value,
+                    })
+                  )
+                }
+                className="mt-1 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Contacto *
+              </label>
+              <input
+                type="text"
+                value={
+                  clientData.contact_name
+                }
+                onChange={(e) =>
+                  setClientData(
+                    (p) => ({
+                      ...p,
+                      contact_name:
+                        e.target
+                          .value,
+                    })
+                  )
+                }
+                className="mt-1 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Email *
+              </label>
+              <div className="flex items-center mt-1 gap-2">
+                <Mail className="w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  value={
+                    clientData.contact_email
+                  }
+                  onChange={(e) =>
+                    setClientData(
+                      (p) => ({
+                        ...p,
+                        contact_email:
+                          e
+                            .target
+                            .value,
+                      })
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Teléfono *
+              </label>
+              <div className="flex items-center mt-1 gap-2">
+                <Phone className="w-4 h-4 text-slate-400" />
+                <input
+                  type="tel"
+                  value={
+                    clientData.contact_phone
+                  }
+                  onChange={(e) =>
+                    setClientData(
+                      (p) => ({
+                        ...p,
+                        contact_phone:
+                          e
+                            .target
+                            .value,
+                      })
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Dirección *
+              </label>
+              <div className="flex items-center mt-1 gap-2">
+                <MapPin className="w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={
+                    clientData.address
+                  }
+                  onChange={(e) =>
+                    handleClientAddressChange(
+                      e.target
+                        .value
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Credenciales */}
+        {!isEditMode && (
+          <section>
+            <h3 className="text-lg font-semibold text-slate-800 mb-3">
+              Credenciales de Acceso
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700">
+                  Contraseña *
+                </label>
+                <div className="flex items-center mt-1 gap-2">
+                  <Key className="w-4 h-4 text-slate-400" />
+                  <input
+                    type={
+                      showPassword
+                        ? 'text'
+                        : 'password'
+                    }
+                    value={
+                      clientData.password
+                    }
+                    onChange={(e) =>
+                      setClientData(
+                        (p) => ({
+                          ...p,
+                          password:
+                            e
+                              .target
+                              .value,
+                        })
+                      )
+                    }
+                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Mínimo 8 caracteres"
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPassword(
+                        (v) => !v
+                      )
+                    }
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700">
+                  Confirmar Contraseña *
+                </label>
+                <div className="flex items-center mt-1 gap-2">
+                  <Key className="w-4 h-4 text-slate-400" />
+                  <input
+                    type={
+                      showConfirmPassword
+                        ? 'text'
+                        : 'password'
+                    }
+                    value={
+                      clientData.confirmPassword
+                    }
+                    onChange={(e) =>
+                      setClientData(
+                        (p) => ({
+                          ...p,
+                          confirmPassword:
+                            e
+                              .target
+                              .value,
+                        })
+                      )
+                    }
+                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowConfirmPassword(
+                        (v) => !v
+                      )
+                    }
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-600"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Ascensores */}
+        <section>
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+            Información de Ascensores
+          </h3>
+          <div className="flex flex-wrap gap-4 items-center mb-3">
+            <div>
+              <label className="block text-sm font-medium">
+                N° de Equipos *
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={totalEquipments}
+                onChange={(e) =>
+                  setTotalEquipments(
+                    Number(
+                      e.target.value
+                    ) || 1
+                  )
+                }
+                className="mt-1 w-24 px-3 py-2 border rounded-lg"
+              />
+            </div>
+            <label className="inline-flex items-center gap-2 mt-6 text-sm">
+              <input
+                type="checkbox"
+                checked={
+                  identicalElevators
+                }
+                onChange={(e) =>
+                  setIdenticalElevators(
+                    e.target
+                      .checked
+                  )
+                }
+              />
+              Todos los ascensores son
+              idénticos
+            </label>
+            {identicalElevators && (
+              <div>
+                <label className="block text-sm font-medium">
+                  Cantidad de
+                  ascensores
+                  idénticos *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={
+                    elevatorCount
+                  }
+                  onChange={(e) =>
+                    setElevatorCount(
+                      Number(
+                        e
+                          .target
+                          .value
+                      ) || 1
+                    )
+                  }
+                  className="mt-1 w-24 px-3 py-2 border rounded-lg"
+                />
+              </div>
+            )}
+          </div>
+
+          {identicalElevators ? (
+            renderElevator(
+              templateElevator,
+              0,
+              true
+            )
+          ) : (
+            <>
+              {elevators.map(
+                (e, i) =>
+                  renderElevator(
+                    e,
+                    i
+                  )
+              )}
+              <button
+                type="button"
+                onClick={addElevator}
+                className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg text-sm text-slate-700"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar Ascensor
+              </button>
+            </>
+          )}
+        </section>
+
+        {/* QR generado */}
+        {generatedClientCode &&
+          generatedQRCode && (
+            <section className="mt-4 p-4 border rounded-xl bg-slate-50 flex items-center gap-4">
+              <div>
+                <p className="text-sm text-slate-600">
+                  Cliente creado con
+                  código:
+                </p>
+                <p className="font-semibold">
+                  {
+                    generatedClientCode
+                  }
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigator.clipboard.writeText(
+                      generatedClientCode
+                    )
+                  }
+                  className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 text-xs border rounded-lg text-slate-700 hover:bg-slate-100"
+                >
+                  <Copy className="w-3 h-3" />
+                  Copiar código
+                </button>
+              </div>
+              <img
+                src={
+                  generatedQRCode
+                }
+                alt="QR Cliente"
+                className="w-24 h-24"
+              />
+            </section>
+          )}
+
+        {/* Botones */}
+        <div className="flex justify-end gap-3 pt-4">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 rounded-lg border text-slate-700 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-5 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            {loading
+              ? 'Guardando...'
+              : isEditMode
+              ? 'Guardar Cambios'
+              : 'Crear Cliente'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
