@@ -18,8 +18,8 @@ type Classification =
 
 interface ElevatorData {
   location_name: string;
+  useClientAddress: boolean;
   address: string;
-  use_client_address: boolean;
   elevator_type: ElevatorType;
   manufacturer: string;
   model: string;
@@ -37,20 +37,22 @@ interface ElevatorData {
 }
 
 interface ClientFormProps {
-  client?: {
-    id: string;
-    company_name: string;
-    building_name: string | null;
-    contact_name: string;
-    contact_email: string;
-    contact_phone: string;
-    address: string;
-  } | null;
+  client?:
+    | {
+        id: string;
+        company_name: string;
+        building_name: string | null;
+        contact_name: string;
+        contact_email: string;
+        contact_phone: string;
+        address: string;
+      }
+    | null;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
-const manufacturerOptions = [
+const MANUFACTURERS = [
   'Orona',
   'Otis',
   'Schindler',
@@ -67,10 +69,10 @@ const manufacturerOptions = [
   'Otros',
 ];
 
-const createEmptyElevator = (): ElevatorData => ({
+const createEmptyElevator = (clientAddress = ''): ElevatorData => ({
   location_name: '',
-  address: '',
-  use_client_address: true,
+  useClientAddress: true,
+  address: clientAddress,
   elevator_type: 'hydraulic',
   manufacturer: '',
   model: '',
@@ -120,10 +122,12 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [elevatorCount, setElevatorCount] = useState(1);
 
   const [templateElevator, setTemplateElevator] =
-    useState<ElevatorData>(createEmptyElevator());
+    useState<ElevatorData>(() =>
+      createEmptyElevator(clientData.address)
+    );
 
   const [elevators, setElevators] = useState<ElevatorData[]>([
-    createEmptyElevator(),
+    createEmptyElevator(clientData.address),
   ]);
 
   // Helpers
@@ -132,6 +136,22 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     setError(msg);
     setLoading(false);
     return false;
+  };
+
+  const handleClientAddressChange = (address: string) => {
+    setClientData((prev) => ({ ...prev, address }));
+
+    // Actualizar ascensores que usan dirección del cliente
+    setElevators((prev) =>
+      prev.map((e) =>
+        e.useClientAddress ? { ...e, address } : e
+      )
+    );
+
+    // Actualizar plantilla si también usa dirección del cliente
+    setTemplateElevator((prev) =>
+      prev.useClientAddress ? { ...prev, address } : prev
+    );
   };
 
   const updateElevator = (
@@ -145,22 +165,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     });
   };
 
-  const handleClientAddressChange = (address: string) => {
-    setClientData((prev) => ({ ...prev, address }));
-
-    // Actualizar todos los ascensores que usan la dirección del cliente
-    setElevators((prev) =>
-      prev.map((e) =>
-        e.use_client_address ? { ...e, address } : e
-      )
-    );
-
-    // Y el template si corresponde
-    if (templateElevator.use_client_address) {
-      setTemplateElevator((prev) => ({ ...prev, address }));
-    }
-  };
-
   const addElevator = () => {
     if (!identicalElevators && elevators.length >= totalEquipments) {
       alert(
@@ -170,10 +174,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
     setElevators((prev) => [
       ...prev,
-      {
-        ...createEmptyElevator(),
-        address: clientData.address,
-      },
+      createEmptyElevator(clientData.address),
     ]);
   };
 
@@ -190,59 +191,430 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
+      const idx = i + 1;
+
+      const addr = e.useClientAddress
+        ? clientData.address
+        : e.address;
 
       if (!e.location_name)
         return setErr(
-          `El ascensor ${i + 1} debe tener un nombre de ubicación`
+          `El ascensor ${idx} debe tener un nombre de ubicación`
         );
-
-      const addr =
-        e.use_client_address ? clientData.address : e.address;
       if (!addr)
         return setErr(
-          `El ascensor ${i + 1} debe tener una dirección`
+          `El ascensor ${idx} debe tener una dirección`
         );
-
       if (!e.manufacturer)
         return setErr(
-          `El ascensor ${i + 1} debe tener un fabricante`
+          `El ascensor ${idx} debe tener un fabricante`
         );
       if (!e.model)
         return setErr(
-          `El ascensor ${i + 1} debe tener un modelo`
+          `El ascensor ${idx} debe tener un modelo`
         );
       if (!e.serial_number && !e.serial_number_not_legible)
         return setErr(
-          `El ascensor ${i + 1} debe tener número de serie o marcar que no es legible`
+          `El ascensor ${idx} debe tener número de serie o marcar que no es legible`
         );
       if (e.capacity_kg <= 0)
         return setErr(
-          `El ascensor ${i + 1} debe tener una capacidad válida`
+          `El ascensor ${idx} debe tener una capacidad válida`
         );
       if (e.floors <= 0)
         return setErr(
-          `El ascensor ${i + 1} debe tener un número de pisos válido`
+          `El ascensor ${idx} debe tener un número de pisos válido`
         );
       if (e.has_machine_room && e.no_machine_room)
         return setErr(
-          `El ascensor ${i + 1} no puede tener ambas opciones de sala de máquinas`
+          `El ascensor ${idx} no puede tener ambas opciones de sala de máquinas`
         );
       if (!e.has_machine_room && !e.no_machine_room)
         return setErr(
-          `El ascensor ${i + 1} debe indicar si tiene o no sala de máquinas`
+          `El ascensor ${idx} debe indicar si tiene o no sala de máquinas`
         );
-      const stops = [
+      const stopCount = [
         e.stops_all_floors,
         e.stops_odd_floors,
         e.stops_even_floors,
       ].filter(Boolean).length;
-      if (stops !== 1)
+      if (stopCount !== 1)
         return setErr(
-          `El ascensor ${i + 1} debe tener exactamente una opción de paradas seleccionada`
+          `El ascensor ${idx} debe tener exactamente una opción de paradas seleccionada`
         );
     }
 
     return true;
+  };
+
+  // Render de un bloque de ascensor (plantilla o individual)
+
+  const renderElevator = (
+    elevator: ElevatorData,
+    index: number,
+    isTemplate = false
+  ) => {
+    const set = (patch: Partial<ElevatorData>) => {
+      if (isTemplate) {
+        setTemplateElevator((prev) => ({
+          ...prev,
+          ...patch,
+        }));
+      } else {
+        updateElevator(index, patch);
+      }
+    };
+
+    const addr = elevator.useClientAddress
+      ? clientData.address
+      : elevator.address;
+
+    return (
+      <div
+        key={isTemplate ? 'template' : index}
+        className="mt-4 border rounded-xl p-4 bg-white shadow-sm"
+      >
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="font-semibold">
+            {isTemplate
+              ? 'Datos del Ascensor (Plantilla para idénticos)'
+              : `Ascensor #${index + 1}`}
+          </h4>
+          {!isTemplate && elevators.length > 1 && (
+            <button
+              type="button"
+              onClick={() => removeElevator(index)}
+              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Torre */}
+        <label className="block text-sm font-medium text-slate-700">
+          Torre *
+          <input
+            type="text"
+            value={elevator.location_name}
+            onChange={(e) =>
+              set({ location_name: e.target.value })
+            }
+            placeholder="Ej: A, B, Norte, etc."
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          />
+        </label>
+
+        {/* Dirección */}
+        <div className="mt-3">
+          <span className="block text-sm font-medium text-slate-700">
+            Dirección *
+          </span>
+          <div className="flex gap-4 mt-1 text-sm">
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                checked={elevator.useClientAddress}
+                onChange={() =>
+                  set({
+                    useClientAddress: true,
+                    address: clientData.address,
+                  })
+                }
+              />
+              Usar dirección del cliente
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                checked={!elevator.useClientAddress}
+                onChange={() =>
+                  set({
+                    useClientAddress: false,
+                    address: '',
+                  })
+                }
+              />
+              Dirección diferente
+            </label>
+          </div>
+
+          {elevator.useClientAddress ? (
+            <p className="mt-1 text-xs text-slate-500">
+              {clientData.address
+                ? clientData.address
+                : 'Ingrese primero la dirección del cliente.'}
+            </p>
+          ) : (
+            <input
+              type="text"
+              value={addr}
+              onChange={(e) =>
+                set({ address: e.target.value })
+              }
+              placeholder="Dirección del ascensor"
+              className="mt-2 w-full px-3 py-2 border rounded-lg"
+            />
+          )}
+        </div>
+
+        {/* Tipo de ascensor */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Tipo de Ascensor *
+          </label>
+          <select
+            value={elevator.elevator_type}
+            onChange={(e) =>
+              set({
+                elevator_type:
+                  e.target.value as ElevatorType,
+              })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="hydraulic">Hidráulico</option>
+            <option value="electromechanical">
+              Electromecánico
+            </option>
+          </select>
+        </div>
+
+        {/* Clasificación */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Clasificación *
+          </label>
+          <select
+            value={elevator.classification}
+            onChange={(e) =>
+              set({
+                classification:
+                  e.target.value as Classification,
+              })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="ascensor_corporativo">
+              Ascensor Corporativo
+            </option>
+            <option value="ascensor_residencial">
+              Ascensor Residencial
+            </option>
+            <option value="montacargas">
+              Montacargas
+            </option>
+            <option value="montaplatos">
+              Montaplatos
+            </option>
+          </select>
+        </div>
+
+        {/* Fabricante */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Fabricante *
+          </label>
+          <select
+            value={elevator.manufacturer}
+            onChange={(e) =>
+              set({ manufacturer: e.target.value })
+            }
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="">Seleccionar fabricante</option>
+            {MANUFACTURERS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+          {elevator.manufacturer === 'Otros' && (
+            <input
+              type="text"
+              className="mt-2 w-full px-3 py-2 border rounded-lg"
+              placeholder="Ingrese fabricante"
+              onChange={(e) =>
+                set({ manufacturer: e.target.value })
+              }
+            />
+          )}
+        </div>
+
+        {/* Modelo */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Modelo *
+          </label>
+          <input
+            type="text"
+            value={elevator.model}
+            onChange={(e) => set({ model: e.target.value })}
+            className="mt-1 w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+        {/* N° serie */}
+        <div className="mt-3">
+          <label className="block text-sm font-medium">
+            Número de Serie *
+          </label>
+          <div className="flex gap-3 items-center">
+            <input
+              type="text"
+              value={elevator.serial_number}
+              onChange={(e) =>
+                set({
+                  serial_number: e.target.value,
+                  serial_number_not_legible: false,
+                })
+              }
+              disabled={elevator.serial_number_not_legible}
+              className="mt-1 flex-1 px-3 py-2 border rounded-lg"
+            />
+            <label className="inline-flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={elevator.serial_number_not_legible}
+                onChange={(e) =>
+                  set({
+                    serial_number_not_legible:
+                      e.target.checked,
+                    serial_number: e.target.checked
+                      ? ''
+                      : elevator.serial_number,
+                  })
+                }
+              />
+              N° no legible / no disponible
+            </label>
+          </div>
+        </div>
+
+        {/* Capacidad / pisos */}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium">
+              Capacidad (kg) *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={elevator.capacity_kg}
+              onChange={(e) =>
+                set({
+                  capacity_kg:
+                    Number(e.target.value) || 0,
+                })
+              }
+              className="mt-1 w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">
+              N° de Paradas *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={elevator.floors}
+              onChange={(e) =>
+                set({
+                  floors: Number(e.target.value) || 0,
+                })
+              }
+              className="mt-1 w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+        </div>
+
+        {/* Sala de máquinas */}
+        <div className="mt-3 text-sm">
+          <span className="block font-medium">
+            Sala de Máquinas *
+          </span>
+          <label className="inline-flex items-center gap-2 mr-4">
+            <input
+              type="checkbox"
+              checked={elevator.has_machine_room}
+              onChange={(e) =>
+                set({
+                  has_machine_room: e.target.checked,
+                  no_machine_room: e.target.checked
+                    ? false
+                    : elevator.no_machine_room,
+                })
+              }
+            />
+            Con sala de máquinas
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={elevator.no_machine_room}
+              onChange={(e) =>
+                set({
+                  no_machine_room: e.target.checked,
+                  has_machine_room: e.target.checked
+                    ? false
+                    : elevator.has_machine_room,
+                })
+              }
+            />
+            Sin sala de máquinas
+          </label>
+        </div>
+
+        {/* Paradas */}
+        <div className="mt-3 text-sm">
+          <span className="block font-medium">
+            Paradas *
+          </span>
+          <label className="inline-flex items-center gap-2 mr-4">
+            <input
+              type="radio"
+              checked={elevator.stops_all_floors}
+              onChange={() =>
+                set({
+                  stops_all_floors: true,
+                  stops_odd_floors: false,
+                  stops_even_floors: false,
+                })
+              }
+            />
+            Todos los pisos
+          </label>
+          <label className="inline-flex items-center gap-2 mr-4">
+            <input
+              type="radio"
+              checked={elevator.stops_odd_floors}
+              onChange={() =>
+                set({
+                  stops_all_floors: false,
+                  stops_odd_floors: true,
+                  stops_even_floors: false,
+                })
+              }
+            />
+            Pisos impares
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              checked={elevator.stops_even_floors}
+              onChange={() =>
+                set({
+                  stops_all_floors: false,
+                  stops_odd_floors: false,
+                  stops_even_floors: true,
+                })
+              }
+            />
+            Pisos pares
+          </label>
+        </div>
+      </div>
+    );
   };
 
   // Submit
@@ -326,6 +698,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     if (clientData.password !== clientData.confirmPassword) {
       return setErr('Las contraseñas no coinciden');
     }
+
     if (clientData.password.length < 8) {
       return setErr(
         'La contraseña debe tener al menos 8 caracteres'
@@ -333,12 +706,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
 
     try {
-      // Llamamos a la función serverless en Vercel
+      // Crear usuario vía función serverless en Vercel
       const resp = await fetch('/api/users/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: clientData.contact_email,
           password: clientData.password,
@@ -353,10 +724,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       if (text) {
         try {
           data = JSON.parse(text);
-        } catch (parseErr) {
-          console.error('Respuesta no JSON de /api/users/create:', text);
+        } catch {
+          console.error(
+            'Respuesta no JSON de /api/users/create:',
+            text
+          );
           throw new Error(
-            'Error en /api/users/create: la respuesta no es JSON válido.'
+            'Error en /api/users/create: respuesta no es JSON válido.'
           );
         }
       }
@@ -399,7 +773,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       const elevatorList = identicalElevators
         ? Array.from({ length: elevatorCount }).map((_, idx) => {
             const e = templateElevator;
-            const addr = e.use_client_address
+            const addr = e.useClientAddress
               ? clientData.address
               : e.address;
             return {
@@ -428,7 +802,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             };
           })
         : elevators.map((e) => {
-            const addr = e.use_client_address
+            const addr = e.useClientAddress
               ? clientData.address
               : e.address;
             return {
@@ -480,7 +854,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
   };
 
-  // UI (resumen; estructura igual a la que ya tienes)
+  // UI principal
 
   return (
     <form
@@ -607,6 +981,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   password: e.target.value,
                 }))
               }
+              minLength={8}
             />
             <button
               type="button"
@@ -632,6 +1007,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                   confirmPassword: e.target.value,
                 }))
               }
+              minLength={8}
             />
             <button
               type="button"
@@ -650,10 +1026,95 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         </div>
       )}
 
-      {/* Configuración de ascensores y formularios individuales */}
-      {/* Usa elevators, manufacturerOptions y updateElevator como ya está definido arriba.
-          Si quieres, en un siguiente mensaje te puedo detallar solo esta sección con el JSX completo. */}
+      {/* Ascensores */}
+      <div className="space-y-3">
+        <h3 className="font-semibold text-slate-800">
+          Información de Ascensores
+        </h3>
+        <div className="flex flex-wrap gap-4 items-center">
+          <div>
+            <label className="block text-sm font-medium">
+              N° de Equipos *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={totalEquipments}
+              onChange={(e) =>
+                setTotalEquipments(
+                  Number(e.target.value) || 1
+                )
+              }
+              className="mt-1 w-24 px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm mt-5">
+            <input
+              type="checkbox"
+              checked={identicalElevators}
+              onChange={(e) =>
+                setIdenticalElevators(e.target.checked)
+              }
+            />
+            Todos los ascensores son idénticos
+          </label>
+          {identicalElevators && (
+            <div>
+              <label className="block text-sm font-medium">
+                Cantidad de ascensores idénticos *
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={elevatorCount}
+                onChange={(e) =>
+                  setElevatorCount(
+                    Number(e.target.value) || 1
+                  )
+                }
+                className="mt-1 w-24 px-3 py-2 border rounded-lg"
+              />
+            </div>
+          )}
+        </div>
 
+        {identicalElevators ? (
+          renderElevator(templateElevator, 0, true)
+        ) : (
+          <>
+            {elevators.map((e, i) =>
+              renderElevator(e, i, false)
+            )}
+            <button
+              type="button"
+              onClick={addElevator}
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg text-sm text-slate-700"
+            >
+              <Plus className="w-4 h-4" />
+              Agregar Ascensor
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* QR opcional */}
+      {generatedClientCode && generatedQRCode && (
+        <div className="mt-4 p-4 border rounded-xl bg-white">
+          <h3 className="font-semibold text-slate-800 mb-2">
+            Cliente creado
+          </h3>
+          <p className="text-sm text-slate-600">
+            Código: <strong>{generatedClientCode}</strong>
+          </p>
+          <img
+            src={generatedQRCode}
+            alt="QR Cliente"
+            className="mt-2 h-32 w-32"
+          />
+        </div>
+      )}
+
+      {/* Botones */}
       <div className="flex justify-end gap-3 pt-4">
         {onCancel && (
           <button
@@ -679,3 +1140,4 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     </form>
   );
 }
+
