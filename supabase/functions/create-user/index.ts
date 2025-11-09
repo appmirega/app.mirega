@@ -30,16 +30,22 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
+    console.log("Environment check:", {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseServiceRoleKey,
+      url: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : "missing"
+    });
+
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.error("Missing environment variables:", {
-        hasUrl: !!supabaseUrl,
-        hasKey: !!supabaseServiceRoleKey
-      });
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Server configuration error: Missing environment variables",
-          details: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured"
+          error: "Server configuration error",
+          details: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+          debug: {
+            hasUrl: !!supabaseUrl,
+            hasKey: !!supabaseServiceRoleKey
+          }
         }),
         {
           status: 500,
@@ -54,8 +60,9 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
     if (userError || !user) {
+      console.error("Auth error:", userError);
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid or expired token" }),
+        JSON.stringify({ success: false, error: "Invalid or expired token", details: userError?.message }),
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -70,8 +77,9 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (profileError || !callerProfile) {
+      console.error("Profile error:", profileError);
       return new Response(
-        JSON.stringify({ success: false, error: "Caller profile not found" }),
+        JSON.stringify({ success: false, error: "Caller profile not found", details: profileError?.message }),
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -81,7 +89,7 @@ Deno.serve(async (req: Request) => {
 
     if (!["developer", "admin"].includes(callerProfile.role)) {
       return new Response(
-        JSON.stringify({ success: false, error: "Insufficient permissions" }),
+        JSON.stringify({ success: false, error: "Insufficient permissions", details: `Role ${callerProfile.role} cannot create users` }),
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -93,7 +101,7 @@ Deno.serve(async (req: Request) => {
 
     if (!email || !password || !full_name || !role) {
       return new Response(
-        JSON.stringify({ success: false, error: "Missing required fields" }),
+        JSON.stringify({ success: false, error: "Missing required fields", details: "email, password, full_name, and role are required" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -111,6 +119,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    console.log("Creating user:", { email, role });
+
     const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
       email,
       password,
@@ -119,8 +129,9 @@ Deno.serve(async (req: Request) => {
     });
 
     if (authError || !authData?.user) {
+      console.error("Create user error:", authError);
       return new Response(
-        JSON.stringify({ success: false, error: authError?.message || "Failed to create user" }),
+        JSON.stringify({ success: false, error: authError?.message || "Failed to create user", details: authError }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -129,6 +140,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const newUserId = authData.user.id;
+    console.log("User created:", newUserId);
 
     const { error: profileInsertError } = await supabaseClient
       .from("profiles")
@@ -142,14 +154,17 @@ Deno.serve(async (req: Request) => {
       });
 
     if (profileInsertError) {
+      console.error("Profile insert error:", profileInsertError);
       return new Response(
-        JSON.stringify({ success: false, error: profileInsertError.message }),
+        JSON.stringify({ success: false, error: profileInsertError.message, details: profileInsertError }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
+
+    console.log("Profile created for:", newUserId);
 
     try {
       await supabaseClient.from("audit_logs").insert({
@@ -158,8 +173,8 @@ Deno.serve(async (req: Request) => {
         target_id: newUserId,
         details: JSON.stringify({ email, role, created_by: user.email }),
       });
-    } catch {
-      // Audit log is optional
+    } catch (auditError) {
+      console.warn("Audit log failed:", auditError);
     }
 
     return new Response(
@@ -183,6 +198,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: false,
         error: error.message || "Internal server error",
+        details: error.toString(),
         stack: error.stack
       }),
       {
