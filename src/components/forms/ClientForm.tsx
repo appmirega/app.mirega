@@ -714,3 +714,973 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                       <Eye className="w-4 h-4" />
                     )}
                   </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1">
+                  Confirmar contraseña *
+                </label>
+                <div className="relative">
+                  <input
+                    type={
+                      showConfirmPassword
+                        ? 'text'
+                        : 'password'
+                    }
+                    required
+                    minLength={8}
+                    value={clientData.confirmPassword}
+                    onChange={(e) =>
+                      setClientData((p) => ({
+                        ...p,
+                        confirmPassword:
+                          e.target.value,
+                      }))
+                    }
+                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowConfirmPassword(
+                        (s) => !s
+                      )
+                    }
+                    className="absolute inset-y-0 right-3 flex items-center text-slate-400"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Ascensores */}
+        <section className="border-b border-slate-200 pb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Información de Ascensores
+            </h3>
+          </div>
+
+          {/* Configuración general */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                N° de Equipos *
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={totalEquipments}
+                onChange={(e) => {
+                  const v = Math.max(
+                    1,
+                    Number(e.target.value) || 1
+                  );
+                  setTotalEquipments(v);
+                  if (!identicalElevators) {
+                    setElevators((prev) => {
+                      const next = [...prev];
+                      while (next.length < v) {
+                        next.push(
+                          createEmptyElevator(
+                            clientData.address
+                          )
+                        );
+                      }
+                      return next.slice(0, v);
+                    });
+                  }
+                }}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 mt-6">
+              <input
+                id="identical-elevators"
+                type="checkbox"
+                checked={identicalElevators}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIdenticalElevators(checked);
+                  if (checked) {
+                    setElevatorCount(totalEquipments);
+                  }
+                }}
+              />
+              <label
+                htmlFor="identical-elevators"
+                className="text-sm text-slate-700"
+              >
+                Todos los ascensores son idénticos
+              </label>
+            </div>
+
+            {identicalElevators && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  N° Ascensores idénticos
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalEquipments}
+                  value={elevatorCount}
+                  onChange={(e) =>
+                    setElevatorCount(
+                      Math.min(
+                        totalEquipments,
+                        Math.max(
+                          1,
+                          Number(e.target.value) ||
+                            1
+                        )
+                      )
+                    )
+                  }
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Bloque para ascensores idénticos */}
+          {identicalElevators ? (
+            <div className="border rounded-xl p-4 bg-slate-50 space-y-3">
+              <h4 className="font-semibold text-slate-800">
+                Datos del ascensor (se aplica a los {elevatorCount})
+              </h4>
+
+              {/* Nombre + dirección */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Torre / Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    value={
+                      templateElevator.location_name
+                    }
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        location_name:
+                          e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Dirección
+                  </label>
+                  <div className="flex flex-col gap-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
+                      <input
+                        type="radio"
+                        checked={
+                          templateElevator.useClientAddress
+                        }
+                        onChange={() =>
+                          setTemplateElevator((p) => ({
+                            ...p,
+                            useClientAddress:
+                              true,
+                            address:
+                              clientData.address,
+                          }))
+                        }
+                      />
+                      Usar dirección del cliente
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
+                      <input
+                        type="radio"
+                        checked={
+                          !templateElevator.useClientAddress
+                        }
+                        onChange={() =>
+                          setTemplateElevator((p) => ({
+                            ...p,
+                            useClientAddress:
+                              false,
+                            address: '',
+                          }))
+                        }
+                      />
+                      Dirección diferente
+                    </label>
+                    {!templateElevator.useClientAddress && (
+                      <input
+                        type="text"
+                        placeholder="Dirección del ascensor"
+                        value={templateElevator.address}
+                        onChange={(e) =>
+                          setTemplateElevator((p) => ({
+                            ...p,
+                            address:
+                              e.target.value,
+                          }))
+                        }
+                        className="w-full mt-1 px-3 py-2 border rounded-lg"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tipo / fabricante / modelo */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Tipo *
+                  </label>
+                  <select
+                    value={
+                      templateElevator.elevator_type
+                    }
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        elevator_type:
+                          e.target
+                            .value as ElevatorType,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="hydraulic">
+                      Hidráulico
+                    </option>
+                    <option value="electromechanical">
+                      Electromecánico
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Fabricante *
+                  </label>
+                  <select
+                    value={
+                      templateElevator.manufacturer
+                    }
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        manufacturer:
+                          e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="">
+                      Seleccionar fabricante
+                    </option>
+                    {MANUFACTURERS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Modelo *
+                  </label>
+                  <input
+                    type="text"
+                    value={templateElevator.model}
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        model: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Serie / capacidad / paradas */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    N° de Serie
+                  </label>
+                  <input
+                    type="text"
+                    disabled={
+                      templateElevator.serial_number_not_legible
+                    }
+                    value={
+                      templateElevator.serial_number
+                    }
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        serial_number:
+                          e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                  <label className="flex items-center gap-2 mt-1 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={
+                        templateElevator.serial_number_not_legible
+                      }
+                      onChange={(e) =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          serial_number_not_legible:
+                            e.target.checked,
+                          serial_number:
+                            e.target.checked
+                              ? ''
+                              : p.serial_number,
+                        }))
+                      }
+                    />
+                    N° de serie no legible / no disponible
+                  </label>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Capacidad (kg) *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={
+                      templateElevator.capacity_kg
+                    }
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        capacity_kg:
+                          Number(
+                            e.target.value
+                          ) || 0,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    N° de Paradas *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={templateElevator.floors}
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        floors:
+                          Number(
+                            e.target.value
+                          ) || 0,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Sala de máquinas / paradas / clasificación */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <p className="text-sm text-slate-700 mb-1">
+                    Sala de máquinas *
+                  </p>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={
+                        templateElevator.has_machine_room
+                      }
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          has_machine_room:
+                            true,
+                          no_machine_room:
+                            false,
+                        }))
+                      }
+                    />
+                    Con sala de máquinas
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={
+                        templateElevator.no_machine_room
+                      }
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          has_machine_room:
+                            false,
+                          no_machine_room:
+                            true,
+                        }))
+                      }
+                    />
+                    Sin sala de máquinas
+                  </label>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-700 mb-1">
+                    Paradas *
+                  </p>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={
+                        templateElevator.stops_all_floors
+                      }
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          stops_all_floors:
+                            true,
+                          stops_odd_floors:
+                            false,
+                          stops_even_floors:
+                            false,
+                        }))
+                      }
+                    />
+                    Todas las plantas
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={
+                        templateElevator.stops_odd_floors
+                      }
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          stops_all_floors:
+                            false,
+                          stops_odd_floors:
+                            true,
+                          stops_even_floors:
+                            false,
+                        }))
+                      }
+                    />
+                    Solo pisos impares
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      checked={
+                        templateElevator.stops_even_floors
+                      }
+                      onChange={() =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          stops_all_floors:
+                            false,
+                          stops_odd_floors:
+                            false,
+                          stops_even_floors:
+                            true,
+                        }))
+                      }
+                    />
+                    Solo pisos pares
+                  </label>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Clasificación *
+                  </label>
+                  <select
+                    value={
+                      templateElevator.classification
+                    }
+                    onChange={(e) =>
+                      setTemplateElevator((p) => ({
+                        ...p,
+                        classification:
+                          e.target
+                            .value as Classification,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="ascensor_corporativo">
+                      Ascensor Corporativo
+                    </option>
+                    <option value="ascensor_residencial">
+                      Ascensor Residencial
+                    </option>
+                    <option value="montacargas">
+                      Montacargas
+                    </option>
+                    <option value="montaplatos">
+                      Montaplatos
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Ascensores individuales
+            <div className="space-y-4">
+              {elevators.map((e, idx) => (
+                <div
+                  key={idx}
+                  className="border rounded-xl p-4 bg-slate-50 space-y-3"
+                >
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-semibold text-slate-800">
+                      Ascensor #{idx + 1}
+                    </h4>
+                    {elevators.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeElevator(idx)
+                        }
+                        className="p-1.5 rounded-md hover:bg-red-50 text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Torre / Nombre *
+                      </label>
+                      <input
+                        type="text"
+                        value={e.location_name}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            location_name:
+                              ev.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Dirección
+                      </label>
+                      <div className="flex flex-col gap-1">
+                        <label className="flex items-center gap-2 text-xs text-slate-700">
+                          <input
+                            type="radio"
+                            checked={
+                              e.useClientAddress
+                            }
+                            onChange={() =>
+                              updateElevator(idx, {
+                                useClientAddress:
+                                  true,
+                                address:
+                                  clientData.address,
+                              })
+                            }
+                          />
+                          Usar dirección del cliente
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-700">
+                          <input
+                            type="radio"
+                            checked={
+                              !e.useClientAddress
+                            }
+                            onChange={() =>
+                              updateElevator(idx, {
+                                useClientAddress:
+                                  false,
+                                address: '',
+                              })
+                            }
+                          />
+                          Dirección diferente
+                        </label>
+                        {!e.useClientAddress && (
+                          <input
+                            type="text"
+                            placeholder="Dirección del ascensor"
+                            value={e.address}
+                            onChange={(ev) =>
+                              updateElevator(idx, {
+                                address:
+                                  ev.target.value,
+                              })
+                            }
+                            className="w-full mt-1 px-3 py-2 border rounded-lg"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Tipo *
+                      </label>
+                      <select
+                        value={e.elevator_type}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            elevator_type:
+                              ev.target
+                                .value as ElevatorType,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="hydraulic">
+                          Hidráulico
+                        </option>
+                        <option value="electromechanical">
+                          Electromecánico
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Fabricante *
+                      </label>
+                      <select
+                        value={e.manufacturer}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            manufacturer:
+                              ev.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="">
+                          Seleccionar fabricante
+                        </option>
+                        {MANUFACTURERS.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Modelo *
+                      </label>
+                      <input
+                        type="text"
+                        value={e.model}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            model:
+                              ev.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        N° de Serie
+                      </label>
+                      <input
+                        type="text"
+                        disabled={
+                          e.serial_number_not_legible
+                        }
+                        value={e.serial_number}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            serial_number:
+                              ev.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                      <label className="flex items-center gap-2 mt-1 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={
+                            e.serial_number_not_legible
+                          }
+                          onChange={(ev) =>
+                            updateElevator(idx, {
+                              serial_number_not_legible:
+                                ev.target.checked,
+                              serial_number:
+                                ev.target.checked
+                                  ? ''
+                                  : e.serial_number,
+                            })
+                          }
+                        />
+                        N° de serie no legible / no
+                        disponible
+                      </label>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Capacidad (kg) *
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={e.capacity_kg}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            capacity_kg:
+                              Number(
+                                ev.target.value
+                              ) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        N° de Paradas *
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={e.floors}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            floors:
+                              Number(
+                                ev.target.value
+                              ) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-sm text-slate-700 mb-1">
+                        Sala de máquinas *
+                      </p>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={e.has_machine_room}
+                          onChange={() =>
+                            updateElevator(idx, {
+                              has_machine_room:
+                                true,
+                              no_machine_room:
+                                false,
+                            })
+                          }
+                        />
+                        Con sala de máquinas
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={e.no_machine_room}
+                          onChange={() =>
+                            updateElevator(idx, {
+                              has_machine_room:
+                                false,
+                              no_machine_room:
+                                true,
+                            })
+                          }
+                        />
+                        Sin sala de máquinas
+                      </label>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-700 mb-1">
+                        Paradas *
+                      </p>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={e.stops_all_floors}
+                          onChange={() =>
+                            updateElevator(idx, {
+                              stops_all_floors:
+                                true,
+                              stops_odd_floors:
+                                false,
+                              stops_even_floors:
+                                false,
+                            })
+                          }
+                        />
+                        Todas las plantas
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={
+                            e.stops_odd_floors
+                          }
+                          onChange={() =>
+                            updateElevator(idx, {
+                              stops_all_floors:
+                                false,
+                              stops_odd_floors:
+                                true,
+                              stops_even_floors:
+                                false,
+                            })
+                          }
+                        />
+                        Solo pisos impares
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          checked={
+                            e.stops_even_floors
+                          }
+                          onChange={() =>
+                            updateElevator(idx, {
+                              stops_all_floors:
+                                false,
+                              stops_odd_floors:
+                                false,
+                              stops_even_floors:
+                                true,
+                            })
+                          }
+                        />
+                        Solo pisos pares
+                      </label>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-700 mb-1 block">
+                        Clasificación *
+                      </label>
+                      <select
+                        value={e.classification}
+                        onChange={(ev) =>
+                          updateElevator(idx, {
+                            classification:
+                              ev.target
+                                .value as Classification,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="ascensor_corporativo">
+                          Ascensor Corporativo
+                        </option>
+                        <option value="ascensor_residencial">
+                          Ascensor Residencial
+                        </option>
+                        <option value="montacargas">
+                          Montacargas
+                        </option>
+                        <option value="montaplatos">
+                          Montaplatos
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {elevators.length < totalEquipments && (
+                <button
+                  type="button"
+                  onClick={addElevator}
+                  className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-dashed border-slate-400 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <Plus className="w-4 h-4" />
+                  Agregar ascensor
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Botones */}
+        <div className="flex items-center justify-between pt-2">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="ml-auto px-5 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading
+              ? 'Guardando...'
+              : isEditMode
+              ? 'Guardar cambios'
+              : 'Crear cliente'}
+          </button>
+        </div>
+
+        {/* QR generado */}
+        {generatedClientCode && generatedQRCode && (
+          <div className="mt-6 p-4 border rounded-lg bg-slate-50 flex items-center gap-4">
+            <img
+              src={generatedQRCode}
+              alt="QR Cliente"
+              className="w-24 h-24"
+            />
+            <div>
+              <p className="text-sm text-slate-700">
+                Código del cliente:
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-lg">
+                  {generatedClientCode}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyClientCode}
+                  className="p-1.5 rounded-md border border-slate-300 hover:bg-white"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
