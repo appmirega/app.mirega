@@ -2,60 +2,67 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, apikey, x-client-info",
-};
+// Helper para respuestas JSON consistentes
+function json(
+  body: Record<string, unknown>,
+  status = 200,
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
 
 serve(async (req) => {
-  // Preflight CORS
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 200, headers: corsHeaders });
-  }
-
   try {
+    // Solo permitimos POST
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({ error: "Method not allowed" }),
-        {
-          status: 405,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
+      return json(
+        { success: false, error: "Method not allowed" },
+        405,
       );
     }
 
-    // IMPORTANTES:
-    // Usa nombres de secretos SIN el prefijo SUPABASE_
-    // Configúralos en Edge Functions → Secrets:
-    // PROJECT_URL = https://utpzjvmhqfgoehvwjuxa.supabase.co
-    // SERVICE_ROLE_KEY = <tu service_role key>
-    const supabaseUrl = Deno.env.get("PROJECT_URL");
-    const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY");
+    // 1) OBTENER CONFIGURACIÓN
+
+    // URL del proyecto:
+    // - Primero intentamos SUPABASE_URL (variable reservada del entorno)
+    // - Si por alguna razón no está, usamos PROJECT_URL (que ya creaste como secret)
+    const supabaseUrl =
+      Deno.env.get("SUPABASE_URL") ??
+      Deno.env.get("PROJECT_URL") ??
+      "";
+
+    // Service Role Key:
+    // - SUPABASE_SERVICE_ROLE_KEY si existiera
+    // - o SERVICE_ROLE_KEY (secret que creaste con el service_role real)
+    const serviceRoleKey =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+      Deno.env.get("SERVICE_ROLE_KEY") ??
+      "";
 
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error(
-        "Faltan PROJECT_URL o SERVICE_ROLE_KEY en los Edge Function Secrets",
-      );
-      return new Response(
-        JSON.stringify({
-          error:
-            "Server configuration error: missing PROJECT_URL or SERVICE_ROLE_KEY",
-        }),
+      // Log sólo para depuración en Supabase (no se muestra al usuario)
+      console.error("create-user: missing env vars", {
+        hasSupabaseUrl: !!Deno.env.get("SUPABASE_URL"),
+        hasProjectUrl: !!Deno.env.get("PROJECT_URL"),
+        hasSupabaseServiceRoleKey: !!Deno.env.get(
+          "SUPABASE_SERVICE_ROLE_KEY",
+        ),
+        hasServiceRoleKey: !!Deno.env.get("SERVICE_ROLE_KEY"),
+      });
+
+      return json(
         {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
+          success: false,
+          error:
+            "Server configuration error. Missing SUPABASE_URL/PROJECT_URL or SERVICE_ROLE_KEY.",
         },
+        500,
       );
     }
 
+    // Cliente admin con la service role
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -63,90 +70,65 @@ serve(async (req) => {
       },
     });
 
-    const body = await req.json().catch((err) => {
-      console.error("Error parseando JSON:", err);
-      return null;
-    });
-
+    // 2) LEER BODY
+    const body = await req.json().catch(() => null);
     if (!body) {
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON body" }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
+      return json(
+        { success: false, error: "Invalid JSON body" },
+        400,
       );
     }
 
     const { email, password, full_name, phone, role } = body;
 
     if (!email || !password) {
-      return new Response(
-        JSON.stringify({
-          error: "email y password son obligatorios",
-        }),
+      return json(
         {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
+          success: false,
+          error: "email y password son obligatorios",
         },
+        400,
       );
     }
 
+    // 3) CREAR USUARIO
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: full_name || "",
-        phone: phone || "",
-        role: role || "client",
+        full_name: full_name ?? "",
+        phone: phone ?? "",
+        role: role ?? "client",
       },
     });
 
     if (error || !data?.user) {
-      console.error("Error creando usuario:", error);
-      return new Response(
-        JSON.stringify({
-          error:
-            error?.message || "No se pudo crear el usuario",
-        }),
+      console.error("create-user: error creando usuario", error);
+      return json(
         {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
+          success: false,
+          error:
+            error?.message ??
+            "No se pudo crear el usuario",
         },
+        500,
       );
     }
 
-    return new Response(
-      JSON.stringify({ success: true, user: data.user }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
+    // 4) OK
+    return json(
+      { success: true, user: data.user },
+      200,
     );
   } catch (err) {
-    console.error("Excepción en create-user:", err);
-    return new Response(
-      JSON.stringify({ error: "Unexpected server error" }),
+    console.error("create-user: unexpected error", err);
+    return json(
       {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        success: false,
+        error: "Unexpected server error",
       },
+      500,
     );
   }
 });
