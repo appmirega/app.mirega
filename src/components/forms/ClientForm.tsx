@@ -24,7 +24,7 @@ type Classification =
   | 'montaplatos';
 
 interface ElevatorData {
-  location_name: string; // Torre / Nombre
+  location_name: string;
   useClientAddress: boolean;
   address: string;
   elevator_type: ElevatorType;
@@ -123,14 +123,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
 
-  // Config ascensores
+  // Ascensores
   const [totalEquipments, setTotalEquipments] = useState(1);
-  const [identicalElevators, setIdenticalElevators] = useState(false);
+  const [identicalElevators, setIdenticalElevators] =
+    useState(false);
   const [elevatorCount, setElevatorCount] = useState(1);
 
-  const [templateElevator, setTemplateElevator] = useState<ElevatorData>(
-    () => createEmptyElevator(clientData.address)
-  );
+  const [templateElevator, setTemplateElevator] =
+    useState<ElevatorData>(() =>
+      createEmptyElevator(clientData.address)
+    );
+
   const [elevators, setElevators] = useState<ElevatorData[]>([
     createEmptyElevator(clientData.address),
   ]);
@@ -141,7 +144,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     return false;
   };
 
-  // Sincronizar dirección cliente con ascensores que la usan
+  // Sincroniza dirección de cliente con ascensores que la usan
   const handleClientAddressChange = (address: string) => {
     const prev = clientData.address;
 
@@ -218,7 +221,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         );
       if (e.floors <= 0)
         return fail(
-          `El ascensor ${n} debe tener N° de paradas válido`
+          `El ascensor ${n} debe tener un N° de paradas válido`
         );
 
       // Sala de máquinas: exactamente una opción
@@ -308,7 +311,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       return;
     }
 
-    // NUEVO CLIENTE
+    // NUEVO CLIENTE: validaciones básicas
     if (
       !clientData.company_name ||
       !clientData.building_name ||
@@ -317,9 +320,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       !clientData.contact_phone ||
       !clientData.address
     ) {
-      return fail(
-        'Todos los campos del cliente son obligatorios'
-      );
+      return fail('Todos los campos del cliente son obligatorios');
     }
 
     if (!identicalElevators && elevators.length !== totalEquipments) {
@@ -341,13 +342,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
 
     if (clientData.password.length < 8) {
-      return fail(
-        'La contraseña debe tener al menos 8 caracteres'
-      );
+      return fail('La contraseña debe tener al menos 8 caracteres');
     }
 
     try {
-      // Solo para asegurarnos que el usuario que crea clientes está logueado
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -358,11 +356,25 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         );
       }
 
-      // 1) Crear usuario + profile vía API interna en Vercel
-      const response = await fetch('/api/users/create', {
+      // Usa el mismo URL del proyecto para la Edge Function
+      const apiBase =
+        import.meta.env.VITE_DATABASE_URL ||
+        import.meta.env.VITE_SUPABASE_URL ||
+        import.meta.env.VITE_SUPABASE_URL;
+      if (!apiBase) {
+        throw new Error(
+          'Falta VITE_DATABASE_URL / VITE_SUPABASE_URL en el frontend.'
+        );
+      }
+
+      const apiUrl = `${apiBase}/functions/v1/create-user`;
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          apikey: import.meta.env.VITE_DATABASE_ANON_KEY as string,
         },
         body: JSON.stringify({
           email: clientData.contact_email,
@@ -373,23 +385,34 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         }),
       });
 
-      const result = await response.json();
+      const raw = await response.text();
+      let result: any = null;
 
-      if (!response.ok || !result?.ok) {
+      if (raw) {
+        try {
+          result = JSON.parse(raw);
+        } catch {
+          console.error('Respuesta no JSON de create-user:', raw);
+          throw new Error(
+            'La función create-user no retornó JSON válido.'
+          );
+        }
+      }
+
+      if (!response.ok || !result?.success) {
+        console.error(
+          'create-user error:',
+          response.status,
+          raw
+        );
         throw new Error(
           result?.error ||
             `Error al crear el usuario del cliente (status ${response.status}).`
         );
       }
 
-      const profile = result.profile;
-      if (!profile?.id) {
-        throw new Error(
-          'La API /api/users/create no devolvió un perfil válido.'
-        );
-      }
+      const profile = result.user;
 
-      // 2) Crear cliente en tabla clients
       const clientCode = `CLI-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)
@@ -416,7 +439,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         throw clientErr || new Error('No se pudo crear el cliente');
       }
 
-      // 3) Crear ascensores
       const elevatorsToInsert: any[] = identicalElevators
         ? Array(elevatorCount)
             .fill(null)
@@ -480,7 +502,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         if (elevErr) throw elevErr;
       }
 
-      // 4) Generar QR del cliente
       await generateQRCodeForClient(clientCode);
 
       alert('Cliente y ascensores creados exitosamente.');
@@ -693,101 +714,3 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                       <Eye className="w-4 h-4" />
                     )}
                   </button>
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-1">
-                  Confirmar contraseña *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    minLength={8}
-                    value={clientData.confirmPassword}
-                    onChange={(e) =>
-                      setClientData((p) => ({
-                        ...p,
-                        confirmPassword: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowConfirmPassword((s) => !s)
-                    }
-                    className="absolute inset-y-0 right-3 flex items-center text-slate-400"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Ascensores */}
-        {/* (toda la sección de ascensores se mantiene exactamente igual que en tu código) */}
-        {/* ... (ya incluida arriba sin cambios de diseño) */}
-
-        {/* Botones */}
-        <div className="flex items-center justify-between pt-2">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="ml-auto px-5 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading
-              ? 'Guardando...'
-              : isEditMode
-              ? 'Guardar cambios'
-              : 'Crear cliente'}
-          </button>
-        </div>
-
-        {/* QR generado */}
-        {generatedClientCode && generatedQRCode && (
-          <div className="mt-6 p-4 border rounded-lg bg-slate-50 flex items-center gap-4">
-            <img
-              src={generatedQRCode}
-              alt="QR Cliente"
-              className="w-24 h-24"
-            />
-            <div>
-              <p className="text-sm text-slate-700">
-                Código del cliente:
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-lg">
-                  {generatedClientCode}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyClientCode}
-                  className="p-1.5 rounded-md border border-slate-300 hover:bg-white"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </form>
-    </div>
-  );
-}
