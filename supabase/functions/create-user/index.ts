@@ -2,133 +2,129 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Helper para respuestas JSON consistentes
-function json(
-  body: Record<string, unknown>,
-  status = 200,
-): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-  });
-}
-
 serve(async (req) => {
   try {
-    // Solo permitimos POST
+    // Solo permitir POST
     if (req.method !== "POST") {
-      return json(
-        { success: false, error: "Method not allowed" },
-        405,
+      return new Response(
+        JSON.stringify({ success: false, error: "Method not allowed" }),
+        {
+          status: 405,
+          headers: { "Content-Type": "application/json" },
+        },
       );
     }
 
-    // 1) OBTENER CONFIGURACIÓN
-
-    // URL del proyecto:
-    // - Primero intentamos SUPABASE_URL (variable reservada del entorno)
-    // - Si por alguna razón no está, usamos PROJECT_URL (que ya creaste como secret)
-    const supabaseUrl =
-      Deno.env.get("SUPABASE_URL") ??
-      Deno.env.get("PROJECT_URL") ??
-      "";
-
-    // Service Role Key:
-    // - SUPABASE_SERVICE_ROLE_KEY si existiera
-    // - o SERVICE_ROLE_KEY (secret que creaste con el service_role real)
-    const serviceRoleKey =
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-      Deno.env.get("SERVICE_ROLE_KEY") ??
-      "";
+    // 🔐 LEER VARIABLES DESDE SECRETS DE EDGE FUNCTIONS
+    // Deben existir en: Supabase -> Edge Functions -> Secrets
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !serviceRoleKey) {
-      // Log sólo para depuración en Supabase (no se muestra al usuario)
-      console.error("create-user: missing env vars", {
-        hasSupabaseUrl: !!Deno.env.get("SUPABASE_URL"),
-        hasProjectUrl: !!Deno.env.get("PROJECT_URL"),
-        hasSupabaseServiceRoleKey: !!Deno.env.get(
-          "SUPABASE_SERVICE_ROLE_KEY",
-        ),
-        hasServiceRoleKey: !!Deno.env.get("SERVICE_ROLE_KEY"),
-      });
-
-      return json(
-        {
+      console.error(
+        "Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en Edge Function Secrets",
+      );
+      return new Response(
+        JSON.stringify({
           success: false,
           error:
-            "Server configuration error. Missing SUPABASE_URL/PROJECT_URL or SERVICE_ROLE_KEY.",
+            "Server configuration error: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
         },
-        500,
       );
     }
 
-    // Cliente admin con la service role
+    // Cliente ADMIN (usa service_role, SOLO en backend)
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 2) LEER BODY
-    const body = await req.json().catch(() => null);
-    if (!body) {
-      return json(
-        { success: false, error: "Invalid JSON body" },
-        400,
+    // Leer body seguro
+    const text = await req.text();
+    let body: any = {};
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch (e) {
+      console.error("JSON inválido recibido en create-user:", text);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Invalid JSON body",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
       );
     }
 
     const { email, password, full_name, phone, role } = body;
 
     if (!email || !password) {
-      return json(
-        {
+      return new Response(
+        JSON.stringify({
           success: false,
           error: "email y password son obligatorios",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
         },
-        400,
       );
     }
 
-    // 3) CREAR USUARIO
+    // Crear usuario en Auth
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: full_name ?? "",
-        phone: phone ?? "",
-        role: role ?? "client",
+        full_name: full_name || "",
+        phone: phone || "",
+        role: role || "client",
       },
     });
 
     if (error || !data?.user) {
-      console.error("create-user: error creando usuario", error);
-      return json(
-        {
+      console.error("Error creando usuario:", error);
+      return new Response(
+        JSON.stringify({
           success: false,
-          error:
-            error?.message ??
-            "No se pudo crear el usuario",
+          error: error?.message || "No se pudo crear el usuario",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
         },
-        500,
       );
     }
 
-    // 4) OK
-    return json(
-      { success: true, user: data.user },
-      200,
+    // OK ✅
+    return new Response(
+      JSON.stringify({
+        success: true,
+        user: data.user,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
     );
   } catch (err) {
-    console.error("create-user: unexpected error", err);
-    return json(
-      {
+    console.error("Excepción en create-user:", err);
+    return new Response(
+      JSON.stringify({
         success: false,
         error: "Unexpected server error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
       },
-      500,
     );
   }
 });
+
