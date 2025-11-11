@@ -26,7 +26,7 @@ type Classification =
 interface ElevatorData {
   location_name: string;
   useClientAddress: boolean;
-  address: string;
+  address_asc: string; // Dirección del ascensor (columna en Supabase)
   elevator_type: ElevatorType;
   manufacturer: string;
   model: string;
@@ -79,7 +79,7 @@ const MANUFACTURERS = [
 const createEmptyElevator = (clientAddress: string): ElevatorData => ({
   location_name: '',
   useClientAddress: true,
-  address: clientAddress,
+  address_asc: clientAddress, // por defecto usa dirección del cliente
   elevator_type: 'hydraulic',
   manufacturer: '',
   model: '',
@@ -150,14 +150,18 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
     setClientData((p) => ({ ...p, address }));
 
+    // Template (ascensores idénticos)
     setTemplateElevator((old) =>
-      old.useClientAddress ? { ...old, address } : old
+      old.useClientAddress
+        ? { ...old, address_asc: address }
+        : old
     );
 
+    // Ascensores individuales que usaban la dirección anterior del cliente
     setElevators((old) =>
       old.map((e) =>
-        e.useClientAddress && e.address === prev
-          ? { ...e, address }
+        e.useClientAddress && e.address_asc === prev
+          ? { ...e, address_asc: address }
           : e
       )
     );
@@ -199,7 +203,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       const n = i + 1;
-      const addr = e.useClientAddress ? clientData.address : e.address;
+      const addr = e.useClientAddress
+        ? clientData.address
+        : e.address_asc;
 
       if (!e.location_name)
         return fail(`El ascensor ${n} debe tener un nombre / torre`);
@@ -224,7 +230,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           `El ascensor ${n} debe tener un N° de paradas válido`
         );
 
-      // Sala de máquinas: exactamente una opción
       if (
         (e.has_machine_room && e.no_machine_room) ||
         (!e.has_machine_room && !e.no_machine_room)
@@ -234,7 +239,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         );
       }
 
-      // Paradas: exactamente una opción
       const stopCount = [
         e.stops_all_floors,
         e.stops_odd_floors,
@@ -311,7 +315,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       return;
     }
 
-    // NUEVO CLIENTE: validaciones básicas
+    // NUEVO CLIENTE
     if (
       !clientData.company_name ||
       !clientData.building_name ||
@@ -356,11 +360,11 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         );
       }
 
-      // Usa el mismo URL del proyecto para la Edge Function
       const apiBase =
         import.meta.env.VITE_DATABASE_URL ||
         import.meta.env.VITE_SUPABASE_URL ||
         import.meta.env.VITE_SUPABASE_URL;
+
       if (!apiBase) {
         throw new Error(
           'Falta VITE_DATABASE_URL / VITE_SUPABASE_URL en el frontend.'
@@ -448,9 +452,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 client_id: createdClient.id,
                 location_name:
                   e.location_name || `Ascensor ${idx + 1}`,
-                address: e.useClientAddress
+                address_asc: e.useClientAddress
                   ? clientData.address
-                  : e.address,
+                  : e.address_asc,
                 elevator_type: e.elevator_type,
                 manufacturer: e.manufacturer,
                 model: e.model,
@@ -474,9 +478,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         : elevators.map((e) => ({
             client_id: createdClient.id,
             location_name: e.location_name,
-            address: e.useClientAddress
+            address_asc: e.useClientAddress
               ? clientData.address
-              : e.address,
+              : e.address_asc,
             elevator_type: e.elevator_type,
             manufacturer: e.manufacturer,
             model: e.model,
@@ -895,7 +899,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                             ...p,
                             useClientAddress:
                               true,
-                            address:
+                            address_asc:
                               clientData.address,
                           }))
                         }
@@ -913,7 +917,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                             ...p,
                             useClientAddress:
                               false,
-                            address: '',
+                            address_asc: '',
                           }))
                         }
                       />
@@ -923,11 +927,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                       <input
                         type="text"
                         placeholder="Dirección del ascensor"
-                        value={templateElevator.address}
+                        value={
+                          templateElevator.address_asc
+                        }
                         onChange={(e) =>
                           setTemplateElevator((p) => ({
                             ...p,
-                            address:
+                            address_asc:
                               e.target.value,
                           }))
                         }
@@ -1298,7 +1304,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                               updateElevator(idx, {
                                 useClientAddress:
                                   true,
-                                address:
+                                address_asc:
                                   clientData.address,
                               })
                             }
@@ -1315,7 +1321,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                               updateElevator(idx, {
                                 useClientAddress:
                                   false,
-                                address: '',
+                                address_asc: '',
                               })
                             }
                           />
@@ -1325,10 +1331,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                           <input
                             type="text"
                             placeholder="Dirección del ascensor"
-                            value={e.address}
+                            value={e.address_asc}
                             onChange={(ev) =>
                               updateElevator(idx, {
-                                address:
+                                address_asc:
                                   ev.target.value,
                               })
                             }
@@ -1683,4 +1689,3 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     </div>
   );
 }
-
