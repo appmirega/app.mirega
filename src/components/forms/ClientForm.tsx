@@ -24,9 +24,9 @@ type Classification =
   | 'montaplatos';
 
 interface ElevatorData {
-  location_name: string;
+  location_name: string;           // nombre/torre visible
   useClientAddress: boolean;
-  address_asc: string; // Dirección del ascensor (columna en Supabase)
+  address_asc: string;             // Dirección del ascensor (columna en Supabase)
   elevator_type: ElevatorType;
   manufacturer: string;
   model: string;
@@ -105,9 +105,16 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [clientData, setClientData] = useState({
     company_name: client?.company_name || '',
     building_name: client?.building_name || '',
+    // NUEVO: Alias interno (Mirega)
+    internal_alias: '',
+    // Contacto "legacy" (lo mantenemos por compatibilidad)
     contact_name: client?.contact_name || '',
     contact_email: client?.contact_email || '',
     contact_phone: client?.contact_phone || '',
+    // NUEVO: Bloque Administrador (obligatorio)
+    admin_name: '',
+    admin_email: '',
+    admin_phone: '',
     rut: '',
     address: client?.address || '',
     password: '',
@@ -297,9 +304,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           .update({
             company_name: clientData.company_name,
             building_name: clientData.building_name || null,
+            internal_alias: clientData.internal_alias || '',
             contact_name: clientData.contact_name,
             contact_email: clientData.contact_email,
             contact_phone: clientData.contact_phone,
+            admin_name: clientData.admin_name || '',
+            admin_email: clientData.admin_email || '',
+            admin_phone: clientData.admin_phone || '',
             address: clientData.address,
           })
           .eq('id', client!.id);
@@ -319,9 +330,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     if (
       !clientData.company_name ||
       !clientData.building_name ||
+      !clientData.internal_alias ||
       !clientData.contact_name ||
       !clientData.contact_email ||
       !clientData.contact_phone ||
+      !clientData.admin_name ||
+      !clientData.admin_email ||
+      !clientData.admin_phone ||
       !clientData.address
     ) {
       return fail('Todos los campos del cliente son obligatorios');
@@ -428,9 +443,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           profile_id: profile.id,
           company_name: clientData.company_name,
           building_name: clientData.building_name,
+          internal_alias: clientData.internal_alias,
           contact_name: clientData.contact_name,
           contact_email: clientData.contact_email,
           contact_phone: clientData.contact_phone,
+          admin_name: clientData.admin_name,
+          admin_email: clientData.admin_email,
+          admin_phone: clientData.admin_phone,
           rut: clientData.rut || null,
           address: clientData.address,
           is_active: true,
@@ -443,61 +462,41 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         throw clientErr || new Error('No se pudo crear el cliente');
       }
 
+      // Helpers para tower/index
+      const makeElevatorRow = (e: ElevatorData, idx: number) => {
+        const tower = e.location_name?.trim() || `Ascensor ${idx + 1}`;
+        const indexNum = idx + 1; // consecutivo según orden visual
+        return {
+          client_id: createdClient.id,
+          location_name: e.location_name,
+          tower_name: tower,
+          index_number: indexNum,
+          address_asc: e.useClientAddress ? clientData.address : e.address_asc,
+          elevator_type: e.elevator_type,
+          manufacturer: e.manufacturer,
+          model: e.model,
+          serial_number: e.serial_number,
+          serial_number_not_legible: e.serial_number_not_legible,
+          capacity_kg: e.capacity_kg,
+          floors: e.floors,
+          installation_date: e.installation_date,
+          has_machine_room: e.has_machine_room,
+          no_machine_room: e.no_machine_room,
+          stops_all_floors: e.stops_all_floors,
+          stops_odd_floors: e.stops_odd_floors,
+          stops_even_floors: e.stops_even_floors,
+          classification: e.classification,
+          status: 'active' as const,
+        };
+      };
+
       const elevatorsToInsert: any[] = identicalElevators
-        ? Array(elevatorCount)
-            .fill(null)
-            .map((_, idx) => {
-              const e = templateElevator;
-              return {
-                client_id: createdClient.id,
-                location_name:
-                  e.location_name || `Ascensor ${idx + 1}`,
-                address_asc: e.useClientAddress
-                  ? clientData.address
-                  : e.address_asc,
-                elevator_type: e.elevator_type,
-                manufacturer: e.manufacturer,
-                model: e.model,
-                serial_number: e.serial_number
-                  ? `${e.serial_number}-${idx + 1}`
-                  : '',
-                serial_number_not_legible:
-                  e.serial_number_not_legible,
-                capacity_kg: e.capacity_kg,
-                floors: e.floors,
-                installation_date: e.installation_date,
-                has_machine_room: e.has_machine_room,
-                no_machine_room: e.no_machine_room,
-                stops_all_floors: e.stops_all_floors,
-                stops_odd_floors: e.stops_odd_floors,
-                stops_even_floors: e.stops_even_floors,
-                classification: e.classification,
-                status: 'active' as const,
-              };
-            })
-        : elevators.map((e) => ({
-            client_id: createdClient.id,
-            location_name: e.location_name,
-            address_asc: e.useClientAddress
-              ? clientData.address
-              : e.address_asc,
-            elevator_type: e.elevator_type,
-            manufacturer: e.manufacturer,
-            model: e.model,
-            serial_number: e.serial_number,
-            serial_number_not_legible:
-              e.serial_number_not_legible,
-            capacity_kg: e.capacity_kg,
-            floors: e.floors,
-            installation_date: e.installation_date,
-            has_machine_room: e.has_machine_room,
-            no_machine_room: e.no_machine_room,
-            stops_all_floors: e.stops_all_floors,
-            stops_odd_floors: e.stops_odd_floors,
-            stops_even_floors: e.stops_even_floors,
-            classification: e.classification,
-            status: 'active' as const,
-          }));
+        ? Array(elevatorCount).fill(null).map((_, idx) => {
+            const e = templateElevator;
+            const serial = e.serial_number ? `${e.serial_number}-${idx + 1}` : '';
+            return { ...makeElevatorRow({ ...e, serial_number: serial }, idx) };
+          })
+        : elevators.map((e, idx) => makeElevatorRow(e, idx));
 
       if (elevatorsToInsert.length > 0) {
         const { error: elevErr } = await supabase
@@ -592,6 +591,30 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 Este nombre aparecerá en documentos PDF y búsquedas.
               </p>
             </div>
+
+            {/* NUEVO: Alias interno */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Nombre interno (Mirega) *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej: Alcántara, Carmen, etc."
+                value={clientData.internal_alias}
+                onChange={(e) =>
+                  setClientData((p) => ({
+                    ...p,
+                    internal_alias: e.target.value,
+                  }))
+                }
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Alias corto para identificar rápido al cliente en Mirega.
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 RUT
@@ -608,6 +631,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* Contacto "legacy" (se mantiene) */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Contacto *
@@ -661,6 +686,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* Dirección cliente */}
             <div className="md:col-span-2">
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                 <MapPin className="w-4 h-4" />
@@ -675,6 +702,57 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                 }
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            {/* NUEVO: Bloque Administrador (obligatorio) */}
+            <div className="md:col-span-2 border rounded-lg p-4 bg-slate-50">
+              <p className="text-sm font-semibold text-slate-800 mb-3">
+                Contacto Administrador (obligatorio)
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={clientData.admin_name}
+                    onChange={(e) =>
+                      setClientData((p) => ({ ...p, admin_name: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={clientData.admin_email}
+                    onChange={(e) =>
+                      setClientData((p) => ({ ...p, admin_email: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700 mb-1 block">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={clientData.admin_phone}
+                    onChange={(e) =>
+                      setClientData((p) => ({ ...p, admin_phone: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </section>
