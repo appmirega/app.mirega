@@ -1,14 +1,27 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Wrench, Search, Building2, MapPin, Calendar, Package, FileText, Eye, Edit, List, Plus } from 'lucide-react';
+import {
+  Wrench,
+  Search,
+  Building2,
+  FileText,
+  Package,
+  Eye,
+  Edit,
+} from 'lucide-react';
 import { ElevatorPartsForm } from '../forms/ElevatorPartsForm';
 import { ElevatorSpecificPartsForm } from '../forms/ElevatorSpecificPartsForm';
 import { ManualPartsManagementForm } from '../forms/ManualPartsManagementForm';
 
 interface Elevator {
   id: string;
-  location_name: string;
-  address: string;
+  // NUEVOS / AJUSTADOS
+  tower_name: string | null;
+  index_number: number | null;
+  location_name: string | null;
+  address: string | null;
+  address_asc: string | null;
+
   elevator_type: string;
   manufacturer: string;
   model: string;
@@ -29,9 +42,9 @@ interface Elevator {
   clients: {
     id: string;
     company_name: string;
-    building_name: string;
+    building_name: string | null;
     address: string;
-  };
+  } | null;
 }
 
 interface PartsFormInfo {
@@ -47,16 +60,22 @@ interface Props {
 export function ElevatorsCompleteView({ onNavigate }: Props) {
   const [elevators, setElevators] = useState<Elevator[]>([]);
   const [filteredElevators, setFilteredElevators] = useState<Elevator[]>([]);
-  const [partsFormsInfo, setPartsFormsInfo] = useState<Record<string, PartsFormInfo>>({});
+  const [partsFormsInfo, setPartsFormsInfo] = useState<
+    Record<string, PartsFormInfo>
+  >({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(null);
+  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(
+    null
+  );
   const [showPartsForm, setShowPartsForm] = useState(false);
   const [viewingDetails, setViewingDetails] = useState<Elevator | null>(null);
   const [showSpecificPartsForm, setShowSpecificPartsForm] = useState(false);
-  const [specificPartsElevator, setSpecificPartsElevator] = useState<Elevator | null>(null);
+  const [specificPartsElevator, setSpecificPartsElevator] =
+    useState<Elevator | null>(null);
   const [showManualPartsForm, setShowManualPartsForm] = useState(false);
-  const [manualPartsElevator, setManualPartsElevator] = useState<Elevator | null>(null);
+  const [manualPartsElevator, setManualPartsElevator] =
+    useState<Elevator | null>(null);
 
   useEffect(() => {
     loadElevators();
@@ -66,23 +85,53 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
     filterElevators();
   }, [elevators, searchTerm]);
 
+  const getElevatorAddress = (e: Elevator) =>
+    e.address_asc ||
+    e.address ||
+    e.clients?.address ||
+    'Sin dirección registrada';
+
   const loadElevators = async () => {
     try {
       const { data, error } = await supabase
         .from('elevators')
-        .select(`
-          *,
+        .select(
+          `
+          id,
+          tower_name,
+          index_number,
+          location_name,
+          address,
+          address_asc,
+          elevator_type,
+          manufacturer,
+          model,
+          serial_number,
+          serial_number_not_legible,
+          capacity_kg,
+          floors,
+          installation_date,
+          has_machine_room,
+          no_machine_room,
+          stops_all_floors,
+          stops_odd_floors,
+          stops_even_floors,
+          classification,
+          status,
+          created_at,
+          client_id,
           clients (
             id,
             company_name,
             building_name,
             address
           )
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setElevators(data || []);
+      setElevators((data as Elevator[]) || []);
 
       // Cargar información de formularios de partes
       const { data: partsForms } = await supabase
@@ -91,7 +140,7 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
 
       if (partsForms) {
         const formsMap: Record<string, PartsFormInfo> = {};
-        partsForms.forEach(form => {
+        partsForms.forEach((form: any) => {
           formsMap[form.elevator_id] = {
             id: form.id,
             completion_percentage: form.completion_percentage,
@@ -110,16 +159,26 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
   const filterElevators = () => {
     let filtered = [...elevators];
 
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (e) =>
-          e.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.location_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.clients?.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.clients?.building_name?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+
+      const norm = (value?: string | null) =>
+        (value ?? '').toLowerCase();
+
+      filtered = filtered.filter((e) => {
+        const address = getElevatorAddress(e).toLowerCase();
+
+        return (
+          norm(e.manufacturer).includes(term) ||
+          norm(e.model).includes(term) ||
+          norm(e.serial_number).includes(term) ||
+          norm(e.location_name).includes(term) ||
+          norm(e.tower_name).includes(term) ||
+          norm(e.clients?.company_name).includes(term) ||
+          norm(e.clients?.building_name).includes(term) ||
+          address.includes(term)
+        );
+      });
     }
 
     setFilteredElevators(filtered);
@@ -127,20 +186,29 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
 
   const getElevatorTypeLabel = (type: string) => {
     switch (type) {
-      case 'hydraulic': return 'Hidráulico';
-      case 'electromechanical': return 'Electromecánico';
-      case 'traction': return 'Tracción';
-      default: return type;
+      case 'hydraulic':
+        return 'Hidráulico';
+      case 'electromechanical':
+        return 'Electromecánico';
+      case 'traction':
+        return 'Tracción';
+      default:
+        return type;
     }
   };
 
   const getClassificationLabel = (classification: string) => {
     switch (classification) {
-      case 'ascensor_corporativo': return 'Ascensor Corporativo';
-      case 'ascensor_residencial': return 'Ascensor Residencial';
-      case 'montacargas': return 'Montacargas';
-      case 'montaplatos': return 'Montaplatos';
-      default: return classification;
+      case 'ascensor_corporativo':
+        return 'Ascensor Corporativo';
+      case 'ascensor_residencial':
+        return 'Ascensor Residencial';
+      case 'montacargas':
+        return 'Montacargas';
+      case 'montaplatos':
+        return 'Montaplatos';
+      default:
+        return classification;
     }
   };
 
@@ -158,9 +226,12 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Gestión Completa de Ascensores</h1>
+        <h1 className="text-3xl font-bold text-slate-900">
+          Gestión Completa de Ascensores
+        </h1>
         <p className="text-slate-600 mt-1">
-          Visualiza toda la información técnica, fichas iniciales y gestiona partes y piezas
+          Visualiza toda la información técnica, fichas iniciales y gestiona
+          partes y piezas
         </p>
       </div>
 
@@ -170,7 +241,7 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar por fabricante, modelo, serie, ubicación, cliente o edificio..."
+              placeholder="Buscar por fabricante, modelo, serie, torre, cliente, edificio o dirección..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -185,13 +256,24 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
         ) : filteredElevators.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
             <Wrench className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-600 font-medium mb-2">No se encontraron ascensores</p>
-            <p className="text-slate-500 text-sm">Para gestionar partes y piezas, primero debes registrar ascensores en el sistema.</p>
+            <p className="text-slate-600 font-medium mb-2">
+              No se encontraron ascensores
+            </p>
+            <p className="text-slate-500 text-sm">
+              Para gestionar partes y piezas, primero debes registrar
+              ascensores en el sistema.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
             {filteredElevators.map((elevator) => {
               const partsInfo = partsFormsInfo[elevator.id];
+              const torre =
+                elevator.tower_name?.trim() ||
+                elevator.location_name ||
+                'Sin torre registrada';
+              const address = getElevatorAddress(elevator);
+
               return (
                 <div
                   key={elevator.id}
@@ -202,28 +284,40 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
                     <div>
                       <h3 className="font-bold text-lg text-slate-900 mb-3 flex items-center gap-2">
                         <Building2 className="w-5 h-5 text-blue-600" />
-                        Información General
+                        <span>Información General</span>
+                        {typeof elevator.index_number === 'number' &&
+                          elevator.index_number > 0 && (
+                            <span className="text-sm font-normal text-slate-500">
+                              · Ascensor #{elevator.index_number}
+                            </span>
+                          )}
                       </h3>
                       <div className="space-y-2 text-sm">
                         <div>
                           <span className="text-slate-500">Cliente:</span>
-                          <p className="font-medium text-slate-900">{elevator.clients?.company_name}</p>
+                          <p className="font-medium text-slate-900">
+                            {elevator.clients?.company_name || 'Sin cliente'}
+                          </p>
                         </div>
                         <div>
                           <span className="text-slate-500">Edificio:</span>
-                          <p className="font-medium text-slate-900">{elevator.clients?.building_name}</p>
+                          <p className="font-medium text-slate-900">
+                            {elevator.clients?.building_name || 'Sin edificio'}
+                          </p>
                         </div>
                         <div>
-                          <span className="text-slate-500">Ubicación:</span>
-                          <p className="text-slate-700">{elevator.location_name}</p>
+                          <span className="text-slate-500">Torre:</span>
+                          <p className="text-slate-700">{torre}</p>
                         </div>
                         <div>
                           <span className="text-slate-500">Dirección:</span>
-                          <p className="text-slate-700">{elevator.address}</p>
+                          <p className="text-slate-700">{address}</p>
                         </div>
                         <div>
                           <span className="text-slate-500">Clasificación:</span>
-                          <p className="font-medium text-blue-700">{getClassificationLabel(elevator.classification)}</p>
+                          <p className="font-medium text-blue-700">
+                            {getClassificationLabel(elevator.classification)}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -237,36 +331,52 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
                       <div className="space-y-2 text-sm">
                         <div>
                           <span className="text-slate-500">Tipo:</span>
-                          <p className="font-medium text-slate-900">{getElevatorTypeLabel(elevator.elevator_type)}</p>
+                          <p className="font-medium text-slate-900">
+                            {getElevatorTypeLabel(elevator.elevator_type)}
+                          </p>
                         </div>
                         <div>
                           <span className="text-slate-500">Fabricante:</span>
-                          <p className="font-medium text-slate-900">{elevator.manufacturer}</p>
+                          <p className="font-medium text-slate-900">
+                            {elevator.manufacturer}
+                          </p>
                         </div>
                         <div>
                           <span className="text-slate-500">Modelo:</span>
                           <p className="text-slate-700">{elevator.model}</p>
                         </div>
                         <div>
-                          <span className="text-slate-500">Número de Serie:</span>
+                          <span className="text-slate-500">
+                            Número de Serie:
+                          </span>
                           {elevator.serial_number_not_legible ? (
-                            <p className="text-orange-600 italic">No legible / No disponible</p>
+                            <p className="text-orange-600 italic">
+                              No legible / No disponible
+                            </p>
                           ) : (
-                            <p className="font-mono text-slate-700">{elevator.serial_number}</p>
+                            <p className="font-mono text-slate-700">
+                              {elevator.serial_number}
+                            </p>
                           )}
                         </div>
                         <div>
                           <span className="text-slate-500">Capacidad:</span>
-                          <p className="font-medium text-slate-900">{elevator.capacity_kg} kg</p>
+                          <p className="font-medium text-slate-900">
+                            {elevator.capacity_kg} kg
+                          </p>
                         </div>
                         <div>
                           <span className="text-slate-500">Pisos:</span>
                           <p className="text-slate-700">{elevator.floors}</p>
                         </div>
                         <div>
-                          <span className="text-slate-500">Fecha de Instalación:</span>
+                          <span className="text-slate-500">
+                            Fecha de Instalación:
+                          </span>
                           <p className="text-slate-700">
-                            {new Date(elevator.installation_date).toLocaleDateString('es-ES')}
+                            {new Date(
+                              elevator.installation_date
+                            ).toLocaleDateString('es-ES')}
                           </p>
                         </div>
                       </div>
@@ -280,17 +390,25 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
                       </h3>
                       <div className="space-y-2 text-sm">
                         <div>
-                          <span className="text-slate-500">Sala de Máquinas:</span>
+                          <span className="text-slate-500">
+                            Sala de Máquinas:
+                          </span>
                           <p className="font-medium text-slate-900">
-                            {elevator.has_machine_room ? 'Con sala de máquinas' : 'Sin sala de máquinas'}
+                            {elevator.has_machine_room
+                              ? 'Con sala de máquinas'
+                              : 'Sin sala de máquinas'}
                           </p>
                         </div>
                         <div>
-                          <span className="text-slate-500">Paradas en Pisos:</span>
+                          <span className="text-slate-500">
+                            Paradas en Pisos:
+                          </span>
                           <p className="font-medium text-slate-900">
                             {elevator.stops_all_floors && 'Todos los pisos'}
-                            {elevator.stops_odd_floors && 'Solo pisos impares'}
-                            {elevator.stops_even_floors && 'Solo pisos pares'}
+                            {elevator.stops_odd_floors &&
+                              'Solo pisos impares'}
+                            {elevator.stops_even_floors &&
+                              'Solo pisos pares'}
                           </p>
                         </div>
 
@@ -311,7 +429,9 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
                                         ? 'bg-green-500'
                                         : 'bg-blue-500'
                                     }`}
-                                    style={{ width: `${partsInfo.completion_percentage}%` }}
+                                    style={{
+                                      width: `${partsInfo.completion_percentage}%`,
+                                    }}
                                   ></div>
                                 </div>
                                 <span className="text-xs font-medium text-slate-700">
@@ -319,11 +439,15 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
                                 </span>
                               </div>
                               {partsInfo.is_complete && (
-                                <p className="text-xs text-green-600 font-medium">✓ Completo</p>
+                                <p className="text-xs text-green-600 font-medium">
+                                  ✓ Completo
+                                </p>
                               )}
                             </div>
                           ) : (
-                            <p className="text-xs text-orange-600 italic">Sin información registrada</p>
+                            <p className="text-xs text-orange-600 italic">
+                              Sin información registrada
+                            </p>
                           )}
                         </div>
 
@@ -376,7 +500,15 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900">Detalles Completos del Ascensor</h2>
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <span>Detalles Completos del Ascensor</span>
+                {typeof viewingDetails.index_number === 'number' &&
+                  viewingDetails.index_number > 0 && (
+                    <span className="text-sm font-normal text-slate-500">
+                      · Ascensor #{viewingDetails.index_number}
+                    </span>
+                  )}
+              </h2>
               <button
                 onClick={() => setViewingDetails(null)}
                 className="p-2 hover:bg-slate-100 rounded-lg transition"
@@ -388,24 +520,38 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="col-span-2 border-b pb-3">
-                  <h3 className="font-bold text-lg text-slate-900 mb-2">Cliente</h3>
-                  <p className="font-medium">{viewingDetails.clients?.company_name}</p>
-                  <p className="text-slate-600">{viewingDetails.clients?.building_name}</p>
+                  <h3 className="font-bold text-lg text-slate-900 mb-2">
+                    Cliente
+                  </h3>
+                  <p className="font-medium">
+                    {viewingDetails.clients?.company_name || 'Sin cliente'}
+                  </p>
+                  <p className="text-slate-600">
+                    {viewingDetails.clients?.building_name || 'Sin edificio'}
+                  </p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 text-xs">Clasificación</span>
-                  <p className="font-medium">{getClassificationLabel(viewingDetails.classification)}</p>
+                  <span className="text-slate-500 text-xs">
+                    Clasificación
+                  </span>
+                  <p className="font-medium">
+                    {getClassificationLabel(viewingDetails.classification)}
+                  </p>
                 </div>
 
                 <div>
                   <span className="text-slate-500 text-xs">Tipo</span>
-                  <p className="font-medium">{getElevatorTypeLabel(viewingDetails.elevator_type)}</p>
+                  <p className="font-medium">
+                    {getElevatorTypeLabel(viewingDetails.elevator_type)}
+                  </p>
                 </div>
 
                 <div>
                   <span className="text-slate-500 text-xs">Fabricante</span>
-                  <p className="font-medium">{viewingDetails.manufacturer}</p>
+                  <p className="font-medium">
+                    {viewingDetails.manufacturer}
+                  </p>
                 </div>
 
                 <div>
@@ -414,69 +560,102 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
                 </div>
 
                 <div className="col-span-2">
-                  <span className="text-slate-500 text-xs">Número de Serie</span>
+                  <span className="text-slate-500 text-xs">
+                    Número de Serie
+                  </span>
                   {viewingDetails.serial_number_not_legible ? (
-                    <p className="text-orange-600 italic">No legible / No disponible</p>
+                    <p className="text-orange-600 italic">
+                      No legible / No disponible
+                    </p>
                   ) : (
-                    <p className="font-mono font-medium">{viewingDetails.serial_number}</p>
+                    <p className="font-mono font-medium">
+                      {viewingDetails.serial_number}
+                    </p>
                   )}
                 </div>
 
                 <div>
                   <span className="text-slate-500 text-xs">Capacidad</span>
-                  <p className="font-medium">{viewingDetails.capacity_kg} kg</p>
+                  <p className="font-medium">
+                    {viewingDetails.capacity_kg} kg
+                  </p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 text-xs">Número de Pisos</span>
+                  <span className="text-slate-500 text-xs">
+                    Número de Pisos
+                  </span>
                   <p className="font-medium">{viewingDetails.floors}</p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 text-xs">Sala de Máquinas</span>
+                  <span className="text-slate-500 text-xs">
+                    Sala de Máquinas
+                  </span>
                   <p className="font-medium">
-                    {viewingDetails.has_machine_room ? 'Con sala de máquinas' : 'Sin sala de máquinas'}
+                    {viewingDetails.has_machine_room
+                      ? 'Con sala de máquinas'
+                      : 'Sin sala de máquinas'}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 text-xs">Paradas en Pisos</span>
+                  <span className="text-slate-500 text-xs">
+                    Paradas en Pisos
+                  </span>
                   <p className="font-medium">
                     {viewingDetails.stops_all_floors && 'Todos los pisos'}
-                    {viewingDetails.stops_odd_floors && 'Solo pisos impares'}
-                    {viewingDetails.stops_even_floors && 'Solo pisos pares'}
+                    {viewingDetails.stops_odd_floors &&
+                      'Solo pisos impares'}
+                    {viewingDetails.stops_even_floors &&
+                      'Solo pisos pares'}
                   </p>
                 </div>
 
                 <div className="col-span-2">
-                  <span className="text-slate-500 text-xs">Ubicación</span>
-                  <p className="font-medium">{viewingDetails.location_name}</p>
+                  <span className="text-slate-500 text-xs">Torre</span>
+                  <p className="font-medium">
+                    {viewingDetails.tower_name?.trim() ||
+                      viewingDetails.location_name ||
+                      'Sin torre registrada'}
+                  </p>
                 </div>
 
                 <div className="col-span-2">
                   <span className="text-slate-500 text-xs">Dirección</span>
-                  <p className="font-medium">{viewingDetails.address}</p>
+                  <p className="font-medium">
+                    {getElevatorAddress(viewingDetails)}
+                  </p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 text-xs">Fecha de Instalación</span>
+                  <span className="text-slate-500 text-xs">
+                    Fecha de Instalación
+                  </span>
                   <p className="font-medium">
-                    {new Date(viewingDetails.installation_date).toLocaleDateString('es-ES', {
+                    {new Date(
+                      viewingDetails.installation_date
+                    ).toLocaleDateString('es-ES', {
                       day: '2-digit',
                       month: 'long',
-                      year: 'numeric'
+                      year: 'numeric',
                     })}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 text-xs">Registrado el</span>
+                  <span className="text-slate-500 text-xs">
+                    Registrado el
+                  </span>
                   <p className="font-medium">
-                    {new Date(viewingDetails.created_at).toLocaleDateString('es-ES', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric'
-                    })}
+                    {new Date(viewingDetails.created_at).toLocaleDateString(
+                      'es-ES',
+                      {
+                        day: '2-digit',
+                        month: 'long',
+                        year: 'numeric',
+                      }
+                    )}
                   </p>
                 </div>
               </div>
@@ -488,7 +667,13 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
       {showSpecificPartsForm && specificPartsElevator && (
         <ElevatorSpecificPartsForm
           elevatorId={specificPartsElevator.id}
-          elevatorInfo={`${specificPartsElevator.clients.company_name} - ${specificPartsElevator.location_name}`}
+          elevatorInfo={`${
+            specificPartsElevator.clients?.company_name ?? 'Sin cliente'
+          } - ${
+            specificPartsElevator.tower_name ||
+            specificPartsElevator.location_name ||
+            'Sin torre'
+          }`}
           onClose={() => {
             setShowSpecificPartsForm(false);
             setSpecificPartsElevator(null);
@@ -509,3 +694,4 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
     </div>
   );
 }
+
