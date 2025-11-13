@@ -28,7 +28,8 @@ interface ElevatorData {
   useClientAddress: boolean;
   address_asc: string;             // Dirección del ascensor (columna en Supabase)
   elevator_type: ElevatorType;
-  manufacturer: string;
+  manufacturer: string;            // puede ser uno de la lista o "OTROS"
+  manufacturer_custom?: string;    // si manufacturer === "OTROS", aquí va el texto del usuario
   model: string;
   serial_number: string;
   serial_number_not_legible: boolean;
@@ -82,6 +83,7 @@ const createEmptyElevator = (clientAddress: string): ElevatorData => ({
   address_asc: clientAddress, // por defecto usa dirección del cliente
   elevator_type: 'hydraulic',
   manufacturer: '',
+  manufacturer_custom: '',
   model: '',
   serial_number: '',
   serial_number_not_legible: false,
@@ -105,13 +107,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [clientData, setClientData] = useState({
     company_name: client?.company_name || '',
     building_name: client?.building_name || '',
-    // NUEVO: Alias interno (Mirega)
+    // Alias interno (Mirega)
     internal_alias: '',
-    // Contacto "legacy" (lo mantenemos por compatibilidad)
+    // Contacto "legacy" (se mantiene)
     contact_name: client?.contact_name || '',
     contact_email: client?.contact_email || '',
     contact_phone: client?.contact_phone || '',
-    // NUEVO: Bloque Administrador (obligatorio)
+    // Bloque Administrador (obligatorio)
     admin_name: '',
     admin_email: '',
     admin_phone: '',
@@ -218,10 +220,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         return fail(`El ascensor ${n} debe tener un nombre / torre`);
       if (!addr)
         return fail(`El ascensor ${n} debe tener una dirección`);
+
+      // Fabricante: si es OTROS, debe venir manufacturer_custom
       if (!e.manufacturer)
-        return fail(
-          `El ascensor ${n} debe tener un fabricante seleccionado`
-        );
+        return fail(`El ascensor ${n} debe tener un fabricante seleccionado`);
+      if (e.manufacturer === 'OTROS' && !e.manufacturer_custom?.trim())
+        return fail(`Escribe el fabricante en "OTROS" para el ascensor ${n}`);
+
       if (!e.model)
         return fail(`El ascensor ${n} debe tener un modelo`);
       if (!e.serial_number && !e.serial_number_not_legible)
@@ -462,10 +467,15 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         throw clientErr || new Error('No se pudo crear el cliente');
       }
 
-      // Helpers para tower/index
+      // Helpers para tower/index y fabricante personalizado
+      const normalizeManufacturer = (e: ElevatorData) =>
+        e.manufacturer === 'OTROS'
+          ? (e.manufacturer_custom?.trim() || 'OTROS')
+          : e.manufacturer;
+
       const makeElevatorRow = (e: ElevatorData, idx: number) => {
         const tower = e.location_name?.trim() || `Ascensor ${idx + 1}`;
-        const indexNum = idx + 1; // consecutivo según orden visual
+        const indexNum = idx + 1; // consecutivo según orden visual (si lo omites, DB trigger lo completa)
         return {
           client_id: createdClient.id,
           location_name: e.location_name,
@@ -473,7 +483,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           index_number: indexNum,
           address_asc: e.useClientAddress ? clientData.address : e.address_asc,
           elevator_type: e.elevator_type,
-          manufacturer: e.manufacturer,
+          manufacturer: normalizeManufacturer(e),
           model: e.model,
           serial_number: e.serial_number,
           serial_number_not_legible: e.serial_number_not_legible,
@@ -592,7 +602,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               </p>
             </div>
 
-            {/* NUEVO: Alias interno */}
+            {/* Alias interno */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Nombre interno (Mirega) *
@@ -632,7 +642,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               />
             </div>
 
-            {/* Contacto "legacy" (se mantiene) */}
+            {/* Contacto "legacy" */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Contacto *
@@ -704,7 +714,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               />
             </div>
 
-            {/* NUEVO: Bloque Administrador (obligatorio) */}
+            {/* Bloque Administrador */}
             <div className="md:col-span-2 border rounded-lg p-4 bg-slate-50">
               <p className="text-sm font-semibold text-slate-800 mb-3">
                 Contacto Administrador (obligatorio)
@@ -1063,6 +1073,11 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                         ...p,
                         manufacturer:
                           e.target.value,
+                        // reset el custom si elige algo distinto de OTROS
+                        manufacturer_custom:
+                          e.target.value === 'OTROS'
+                            ? p.manufacturer_custom
+                            : '',
                       }))
                     }
                     className="w-full px-3 py-2 border rounded-lg"
@@ -1076,6 +1091,20 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                       </option>
                     ))}
                   </select>
+                  {templateElevator.manufacturer === 'OTROS' && (
+                    <input
+                      type="text"
+                      placeholder="Especifique fabricante"
+                      value={templateElevator.manufacturer_custom || ''}
+                      onChange={(e) =>
+                        setTemplateElevator((p) => ({
+                          ...p,
+                          manufacturer_custom: e.target.value,
+                        }))
+                      }
+                      className="w-full mt-2 px-3 py-2 border rounded-lg"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
@@ -1457,6 +1486,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                           updateElevator(idx, {
                             manufacturer:
                               ev.target.value,
+                            manufacturer_custom:
+                              ev.target.value === 'OTROS'
+                                ? e.manufacturer_custom
+                                : '',
                           })
                         }
                         className="w-full px-3 py-2 border rounded-lg"
@@ -1470,6 +1503,19 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                           </option>
                         ))}
                       </select>
+                      {e.manufacturer === 'OTROS' && (
+                        <input
+                          type="text"
+                          placeholder="Especifique fabricante"
+                          value={e.manufacturer_custom || ''}
+                          onChange={(ev) =>
+                            updateElevator(idx, {
+                              manufacturer_custom: ev.target.value,
+                            })
+                          }
+                          className="w-full mt-2 px-3 py-2 border rounded-lg"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="text-sm text-slate-700 mb-1 block">
@@ -1767,3 +1813,4 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     </div>
   );
 }
+
