@@ -15,7 +15,6 @@ import { ManualPartsManagementForm } from '../forms/ManualPartsManagementForm';
 
 interface Elevator {
   id: string;
-  // NUEVOS / AJUSTADOS
   tower_name: string | null;
   index_number: number | null;
   location_name: string | null;
@@ -95,42 +94,19 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
     try {
       const { data, error } = await supabase
         .from('elevators')
-        .select(
-          `
-          id,
-          tower_name,
-          index_number,
-          location_name,
-          address,
-          address_asc,
-          elevator_type,
-          manufacturer,
-          model,
-          serial_number,
-          serial_number_not_legible,
-          capacity_kg,
-          floors,
-          installation_date,
-          has_machine_room,
-          no_machine_room,
-          stops_all_floors,
-          stops_odd_floors,
-          stops_even_floors,
-          classification,
-          status,
-          created_at,
-          client_id,
+        .select(`
+          *,
           clients (
             id,
             company_name,
             building_name,
             address
           )
-        `
-        )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
       setElevators((data as Elevator[]) || []);
 
       // Cargar información de formularios de partes
@@ -146,8 +122,8 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
             completion_percentage: form.completion_percentage,
             is_complete: form.is_complete,
           };
+          setPartsFormsInfo(formsMap);
         });
-        setPartsFormsInfo(formsMap);
       }
     } catch (error) {
       console.error('Error loading elevators:', error);
@@ -694,4 +670,5 @@ export function ElevatorsCompleteView({ onNavigate }: Props) {
     </div>
   );
 }
+
 
