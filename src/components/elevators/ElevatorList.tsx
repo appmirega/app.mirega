@@ -1,61 +1,95 @@
-import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
-import { ElevatorCard, Elevator } from "./ElevatorCard";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import ElevatorCard, { Elevator } from "./ElevatorCard";
 
-type Props = {
-  clientId?: string; // si filtras por cliente
-};
+function useQueryParam(name: string) {
+  return useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(name) || "";
+  }, [name]);
+}
 
-export default function ElevatorList({ clientId }: Props) {
-  const [data, setData] = useState<Elevator[]>([]);
+export default function ElevatorList() {
+  const clientId = useQueryParam("client_id"); // ← ?client_id=xxxx
   const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<Elevator[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const run = async () => {
+    let ignore = false;
+    (async () => {
       setLoading(true);
-      const query = supabase
+      setError(null);
+
+      // base query
+      let query = supabase
         .from("elevators")
         .select(
-          "id, client_id, tower_name, index_number, manufacturer, model, elevator_type, floors, capacity_kg, has_machine_room, no_machine_room, stops_all_floors, stops_odd_floors, stops_even_floors, classification"
+          [
+            "id",
+            "client_id",
+            "tower_name",
+            "index_number",
+            "location_name",
+            "elevator_type",
+            "manufacturer",
+            "model",
+            "serial_number",
+            "serial_number_not_legible",
+            "capacity_kg",
+            "floors",
+            "installation_date",
+            "has_machine_room",
+            "no_machine_room",
+            "stops_all_floors",
+            "stops_odd_floors",
+            "stops_even_floors",
+            "classification",
+          ].join(",")
         )
-        // orden consistente: primero torre, luego número
         .order("tower_name", { ascending: true, nullsFirst: true })
         .order("index_number", { ascending: true, nullsFirst: true });
 
-      const { data, error } = clientId
-        ? await query.eq("client_id", clientId)
-        : await query;
+      if (clientId) query = query.eq("client_id", clientId);
 
+      const { data, error } = await query;
+
+      if (ignore) return;
       if (error) {
-        console.error(error);
-        setData([]);
+        setError(error.message);
       } else {
-        setData((data || []) as Elevator[]);
+        setItems((data || []) as unknown as Elevator[]);
       }
       setLoading(false);
-    };
+    })();
 
-    run();
+    return () => {
+      ignore = true;
+    };
   }, [clientId]);
 
   if (loading) {
-    return <div className="text-slate-500">Cargando ascensores…</div>;
+    return <div className="text-slate-600">Cargando ascensores…</div>;
   }
-
-  if (!data.length) {
-    return <div className="text-slate-500">No hay ascensores registrados.</div>;
+  if (error) {
+    return (
+      <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div className="rounded-xl border bg-white p-6 text-center text-slate-600">
+        {clientId ? "Este cliente no tiene ascensores registrados." : "No hay ascensores registrados."}
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-4">
-      {data.map((e) => (
-        <ElevatorCard
-          key={e.id}
-          e={e}
-          onView={() => {}}
-          onParts={() => {}}
-          onManageParts={() => {}}
-        />
+    <div className="space-y-4">
+      {items.map((e) => (
+        <ElevatorCard key={e.id} e={e} />
       ))}
     </div>
   );
