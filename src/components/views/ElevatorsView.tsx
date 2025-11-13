@@ -21,7 +21,8 @@ interface ElevatorRow {
     internal_alias: string | null;
     building_name: string | null;
     address: string;
-  };
+  } | null;
+  created_at?: string; // por si lo necesitas más adelante
 }
 
 export interface ElevatorItem {
@@ -43,9 +44,7 @@ export interface ElevatorItem {
 
 export function ElevatorsView() {
   const [elevators, setElevators] = useState<ElevatorItem[]>([]);
-  const [filteredElevators, setFilteredElevators] = useState<ElevatorItem[]>(
-    []
-  );
+  const [filteredElevators, setFilteredElevators] = useState<ElevatorItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -62,10 +61,7 @@ export function ElevatorsView() {
     try {
       const { data, error } = await supabase
         .from('elevators')
-        .select<
-          ElevatorRow
-        >(
-          `
+        .select<ElevatorRow>(`
           id,
           tower_name,
           index_number,
@@ -78,29 +74,35 @@ export function ElevatorsView() {
           classification,
           status,
           address_asc,
+          created_at,
           clients (
             company_name,
             internal_alias,
             building_name,
             address
           )
-        `
-        )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const mapped: ElevatorItem[] =
-        (data || []).map((row) => ({
+      const mapped: ElevatorItem[] = (data || []).map((row, idx) => {
+        const tower =
+          (row.tower_name && row.tower_name.trim()) ||
+          row.location_name ||
+          `Ascensor ${idx + 1}`;
+
+        const indexNumber = row.index_number && row.index_number > 0
+          ? row.index_number
+          : idx + 1;
+
+        return {
           id: row.id,
           clientName: row.clients?.company_name ?? 'Sin cliente',
           internalAlias: row.clients?.internal_alias ?? null,
           buildingName: row.clients?.building_name ?? null,
-          towerName:
-            (row.tower_name && row.tower_name.trim()) ||
-            row.location_name ||
-            'Torre / Identificador',
-          indexNumber: row.index_number ?? 0,
+          towerName: tower,
+          indexNumber,
           classification: row.classification ?? null,
           manufacturer: row.manufacturer ?? 'Sin fabricante',
           model: row.model ?? 'Sin modelo',
@@ -112,7 +114,8 @@ export function ElevatorsView() {
             row.clients?.address ||
             'Sin dirección registrada',
           installationDate: row.installation_date,
-        })) ?? [];
+        };
+      });
 
       setElevators(mapped);
     } catch (err) {
@@ -177,8 +180,7 @@ export function ElevatorsView() {
           Gestión de Ascensores
         </h1>
         <p className="text-slate-600 mt-1">
-          Visualiza todos los ascensores por cliente, torre y número de
-          ascensor.
+          Visualiza todos los ascensores por cliente, torre y número de ascensor.
         </p>
       </div>
 
@@ -260,12 +262,8 @@ export function ElevatorsView() {
             className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">Todos los estados</option>
-            <option value="operational">
-              {getStatusLabel('operational')}
-            </option>
-            <option value="maintenance">
-              {getStatusLabel('maintenance')}
-            </option>
+            <option value="operational">{getStatusLabel('operational')}</option>
+            <option value="maintenance">{getStatusLabel('maintenance')}</option>
             <option value="stopped">{getStatusLabel('stopped')}</option>
             <option value="under_observation">
               {getStatusLabel('under_observation')}
