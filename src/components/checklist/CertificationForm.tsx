@@ -9,31 +9,21 @@ interface Props {
   }) => void;
   onCancel: () => void;
 
-  /**
-   * Clasificación interna del ascensor según tu BD:
-   *  - 'ascensor_residencial'
-   *  - 'ascensor_corporativo'
-   *  - 'montacargas'
-   *  - 'montaplatos'
-   *  - etc.
-   *
-   * Soportamos ambos nombres por si el padre usa uno u otro.
-   */
+  // Podemos recibir classification o elevatorClassification
   classification?: string | null;
   elevatorClassification?: string | null;
 }
 
-// Devuelve la cantidad de años de vigencia según la clasificación
+// Frecuencia según clasificación (regla base MINVU)
 function getFrequencyYears(classification: string | null | undefined): number {
   if (!classification) return 1;
 
-  // Según MINVU: edificios con destino vivienda → 2 años
-  // Otros destinos → 1 o 2 años según capacidad.
-  // Aquí aplicamos la regla base: residencial = 2, resto = 1.
   if (classification === 'ascensor_residencial') {
+    // Vivienda → 2 años
     return 2;
   }
 
+  // Otros destinos → 1 año por defecto
   return 1;
 }
 
@@ -85,9 +75,10 @@ export function CertificationForm({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
-    // Si la placa es legible, exigimos una fecha
     if (!notLegible && !lastDate) {
-      alert('Debes ingresar la fecha de la última certificación o marcar como no legible.');
+      alert(
+        'Debes ingresar la fecha de la última certificación o marcar como no legible.'
+      );
       return;
     }
 
@@ -177,7 +168,8 @@ export function CertificationForm({
             )}
             {daysLeft !== null && daysLeft < 0 && (
               <p className="text-xs">
-                Venció hace <span className="font-semibold">{Math.abs(daysLeft)}</span> día
+                Venció hace{' '}
+                <span className="font-semibold">{Math.abs(daysLeft)}</span> día
                 {Math.abs(daysLeft) === 1 ? '' : 's'}.
               </p>
             )}
@@ -195,12 +187,16 @@ export function CertificationForm({
           className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
         />
         <div>
-          <label htmlFor="not-legible" className="text-sm font-medium text-slate-800">
+          <label
+            htmlFor="not-legible"
+            className="text-sm font-medium text-slate-800"
+          >
             Certificación no legible o no disponible
           </label>
           <p className="text-xs text-slate-500">
-            Si la placa no es legible, marca esta opción y podrás actualizar la información
-            más adelante. El sistema registrará que se debe regularizar la certificación.
+            Si la placa no es legible, marca esta opción y podrás actualizar la
+            información más adelante. El sistema registrará que se debe
+            regularizar la certificación.
           </p>
         </div>
       </div>
@@ -212,16 +208,19 @@ export function CertificationForm({
           <p className="font-semibold">Información Importante</p>
           <ul className="list-disc list-inside space-y-1">
             <li>
-              La certificación debe renovarse según la normativa vigente para el tipo de
-              ascensor (vivienda: cada 2 años; otros destinos: al menos cada 1 año).
+              La certificación debe renovarse según la normativa vigente para el
+              tipo de ascensor (vivienda: cada 2 años; otros destinos: al menos
+              cada 1 año).
             </li>
             <li>
-              El sistema generará alertas considerando la fecha de la próxima certificación
-              (120, 90 y 30 días antes del vencimiento).
+              El sistema generará alertas considerando la fecha de la próxima
+              certificación (por ejemplo 120, 90 y 30 días antes del
+              vencimiento).
             </li>
             <li>
-              Si la placa no es legible, marca la opción correspondiente para actualizarla
-              después con el certificado emitido por el organismo competente.
+              Si la placa no es legible, marca la opción correspondiente para
+              actualizarla después con el certificado emitido por el organismo
+              competente.
             </li>
           </ul>
         </div>
