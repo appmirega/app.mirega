@@ -25,7 +25,7 @@ interface Elevator {
   model: string;
   serial_number: string;
   is_hydraulic: boolean;
-  classification: string | null; // <- NUEVO
+  classification: string | null; // ascensor_residencial, ascensor_corporativo, etc.
 }
 
 interface InProgressChecklist {
@@ -34,7 +34,7 @@ interface InProgressChecklist {
   month: number;
   year: number;
   auto_save_count: number;
-  elevator?: Elevator;
+  elevators: Elevator;
 }
 
 interface ActiveChecklist {
@@ -53,9 +53,14 @@ export function MaintenanceChecklistView() {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [elevators, setElevators] = useState<Elevator[]>([]);
-  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(null);
-  const [activeChecklist, setActiveChecklist] = useState<ActiveChecklist | null>(null);
-  const [inProgressChecklists, setInProgressChecklists] = useState<InProgressChecklist[]>([]);
+  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(
+    null,
+  );
+  const [activeChecklist, setActiveChecklist] =
+    useState<ActiveChecklist | null>(null);
+  const [inProgressChecklists, setInProgressChecklists] = useState<
+    InProgressChecklist[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,7 +74,8 @@ export function MaintenanceChecklistView() {
     try {
       const { data, error } = await supabase
         .from('mnt_checklists')
-        .select(`
+        .select(
+          `
           id,
           elevator_id,
           month,
@@ -83,14 +89,15 @@ export function MaintenanceChecklistView() {
             is_hydraulic,
             classification
           )
-        `)
+        `,
+        )
         .eq('technician_id', profile?.id)
         .eq('status', 'in_progress')
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setInProgressChecklists(data || []);
-    } catch (err: any) {
+      setInProgressChecklists((data || []) as InProgressChecklist[]);
+    } catch (err) {
       console.error('Error loading in-progress checklists:', err);
     }
   };
@@ -114,14 +121,16 @@ export function MaintenanceChecklistView() {
 
       const { data: elevatorsData, error: elevatorsError } = await supabase
         .from('elevators')
-        .select('id, brand, model, serial_number, is_hydraulic, classification') // <- classification
+        .select(
+          'id, brand, model, serial_number, is_hydraulic, classification',
+        )
         .eq('client_id', client.id)
         .eq('status', 'active')
         .order('serial_number');
 
       if (elevatorsError) throw elevatorsError;
 
-      setElevators(elevatorsData || []);
+      setElevators((elevatorsData || []) as Elevator[]);
       setViewMode('select-elevator');
     } catch (err: any) {
       console.error('Error processing QR:', err);
@@ -151,7 +160,7 @@ export function MaintenanceChecklistView() {
       setActiveChecklist({
         id: existingChecklist.id,
         elevator_id: elevator.id,
-        elevator: elevator,
+        elevator,
         month: currentMonth,
         year: currentYear,
       });
@@ -169,6 +178,8 @@ export function MaintenanceChecklistView() {
     if (!selectedElevator || !selectedClient) return;
 
     setLoading(true);
+    setError(null);
+
     try {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
@@ -212,10 +223,13 @@ export function MaintenanceChecklistView() {
 
   const handleResumeChecklist = async (checklistId: string) => {
     setLoading(true);
+    setError(null);
+
     try {
       const { data, error } = await supabase
         .from('mnt_checklists')
-        .select(`
+        .select(
+          `
           id,
           elevator_id,
           month,
@@ -228,7 +242,8 @@ export function MaintenanceChecklistView() {
             is_hydraulic,
             classification
           )
-        `)
+        `,
+        )
         .eq('id', checklistId)
         .single();
 
@@ -238,7 +253,7 @@ export function MaintenanceChecklistView() {
       setActiveChecklist({
         id: data.id,
         elevator_id: data.elevator_id,
-        elevator: elevator,
+        elevator,
         month: data.month,
         year: data.year,
       });
@@ -256,7 +271,7 @@ export function MaintenanceChecklistView() {
     if (!activeChecklist) return;
 
     const confirmComplete = confirm(
-      '¿Estás seguro de completar este checklist? No podrás modificarlo después.'
+      '¿Estás seguro de completar este checklist? No podrás modificarlo después.',
     );
 
     if (!confirmComplete) return;
@@ -297,10 +312,12 @@ export function MaintenanceChecklistView() {
     setError(null);
   };
 
+  // --- Renders ---
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900" />
       </div>
     );
   }
@@ -327,7 +344,7 @@ export function MaintenanceChecklistView() {
         </div>
 
         <CertificationForm
-          classification={selectedElevator.classification} // <- NUEVO
+          elevatorClassification={selectedElevator.classification}
           onSubmit={handleCertificationSubmit}
           onCancel={() => setViewMode('select-elevator')}
         />
@@ -395,9 +412,7 @@ export function MaintenanceChecklistView() {
             <p className="text-slate-600 mt-1">
               Cliente: <strong>{selectedClient.business_name}</strong>
             </p>
-            <p className="text-sm text-slate-500">
-              {selectedClient.address}
-            </p>
+            <p className="text-sm text-slate-500">{selectedClient.address}</p>
           </div>
         </div>
 
@@ -436,15 +451,23 @@ export function MaintenanceChecklistView() {
                     </span>
                   )}
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                <h3 className="text-xl font-bold text-slate-900 mb-1">
                   {elevator.brand} {elevator.model}
                 </h3>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-600 mb-1">
                   S/N:{' '}
                   <span className="font-mono">
-                    {elevator.serial_number}
+                    {elevator.serial_number || 'No registra'}
                   </span>
                 </p>
+                {elevator.classification && (
+                  <p className="text-xs text-slate-500">
+                    Tipo:{' '}
+                    <span className="font-medium">
+                      {elevator.classification}
+                    </span>
+                  </p>
+                )}
               </button>
             ))
           )}
@@ -524,11 +547,11 @@ export function MaintenanceChecklistView() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-slate-900">
-                        {checklist.elevator?.brand}{' '}
-                        {checklist.elevator?.model}
+                        {checklist.elevators?.brand}{' '}
+                        {checklist.elevators?.model}
                       </p>
                       <p className="text-sm text-slate-600">
-                        S/N: {checklist.elevator?.serial_number}
+                        S/N: {checklist.elevators?.serial_number}
                       </p>
                       <p className="text-xs text-slate-500 mt-1">
                         {checklist.month}/{checklist.year} •{' '}
@@ -549,21 +572,13 @@ export function MaintenanceChecklistView() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
         <h3 className="font-bold text-blue-900 mb-3">Instrucciones</h3>
         <ol className="space-y-2 text-sm text-blue-800 list-decimal list-inside">
-          <li>
-            Escanea el código QR del cliente para iniciar un nuevo mantenimiento
-          </li>
+          <li>Escanea el código QR del cliente para iniciar un nuevo mantenimiento</li>
           <li>Selecciona el ascensor que vas a revisar</li>
           <li>Ingresa las fechas de certificación (o marca como no legible)</li>
           <li>Completa el checklist respondiendo cada pregunta</li>
-          <li>
-            Si encuentras problemas, márcalos y agrega observaciones con 2 fotos
-          </li>
-          <li>
-            El sistema guardará automáticamente tu progreso cada 5 cambios
-          </li>
-          <li>
-            Al terminar, completa el checklist para continuar con la firma
-          </li>
+          <li>Si encuentras problemas, márcalos y agrega observaciones con 2 fotos</li>
+          <li>El sistema guardará automáticamente tu progreso cada 5 cambios</li>
+          <li>Al terminar, completa el checklist para continuar con la firma</li>
         </ol>
       </div>
 
@@ -576,4 +591,5 @@ export function MaintenanceChecklistView() {
     </div>
   );
 }
+
 
