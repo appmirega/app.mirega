@@ -24,7 +24,6 @@ export function CertificationForm({
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [status, setStatus] = useState<Status>('sin_fecha');
 
-  // Etiqueta amigable de la clasificación
   const getClassificationLabel = () => {
     switch (elevatorClassification) {
       case 'ascensor_residencial':
@@ -40,7 +39,7 @@ export function CertificationForm({
     }
   };
 
-  // Cálculo de días restantes sólo en base a la próxima certificación
+  // Calcula días restantes solo en base a la próxima certificación
   useEffect(() => {
     if (certificationNotLegible || !nextCertificationDate) {
       setDaysRemaining(null);
@@ -68,9 +67,7 @@ export function CertificationForm({
     }
   }, [nextCertificationDate, certificationNotLegible]);
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-
+  const handleContinue = () => {
     if (!certificationNotLegible) {
       if (!lastCertificationDate || !nextCertificationDate) {
         alert(
@@ -136,8 +133,8 @@ export function CertificationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-      {/* Clasificación detectada (solo informativa) */}
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+      {/* Clasificación detectada (informativo) */}
       <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700">
         <span className="font-semibold">Clasificación detectada: </span>
         <span>{getClassificationLabel()}</span>
@@ -163,7 +160,7 @@ export function CertificationForm({
           </p>
         </div>
 
-        {/* Próxima certificación (ingreso manual) */}
+        {/* Próxima certificación (manual) */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
             Próxima certificación
@@ -181,7 +178,6 @@ export function CertificationForm({
             administrador y registrarla aquí.
           </p>
 
-          {/* Estado / días restantes */}
           {renderStatusCard()}
         </div>
       </div>
@@ -212,13 +208,14 @@ export function CertificationForm({
           Volver
         </button>
         <button
-          type="submit"
+          type="button"
+          onClick={handleContinue}
           className="px-5 py-2 rounded-lg bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
         >
           Continuar al checklist
         </button>
       </div>
-    </form>
+    </div>
   );
 }
 
