@@ -1,149 +1,148 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useEffect, useMemo, useState, FormEvent } from 'react';
+import { Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 
-type CertificationFormProps = {
-  classification?: string | null; // ascensor_residencial, ascensor_corporativo, etc.
+interface Props {
   onSubmit: (data: {
     lastCertificationDate: string | null;
     nextCertificationDate: string | null;
     certificationNotLegible: boolean;
-  }) => void | Promise<void>;
+  }) => void;
   onCancel: () => void;
-};
+
+  /**
+   * Clasificación interna del ascensor según tu BD:
+   *  - 'ascensor_residencial'
+   *  - 'ascensor_corporativo'
+   *  - 'montacargas'
+   *  - 'montaplatos'
+   *  - etc.
+   *
+   * Soportamos ambos nombres por si el padre usa uno u otro.
+   */
+  classification?: string | null;
+  elevatorClassification?: string | null;
+}
+
+// Devuelve la cantidad de años de vigencia según la clasificación
+function getFrequencyYears(classification: string | null | undefined): number {
+  if (!classification) return 1;
+
+  // Según MINVU: edificios con destino vivienda → 2 años
+  // Otros destinos → 1 o 2 años según capacidad.
+  // Aquí aplicamos la regla base: residencial = 2, resto = 1.
+  if (classification === 'ascensor_residencial') {
+    return 2;
+  }
+
+  return 1;
+}
 
 export function CertificationForm({
-  classification,
   onSubmit,
   onCancel,
-}: CertificationFormProps) {
-  const [lastCertificationDate, setLastCertificationDate] = useState<string>('');
-  const [nextCertificationDate, setNextCertificationDate] = useState<string>('');
-  const [certificationNotLegible, setCertificationNotLegible] = useState(false);
+  classification,
+  elevatorClassification,
+}: Props) {
+  const effectiveClassification = useMemo(
+    () => classification ?? elevatorClassification ?? null,
+    [classification, elevatorClassification]
+  );
 
-  // 1) Años que dura la certificación según ley
-  const validityYears = useMemo(() => {
-    if (!classification) return 1;
+  const [lastDate, setLastDate] = useState<string>('');
+  const [nextDate, setNextDate] = useState<string>('');
+  const [notLegible, setNotLegible] = useState<boolean>(false);
+  const [daysLeft, setDaysLeft] = useState<number | null>(null);
 
-    const lowered = classification.toLowerCase();
-    if (lowered.includes('residencial')) return 2; // ascensor_residencial
-    // el resto (corporativo, montacargas, montaplatos, etc.) = 1 año
-    return 1;
-  }, [classification]);
+  const frequencyYears = getFrequencyYears(effectiveClassification);
 
-  // 2) Calcular próxima certificación cuando cambia la fecha
+  // Calcula próxima certificación y días restantes
   useEffect(() => {
-    if (!lastCertificationDate || certificationNotLegible) {
-      setNextCertificationDate('');
+    if (!lastDate || notLegible) {
+      setNextDate('');
+      setDaysLeft(null);
       return;
     }
 
-    const base = new Date(lastCertificationDate);
-    if (Number.isNaN(base.getTime())) {
-      setNextCertificationDate('');
+    const last = new Date(lastDate);
+    if (isNaN(last.getTime())) {
+      setNextDate('');
+      setDaysLeft(null);
       return;
     }
 
-    const next = new Date(base);
-    next.setFullYear(next.getFullYear() + validityYears);
+    const next = new Date(last);
+    next.setFullYear(next.getFullYear() + frequencyYears);
 
-    // formato ISO yyyy-mm-dd para <input type="date">
-    const iso = next.toISOString().substring(0, 10);
-    setNextCertificationDate(iso);
-  }, [lastCertificationDate, certificationNotLegible, validityYears]);
-
-  // 3) Cálculo de días restantes
-  const daysInfo = useMemo(() => {
-    if (!nextCertificationDate || certificationNotLegible) {
-      return { label: 'Pendiente', days: null, variant: 'warning' as const };
-    }
+    const iso = next.toISOString().slice(0, 10); // YYYY-MM-DD
+    setNextDate(iso);
 
     const today = new Date();
-    const next = new Date(nextCertificationDate);
+    const diffMs = next.getTime() - today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    setDaysLeft(diffDays);
+  }, [lastDate, notLegible, frequencyYears]);
 
-    // normalizar a medianoche para no tener off-by-one
-    today.setHours(0, 0, 0, 0);
-    next.setHours(0, 0, 0, 0);
-
-    const diffMs = next.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return {
-        label: 'Vencida',
-        days: Math.abs(diffDays),
-        variant: 'danger' as const,
-      };
-    }
-
-    if (diffDays <= 120) {
-      // zona de alertas 120 / 90 / 30 días
-      return {
-        label: 'Próxima a vencer',
-        days: diffDays,
-        variant: 'warning' as const,
-      };
-    }
-
-    return {
-      label: 'Vigente',
-      days: diffDays,
-      variant: 'success' as const,
-    };
-  }, [nextCertificationDate, certificationNotLegible]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
-    // si es no legible, guardamos null en las fechas
-    const payload = {
-      lastCertificationDate:
-        certificationNotLegible || !lastCertificationDate
-          ? null
-          : lastCertificationDate,
-      nextCertificationDate:
-        certificationNotLegible || !nextCertificationDate
-          ? null
-          : nextCertificationDate,
-      certificationNotLegible,
-    };
-
-    // protegemos la llamada por si en algún momento onSubmit no viene
-    if (typeof onSubmit === 'function') {
-      onSubmit(payload);
+    // Si la placa es legible, exigimos una fecha
+    if (!notLegible && !lastDate) {
+      alert('Debes ingresar la fecha de la última certificación o marcar como no legible.');
+      return;
     }
+
+    onSubmit({
+      lastCertificationDate: notLegible ? null : lastDate,
+      nextCertificationDate: notLegible ? null : nextDate || null,
+      certificationNotLegible: notLegible,
+    });
   };
 
-  const statusColorClasses =
-    daysInfo.variant === 'success'
-      ? 'bg-green-50 border-green-200 text-green-800'
-      : daysInfo.variant === 'warning'
-      ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
-      : 'bg-red-50 border-red-200 text-red-800';
+  const statusLabel = useMemo(() => {
+    if (notLegible || daysLeft === null) return null;
+    if (daysLeft < 0) return 'Vencida';
+    if (daysLeft <= 90) return 'Por vencer';
+    return 'Vigente';
+  }, [daysLeft, notLegible]);
 
-  const StatusIcon =
-    daysInfo.variant === 'success' ? CheckCircle2 : AlertCircle;
+  const statusColorClasses = useMemo(() => {
+    if (notLegible || daysLeft === null) return '';
+    if (daysLeft < 0) return 'bg-red-50 text-red-800 border-red-200';
+    if (daysLeft <= 90) return 'bg-yellow-50 text-yellow-800 border-yellow-200';
+    return 'bg-green-50 text-green-800 border-green-200';
+  }, [daysLeft, notLegible]);
 
-  const humanValidityText =
-    validityYears === 2
-      ? 'Las certificaciones para ascensores residenciales se renuevan cada 2 años desde la última.'
+  const statusIconColorClasses = useMemo(() => {
+    if (notLegible || daysLeft === null) return 'text-slate-400';
+    if (daysLeft < 0) return 'text-red-500';
+    if (daysLeft <= 90) return 'text-yellow-500';
+    return 'text-green-500';
+  }, [daysLeft, notLegible]);
+
+  const frequencyText =
+    frequencyYears === 2
+      ? 'Las certificaciones para este tipo de ascensor se renuevan cada 2 años (destino vivienda).'
       : 'Las certificaciones para este tipo de ascensor se renuevan anualmente (1 año desde la última).';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
+    <form className="space-y-6" onSubmit={handleSubmit}>
       {/* Fecha última certificación */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
           Fecha de Última Certificación
         </label>
-        <input
-          type="date"
-          value={lastCertificationDate}
-          onChange={(e) => setLastCertificationDate(e.target.value)}
-          disabled={certificationNotLegible}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
-        />
+        <div className="relative">
+          <input
+            type="date"
+            value={lastDate}
+            onChange={(e) => setLastDate(e.target.value)}
+            disabled={notLegible}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
+          />
+          <Calendar className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
         <p className="mt-1 text-xs text-slate-500">
-          Fecha que aparece en la placa de certificación del ascensor
+          Fecha que aparece en la placa de certificación del ascensor.
         </p>
       </div>
 
@@ -153,99 +152,94 @@ export function CertificationForm({
           Próxima Certificación (Calculada Automáticamente)
         </label>
         <input
-          type="date"
-          value={nextCertificationDate}
+          type="text"
+          value={nextDate ? nextDate.split('-').reverse().join('-') : ''}
           readOnly
           disabled
           className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-700"
         />
-        <p className="mt-1 text-xs text-slate-500">{humanValidityText}</p>
+        <p className="mt-1 text-xs text-slate-500">{frequencyText}</p>
       </div>
 
-      {/* Estado / días restantes */}
-      <div
-        className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${statusColorClasses}`}
-      >
-        <StatusIcon className="w-5 h-5 flex-shrink-0" />
+      {/* Estado de vigencia */}
+      {!notLegible && statusLabel && (
+        <div
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${statusColorClasses}`}
+        >
+          <CheckCircle className={`w-5 h-5 ${statusIconColorClasses}`} />
+          <div>
+            <p className="font-semibold text-sm">{statusLabel}</p>
+            {daysLeft !== null && daysLeft >= 0 && (
+              <p className="text-xs">
+                Vence en <span className="font-semibold">{daysLeft}</span> día
+                {daysLeft === 1 ? '' : 's'}.
+              </p>
+            )}
+            {daysLeft !== null && daysLeft < 0 && (
+              <p className="text-xs">
+                Venció hace <span className="font-semibold">{Math.abs(daysLeft)}</span> día
+                {Math.abs(daysLeft) === 1 ? '' : 's'}.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Check de placa no legible */}
+      <div className="flex items-start gap-3">
+        <input
+          id="not-legible"
+          type="checkbox"
+          checked={notLegible}
+          onChange={(e) => setNotLegible(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        />
         <div>
-          <p className="font-semibold">
-            {daysInfo.label}
-            {daysInfo.days !== null && daysInfo.days >= 0 && ' '}
+          <label htmlFor="not-legible" className="text-sm font-medium text-slate-800">
+            Certificación no legible o no disponible
+          </label>
+          <p className="text-xs text-slate-500">
+            Si la placa no es legible, marca esta opción y podrás actualizar la información
+            más adelante. El sistema registrará que se debe regularizar la certificación.
           </p>
-          {daysInfo.days !== null && daysInfo.days >= 0 && (
-            <p className="text-sm">
-              Vence en <strong>{daysInfo.days}</strong> días
-            </p>
-          )}
-          {daysInfo.variant === 'warning' && (
-            <p className="text-xs mt-1">
-              Se generarán alertas de seguimiento a 120, 90 y 30 días del
-              vencimiento.
-            </p>
-          )}
-          {daysInfo.variant === 'danger' && (
-            <p className="text-xs mt-1">
-              Este ascensor tiene la certificación vencida. Debe
-              regularizarse a la brevedad.
-            </p>
-          )}
         </div>
       </div>
 
-      {/* Checkbox: placa no legible */}
-      <div className="flex items-start gap-2">
-        <input
-          id="cert-not-legible"
-          type="checkbox"
-          checked={certificationNotLegible}
-          onChange={(e) => setCertificationNotLegible(e.target.checked)}
-          className="mt-1 h-4 w-4 text-blue-600 border-slate-300 rounded"
-        />
-        <label
-          htmlFor="cert-not-legible"
-          className="text-sm text-slate-700 cursor-pointer"
-        >
-          Certificación no legible o no disponible
-          <span className="block text-xs text-slate-500">
-            Si la placa no es legible, marca esta opción y podrás actualizar
-            la información más adelante.
-          </span>
-        </label>
-      </div>
-
       {/* Información importante */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-        <h3 className="font-semibold text-slate-900 mb-2">
-          Información Importante
-        </h3>
-        <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
-          <li>
-            La certificación debe renovarse según la normativa vigente para el
-            tipo de ascensor.
-          </li>
-          <li>
-            Recibirás alertas 120, 90 y 30 días antes del vencimiento usando la
-            fecha de la próxima certificación.
-          </li>
-          <li>
-            Si la placa no es legible, marca la opción correspondiente para
-            actualizarla después.
-          </li>
-        </ul>
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+        <AlertCircle className="w-5 h-5 text-blue-500 mt-1" />
+        <div className="space-y-1 text-sm text-blue-900">
+          <p className="font-semibold">Información Importante</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>
+              La certificación debe renovarse según la normativa vigente para el tipo de
+              ascensor (vivienda: cada 2 años; otros destinos: al menos cada 1 año).
+            </li>
+            <li>
+              El sistema generará alertas considerando la fecha de la próxima certificación
+              (120, 90 y 30 días antes del vencimiento).
+            </li>
+            <li>
+              Si la placa no es legible, marca la opción correspondiente para actualizarla
+              después con el certificado emitido por el organismo competente.
+            </li>
+          </ul>
+        </div>
       </div>
 
       {/* Botones */}
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 pt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition"
+          className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-medium"
         >
           Cancelar
         </button>
         <button
           type="submit"
-          className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+          className="px-6 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={!notLegible && !lastDate}
         >
           Continuar
         </button>
@@ -253,3 +247,4 @@ export function CertificationForm({
     </form>
   );
 }
+
