@@ -104,7 +104,7 @@ export function DynamicChecklistForm({
 
       if (q.frequency === 'M') return true;
       if (q.frequency === 'T') return quarters.includes(currentMonth);
-      if (q.frequency === 'S') return semesters.includes(currentMonth);
+      if (q.frequency === 'S') return semesters.includes	currentMonth;
 
       return false;
     });
@@ -185,19 +185,23 @@ export function DynamicChecklistForm({
         if (error) throw error;
       }
 
+      /** 🔧 FIX DEL AUTOSAVE — ELIMINANDO supabase.rpc() ERRÓNEO */
       if (isAutoSave) {
         const { error: updateError } = await supabase
           .from('mnt_checklists')
           .update({
-            auto_save_count: supabase.rpc('increment', { x: 1 }),
             updated_at: new Date().toISOString(),
           })
           .eq('id', checklistId);
 
-        if (updateError) console.error('Error updating auto_save_count:', updateError);
+        if (updateError) {
+          console.error('Error updating auto_save_count:', updateError);
+        }
       }
+      /** ------------------------------------------------------- */
 
       setLastSaved(new Date());
+
       if (!isAutoSave) {
         onSave();
       }
