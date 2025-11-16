@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Calendar, Info, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useMemo, FormEvent } from 'react';
+import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 interface CertificationFormProps {
-  elevatorClassification: string | null;
+  elevatorClassification?: string | null;
   onSubmit: (data: {
     lastCertificationDate: string | null;
     nextCertificationDate: string | null;
@@ -19,30 +19,51 @@ export function CertificationForm({
   const [lastCertificationDate, setLastCertificationDate] = useState<string>('');
   const [nextCertificationDate, setNextCertificationDate] = useState<string>('');
   const [certificationNotLegible, setCertificationNotLegible] =
-    useState(false);
-  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+    useState<boolean>(false);
 
-  // Calcula días restantes hasta la próxima certificación
-  useEffect(() => {
-    if (!nextCertificationDate) {
-      setDaysRemaining(null);
-      return;
-    }
+  // Cálculo de días para el vencimiento
+  const daysInfo = useMemo(() => {
+    if (!nextCertificationDate) return null;
 
     const today = new Date();
     const next = new Date(nextCertificationDate);
 
-    // Normalizamos a medianoche para evitar diferencias por timezone
-    today.setHours(0, 0, 0, 0);
-    next.setHours(0, 0, 0, 0);
+    // normalizar solo a fecha (sin horas)
+    const todayUTC = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    const nextUTC = new Date(
+      next.getFullYear(),
+      next.getMonth(),
+      next.getDate()
+    );
 
-    const diffMs = next.getTime() - today.getTime();
+    const diffMs = nextUTC.getTime() - todayUTC.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-    setDaysRemaining(diffDays);
+    if (diffDays < 0) {
+      return {
+        status: 'expired' as const,
+        label: `Vencida hace ${Math.abs(diffDays)} día(s)`,
+      };
+    }
+
+    if (diffDays <= 30) {
+      return {
+        status: 'warning' as const,
+        label: `Vence en ${diffDays} día(s)`,
+      };
+    }
+
+    return {
+      status: 'ok' as const,
+      label: `Vence en ${diffDays} día(s)`,
+    };
   }, [nextCertificationDate]);
 
-  const classificationLabel = (() => {
+  const classificationLabel = useMemo(() => {
     if (!elevatorClassification) return 'No definido';
     switch (elevatorClassification) {
       case 'ascensor_residencial':
@@ -56,103 +77,61 @@ export function CertificationForm({
       default:
         return elevatorClassification;
     }
-  })();
+  }, [elevatorClassification]);
 
-  const handleContinueClick = () => {
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+
+    // Dejar que el técnico trabaje con información parcial si marcó "no legible"
     if (!certificationNotLegible) {
-      if (!lastCertificationDate || !nextCertificationDate) {
+      // Validación mínima: si no está marcada como no legible,
+      // al menos la próxima certificación debe existir
+      if (!nextCertificationDate) {
         alert(
-          'Debes ingresar la fecha de la última certificación y la próxima certificación, o marcar que el certificado no es legible.'
+          'Ingresa la fecha de la próxima certificación o marca que el certificado no es legible.'
         );
         return;
       }
     }
 
     onSubmit({
-      lastCertificationDate: certificationNotLegible
-        ? null
-        : lastCertificationDate,
-      nextCertificationDate: certificationNotLegible
-        ? null
-        : nextCertificationDate,
+      lastCertificationDate:
+        lastCertificationDate.trim() === '' ? null : lastCertificationDate,
+      nextCertificationDate:
+        nextCertificationDate.trim() === '' ? null : nextCertificationDate,
       certificationNotLegible,
     });
   };
 
-  const renderStatusBadge = () => {
-    if (!nextCertificationDate || daysRemaining === null) return null;
-
-    if (daysRemaining < 0) {
-      return (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <div>
-            <p className="font-semibold">Certificación vencida</p>
-            <p>Venció hace {Math.abs(daysRemaining)} día(s).</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (daysRemaining <= 60) {
-      return (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <div>
-            <p className="font-semibold">Próximo a vencer</p>
-            <p>Vence en {daysRemaining} día(s).</p>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-4 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-        <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-        <div>
-          <p className="font-semibold">Vigente</p>
-          <p>Vence en {daysRemaining} día(s).</p>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Clasificación detectada (solo informativo) */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 flex items-center gap-2">
-        <Info className="h-4 w-4 text-slate-500" />
-        <div>
-          <span className="font-semibold">Clasificación detectada: </span>
-          <span>{classificationLabel}</span>
-          <p className="text-xs text-slate-500 mt-1">
-            Esta clasificación es solo referencial. La vigencia real de la
-            certificación depende de la resolución del edificio y de la
-            autoridad competente.
-          </p>
-        </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Clasificación detectada (solo referencia visual) */}
+      <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700">
+        <span className="font-semibold">Clasificación detectada:</span>{' '}
+        {classificationLabel}{' '}
+        <span className="text-slate-500">
+          (la vigencia real de la certificación depende de la resolución del
+          edificio y de la autoridad competente)
+        </span>
       </div>
 
       {/* Fechas de certificación */}
-      <div className="grid gap-6 rounded-xl border border-slate-200 bg-white p-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Última certificación vigente */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-800">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
             Última certificación vigente
           </label>
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <Calendar className="h-4 w-4" />
-            </span>
             <input
               type="date"
+              className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 pr-10"
               value={lastCertificationDate}
               onChange={(e) => setLastCertificationDate(e.target.value)}
               disabled={certificationNotLegible}
-              className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-100"
             />
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             Fecha que aparece en el certificado actual. Si el certificado no
             está disponible o no es legible, marca la opción de abajo.
           </p>
@@ -160,73 +139,96 @@ export function CertificationForm({
 
         {/* Próxima certificación */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-800">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
             Próxima certificación
           </label>
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <Calendar className="h-4 w-4" />
-            </span>
             <input
               type="date"
+              className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 pr-10"
               value={nextCertificationDate}
               onChange={(e) => setNextCertificationDate(e.target.value)}
               disabled={certificationNotLegible}
-              className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-100"
             />
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Ingresa la fecha de vencimiento indicada en el certificado o en la
-            resolución del edificio (mes y año asignados por dirección).
+          <p className="mt-1 text-xs text-slate-500">
+            Ingresa la fecha de vencimiento indicada en el certificado o la que
+            corresponda según la resolución del edificio (mes y año asignados
+            por dirección).
           </p>
-        </div>
-
-        {/* Estado de vigencia basado en próxima certificación */}
-        <div className="md:col-span-2">{renderStatusBadge()}</div>
-
-        {/* Certificado no legible */}
-        <div className="md:col-span-2 mt-2">
-          <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-800">
-            <input
-              type="checkbox"
-              checked={certificationNotLegible}
-              onChange={(e) => {
-                setCertificationNotLegible(e.target.checked);
-                if (e.target.checked) {
-                  // opcional: mantener los valores pero deshabilitados
-                  // o podríamos limpiarlos si prefieres:
-                  // setLastCertificationDate('');
-                  // setNextCertificationDate('');
-                }
-              }}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span>
-              El certificado de inspección periódica no es legible / no está
-              disponible en terreno.
-            </span>
-          </label>
         </div>
       </div>
 
+      {/* Estado de vigencia (solo si hay próxima fecha) */}
+      {!certificationNotLegible && daysInfo && (
+        <div
+          className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm ${
+            daysInfo.status === 'ok'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : daysInfo.status === 'warning'
+              ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}
+        >
+          {daysInfo.status === 'ok' && (
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          )}
+          {daysInfo.status === 'warning' && (
+            <Clock className="w-5 h-5 flex-shrink-0" />
+          )}
+          {daysInfo.status === 'expired' && (
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          )}
+          <div>
+            <p className="font-semibold">
+              {daysInfo.status === 'ok'
+                ? 'Vigente'
+                : daysInfo.status === 'warning'
+                ? 'Próxima a vencer'
+                : 'Certificación vencida'}
+            </p>
+            <p className="text-xs opacity-90">{daysInfo.label}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Checkbox: certificado no legible */}
+      <div className="pt-2 border-t border-slate-200">
+        <label className="inline-flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            checked={certificationNotLegible}
+            onChange={(e) => setCertificationNotLegible(e.target.checked)}
+          />
+          <span>
+            El certificado de inspección periódica no es legible / no está
+            disponible en terreno.
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Podrás actualizar las fechas más adelante cuando se disponga del
+              certificado oficial.
+            </span>
+          </span>
+        </label>
+      </div>
+
       {/* Botones */}
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-medium"
         >
           Volver
         </button>
         <button
-          type="button"
-          onClick={handleContinueClick}
-          className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          type="submit"
+          className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold"
         >
           Continuar al checklist
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
