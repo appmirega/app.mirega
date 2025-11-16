@@ -95,20 +95,23 @@ export function Layout({ children, onNavigate }: LayoutProps) {
     }
   }, [profile]);
 
+  /** -------------- FIX COMPLETO DEL PROBLEMA ---------------- */
   const loadUnreadNotifications = async () => {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id', { count: 'exact', head: true })
+        .select('id')
         .or(`recipient_id.eq.${profile?.id},recipient_id.is.null`)
-        .eq('is_read', false);
+        .eq('read', false);  // 👈 columna correcta
 
       if (error) throw error;
-      setNotificationCount(data?.length || 0);
+
+      setNotificationCount(data?.length ?? 0);
     } catch (error) {
       console.error('Error loading unread notifications:', error);
     }
   };
+  /** ---------------------------------------------------------- */
 
   const subscribeToNotifications = () => {
     const channel = supabase
@@ -141,19 +144,18 @@ export function Layout({ children, onNavigate }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* MOBILE HEADER */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-30 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img
-              src="/logo-circular (2).png"
-              alt="MIREGA"
-              className="h-8 w-auto"
-            />
+            <img src="/logo-circular (2).png" alt="MIREGA" className="h-8 w-auto" />
             <div>
               <h1 className="text-lg font-bold text-gray-900">MIREGA</h1>
               <p className="text-xs text-gray-600">Ascensores</p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <NotificationCenter onNavigate={handleNavigation} />
             <button
@@ -166,20 +168,19 @@ export function Layout({ children, onNavigate }: LayoutProps) {
         </div>
       </div>
 
+      {/* SIDEBAR */}
       <aside
         className={`fixed inset-y-0 left-0 z-20 w-64 bg-white border-r border-gray-200 transition-transform lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="h-full flex flex-col">
+
+          {/* LOGO + NOTIFICATIONS DESKTOP */}
           <div className="p-6 border-b border-gray-200 hidden lg:block">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <img
-                  src="/logo-circular (2).png"
-                  alt="MIREGA Ascensores"
-                  className="h-12 w-auto"
-                />
+                <img src="/logo-circular (2).png" alt="MIREGA Ascensores" className="h-12 w-auto" />
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">MIREGA</h1>
                   <p className="text-sm text-gray-600">Ascensores</p>
@@ -189,6 +190,7 @@ export function Layout({ children, onNavigate }: LayoutProps) {
             </div>
           </div>
 
+          {/* PROFILE */}
           <div className="p-4 border-b border-gray-200 lg:mt-0 mt-16">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-r from-red-600 to-green-600 rounded-full flex items-center justify-center text-white font-semibold">
@@ -203,6 +205,7 @@ export function Layout({ children, onNavigate }: LayoutProps) {
             </div>
           </div>
 
+          {/* NAVIGATION */}
           <nav className="flex-1 overflow-y-auto p-4 space-y-1">
             {filteredNavigation.map((item) => {
               const Icon = item.icon;
@@ -212,13 +215,12 @@ export function Layout({ children, onNavigate }: LayoutProps) {
                   key={item.path}
                   onClick={() => handleNavigation(item.path)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
-                    isActive
-                      ? 'bg-red-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
+                    isActive ? 'bg-red-600 text-white' : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="font-medium">{item.label}</span>
+
                   {item.path === 'notifications' && notificationCount > 0 && (
                     <span className="ml-auto bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                       {notificationCount}
@@ -229,6 +231,7 @@ export function Layout({ children, onNavigate }: LayoutProps) {
             })}
           </nav>
 
+          {/* LOGOUT */}
           <div className="p-4 border-t border-gray-200">
             <button
               onClick={signOut}
@@ -256,3 +259,4 @@ export function Layout({ children, onNavigate }: LayoutProps) {
     </div>
   );
 }
+
