@@ -95,7 +95,11 @@ export function DynamicChecklistForm({
     }
   };
 
-  const filterQuestionsByFrequency = (allQuestions: Question[], currentMonth: number, hydraulic: boolean) => {
+  const filterQuestionsByFrequency = (
+    allQuestions: Question[],
+    currentMonth: number,
+    hydraulic: boolean
+  ) => {
     const quarters = [3, 6, 9, 12];
     const semesters = [3, 9];
 
@@ -104,7 +108,7 @@ export function DynamicChecklistForm({
 
       if (q.frequency === 'M') return true;
       if (q.frequency === 'T') return quarters.includes(currentMonth);
-      if (q.frequency === 'S') return semesters.includes	currentMonth;
+      if (q.frequency === 'S') return semesters.includes(currentMonth);
 
       return false;
     });
@@ -185,7 +189,7 @@ export function DynamicChecklistForm({
         if (error) throw error;
       }
 
-      /** 🔧 FIX DEL AUTOSAVE — ELIMINANDO supabase.rpc() ERRÓNEO */
+      // 🔧 FIX AUTOSAVE — remover supabase.rpc()
       if (isAutoSave) {
         const { error: updateError } = await supabase
           .from('mnt_checklists')
@@ -198,7 +202,6 @@ export function DynamicChecklistForm({
           console.error('Error updating auto_save_count:', updateError);
         }
       }
-      /** ------------------------------------------------------- */
 
       setLastSaved(new Date());
 
@@ -358,6 +361,7 @@ export function DynamicChecklistForm({
                         <div className="flex-shrink-0 w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-700 text-sm">
                           {question.question_number}
                         </div>
+
                         <div className="flex-1">
                           <p className="font-medium text-slate-900 mb-3">{question.question_text}</p>
 
@@ -373,6 +377,7 @@ export function DynamicChecklistForm({
                               <Check className="w-5 h-5" />
                               Aprobado
                             </button>
+
                             <button
                               onClick={() => handleAnswerChange(question.id, 'rejected')}
                               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${
@@ -408,7 +413,9 @@ export function DynamicChecklistForm({
                                   photo1: answer?.photo_1_url || undefined,
                                   photo2: answer?.photo_2_url || undefined,
                                 }}
-                                onPhotosChange={(photo1, photo2) => handlePhotosChange(question.id, photo1, photo2)}
+                                onPhotosChange={(photo1, photo2) =>
+                                  handlePhotosChange(question.id, photo1, photo2)
+                                }
                               />
                             </div>
                           )}
