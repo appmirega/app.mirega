@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +11,7 @@ interface Notification {
   title: string;
   message: string;
   link?: string;
-  read: boolean;
+  is_read: boolean;
   created_at: string;
 }
 
@@ -25,51 +26,26 @@ export function NotificationCenter({ onNavigate }: NotificationCenterProps) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (profile?.id) {
-      loadNotifications();
-      subscribeToNotifications();
-    }
-  }, [profile]);
+    if (!profile?.id) return;
 
-  const loadNotifications = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', profile?.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
+    loadNotifications();
 
-      if (error) throw error;
-
-      setNotifications(data || []);
-      setUnreadCount(data?.filter((n) => !n.read).length || 0);
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    }
-  };
-
-  const subscribeToNotifications = () => {
     const channel = supabase
-      .channel('notifications')
+      .channel('notifications-center')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${profile?.id}`,
         },
         (payload) => {
           const newNotification = payload.new as Notification;
-          setNotifications((prev) => [newNotification, ...prev]);
-          setUnreadCount((prev) => prev + 1);
-
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(newNotification.title, {
-              body: newNotification.message,
-              icon: '/logo-circular (2).png',
-            });
+          if (newNotification.user_id === profile.id) {
+            setNotifications((prev) => [newNotification, ...prev]);
+            if (!newNotification.is_read) {
+              setUnreadCount((prev) => prev + 1);
+            }
           }
         }
       )
@@ -78,19 +54,41 @@ export function NotificationCenter({ onNavigate }: NotificationCenterProps) {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [profile?.id]);
+
+  const loadNotifications = async () => {
+    if (!profile?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+
+      setNotifications((data || []) as Notification[]);
+      setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
   };
 
   const markAsRead = async (notificationId: string) => {
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ is_read: true })
         .eq('id', notificationId);
 
       if (error) throw error;
 
       setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+        prev.map((n) =>
+          n.id === notificationId ? { ...n, is_read: true } : n
+        )
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
@@ -99,98 +97,44 @@ export function NotificationCenter({ onNavigate }: NotificationCenterProps) {
   };
 
   const markAllAsRead = async () => {
+    if (!profile?.id) return;
+
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
-        .eq('user_id', profile?.id)
-        .eq('read', false);
+        .update({ is_read: true })
+        .eq('user_id', profile.id)
+        .eq('is_read', false);
 
       if (error) throw error;
 
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
-  };
-
-  const deleteNotification = async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId);
-
-      if (error) throw error;
-
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-      const notification = notifications.find((n) => n.id === notificationId);
-      if (notification && !notification.read) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
-    } catch (error) {
-      console.error('Error deleting notification:', error);
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    if (!notification.read) {
+    if (!notification.is_read) {
       markAsRead(notification.id);
     }
-
     if (notification.link && onNavigate) {
       onNavigate(notification.link);
       setIsOpen(false);
     }
   };
 
-  const getIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
-      case 'error':
-        return <AlertTriangle className="w-5 h-5 text-red-600" />;
-      default:
-        return <Info className="w-5 h-5 text-blue-600" />;
-    }
-  };
-
-  const getBgColor = (type: Notification['type']) => {
-    switch (type) {
-      case 'success':
-        return 'bg-green-50 border-green-200';
-      case 'warning':
-        return 'bg-yellow-50 border-yellow-200';
-      case 'error':
-        return 'bg-red-50 border-red-200';
-      default:
-        return 'bg-blue-50 border-blue-200';
-    }
-  };
-
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
-    }
-  };
-
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
-
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition"
+        className="relative p-2 rounded-lg hover:bg-gray-100 transition"
+        onClick={() => setIsOpen((prev) => !prev)}
       >
-        <Bell className="w-6 h-6" />
+        <Bell className="w-6 h-6 text-gray-700" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full">
-            {unreadCount > 9 ? '9+' : unreadCount}
+          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            {unreadCount}
           </span>
         )}
       </button>
@@ -198,96 +142,84 @@ export function NotificationCenter({ onNavigate }: NotificationCenterProps) {
       {isOpen && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-30"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 top-12 z-50 w-96 max-h-[600px] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900">Notificaciones</h3>
-                <div className="flex items-center gap-2">
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={markAllAsRead}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
-                    >
-                      Marcar todas como leídas
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="p-1 hover:bg-slate-200 rounded transition"
-                  >
-                    <X className="w-5 h-5 text-slate-600" />
-                  </button>
-                </div>
+          <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-40">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-gray-700" />
+                <h2 className="font-semibold text-gray-900">
+                  Notificaciones
+                </h2>
               </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1 rounded hover:bg-gray-100"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
             </div>
 
-            <div className="overflow-y-auto max-h-[500px]">
+            <div className="max-h-96 overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Bell className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                  <p className="text-slate-600 font-medium">No hay notificaciones</p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Te avisaremos cuando haya novedades
-                  </p>
+                <div className="px-4 py-6 text-center text-sm text-gray-500">
+                  No tienes notificaciones.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-200">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 hover:bg-slate-50 transition cursor-pointer ${
-                        !notification.read ? 'bg-blue-50' : ''
-                      }`}
-                      onClick={() => handleNotificationClick(notification)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${getBgColor(notification.type)}`}>
-                          {getIcon(notification.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <h4
-                              className={`font-semibold text-slate-900 ${
-                                !notification.read ? 'font-bold' : ''
-                              }`}
-                            >
-                              {notification.title}
-                            </h4>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteNotification(notification.id);
-                              }}
-                              className="flex-shrink-0 p-1 hover:bg-slate-200 rounded transition"
-                            >
-                              <X className="w-4 h-4 text-slate-500" />
-                            </button>
-                          </div>
-                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">
+                <div className="divide-y divide-gray-100">
+                  <div className="flex items-center justify-between px-4 py-2 text-xs text-gray-500">
+                    <span>{unreadCount} sin leer</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Marcar todas como leídas
+                      </button>
+                    )}
+                  </div>
+
+                  {notifications.map((notification) => {
+                    const icon =
+                      notification.type === 'error' ? (
+                        <AlertTriangle className="w-5 h-5 text-red-500" />
+                      ) : notification.type === 'success' ? (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      ) : notification.type === 'warning' ? (
+                        <AlertTriangle className="w-5 h-5 text-amber-500" />
+                      ) : (
+                        <Info className="w-5 h-5 text-blue-500" />
+                      );
+
+                    return (
+                      <button
+                        key={notification.id}
+                        onClick={() => handleNotificationClick(notification)}
+                        className={`w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 ${
+                          !notification.is_read ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <div className="mt-0.5">{icon}</div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {notification.title}
+                          </p>
+                          <p className="text-sm text-gray-700">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-slate-500 mt-2">
-                            {new Date(notification.created_at).toLocaleString('es-ES')}
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(
+                              notification.created_at
+                            ).toLocaleString('es-CL')}
                           </p>
-                          {!notification.read && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                markAsRead(notification.id);
-                              }}
-                              className="text-xs text-blue-600 hover:text-blue-700 font-semibold mt-2 flex items-center gap-1"
-                            >
-                              <Check className="w-3 h-3" />
-                              Marcar como leída
-                            </button>
-                          )}
                         </div>
-                      </div>
-                    </div>
-                  ))}
+                        {!notification.is_read && (
+                          <span className="w-2 h-2 rounded-full bg-blue-600 mt-2" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
