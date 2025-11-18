@@ -9,7 +9,7 @@ interface PhotoCaptureProps {
   onPhotosChange: (photo1Url: string | null, photo2Url: string | null) => void;
 }
 
-export function PhotoCapture({ questionId, checklistId, existingPhotos, onPhotosChange }: PhotoCaptureProps) {
+export default function PhotoCapture({ questionId, checklistId, existingPhotos, onPhotosChange }: PhotoCaptureProps) {
   const [photo1, setPhoto1] = useState<string | null>(existingPhotos?.photo1 || null);
   const [photo2, setPhoto2] = useState<string | null>(existingPhotos?.photo2 || null);
   const [uploading, setUploading] = useState<1 | 2 | null>(null);
@@ -23,7 +23,7 @@ export function PhotoCapture({ questionId, checklistId, existingPhotos, onPhotos
       const fileName = `${checklistId}_${questionId}_photo${photoNumber}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('maintenance-photos')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -43,6 +43,7 @@ export function PhotoCapture({ questionId, checklistId, existingPhotos, onPhotos
         setPhoto2(publicUrl);
         onPhotosChange(photo1, publicUrl);
       }
+
     } catch (error: any) {
       console.error('Error uploading photo:', error);
       alert('Error al subir la foto: ' + error.message);
