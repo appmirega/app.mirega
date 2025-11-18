@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Check, X, ChevronDown, ChevronUp, AlertCircle, Save } from 'lucide-react';
-import PhotoCapture from './PhotoCapture';
 
 interface Question {
   id: string;
@@ -31,7 +30,7 @@ interface DynamicChecklistFormProps {
 
 export function DynamicChecklistForm({
   checklistId,
-  elevatorId, // (no se usa aún, pero lo dejamos por si después lo necesitas)
+  elevatorId, // reservado para futuros usos
   isHydraulic,
   month,
   onComplete,
@@ -153,20 +152,6 @@ export function DynamicChecklistForm({
     setChangeCount((prev) => prev + 1);
   };
 
-  const handlePhotosChange = (questionId: string, photo1: string | null, photo2: string | null) => {
-    const currentAnswer = answers.get(questionId);
-    if (!currentAnswer) return;
-
-    const newMap = new Map(answers);
-    newMap.set(questionId, {
-      ...currentAnswer,
-      photo_1_url: photo1,
-      photo_2_url: photo2,
-    });
-    setAnswers(newMap);
-    setChangeCount((prev) => prev + 1);
-  };
-
   const handleAutoSave = async () => {
     await saveAnswers(true);
   };
@@ -197,7 +182,6 @@ export function DynamicChecklistForm({
         if (error) throw error;
       }
 
-      // autosave simple: solo actualizamos updated_at
       if (isAutoSave) {
         const { error: updateError } = await supabase
           .from('mnt_checklists')
@@ -261,12 +245,9 @@ export function DynamicChecklistForm({
       const answer = answers.get(q.id);
       if (!answer || answer.status === 'pending') return false;
 
+      // 🔁 AHORA SOLO EXIGIMOS OBSERVACIONES PARA RECHAZADOS
       if (answer.status === 'rejected') {
-        return (
-          answer.observations.trim() !== '' &&
-          answer.photo_1_url !== null &&
-          answer.photo_2_url !== null
-        );
+        return answer.observations.trim() !== '';
       }
 
       return true;
@@ -428,18 +409,7 @@ export function DynamicChecklistForm({
                                   className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                                 />
                               </div>
-
-                              <PhotoCapture
-                                questionId={question.id}
-                                checklistId={checklistId}
-                                existingPhotos={{
-                                  photo1: answer?.photo_1_url || undefined,
-                                  photo2: answer?.photo_2_url || undefined,
-                                }}
-                                onPhotosChange={(photo1, photo2) =>
-                                  handlePhotosChange(question.id, photo1, photo2)
-                                }
-                              />
+                              {/* Aquí antes iban las fotos, ahora las quitamos para probar */}
                             </div>
                           )}
                         </div>
@@ -459,7 +429,7 @@ export function DynamicChecklistForm({
           <div>
             <p className="font-semibold text-amber-900">Checklist Incompleto</p>
             <p className="text-sm text-amber-800">
-              Todas las preguntas rechazadas deben incluir observaciones y 2 fotografías.
+              Todas las preguntas rechazadas deben incluir observaciones.
             </p>
           </div>
         </div>
