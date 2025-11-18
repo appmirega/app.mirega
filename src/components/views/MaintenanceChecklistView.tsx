@@ -215,7 +215,10 @@ export function MaintenanceChecklistView() {
       setViewMode('checklist');
     } catch (err: any) {
       console.error('Error creating checklist:', err);
-      setError('Error al crear el checklist: ' + err.message);
+      const message =
+        err?.message || err?.details || 'Error desconocido al crear el checklist';
+      setError('Error al crear el checklist: ' + message);
+      alert('Error al crear el checklist: ' + message);
     } finally {
       setLoading(false);
     }
@@ -342,6 +345,17 @@ export function MaintenanceChecklistView() {
             </p>
           </div>
         </div>
+
+        {/* Mostrar error también en esta vista */}
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-900">Error</p>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
 
         <CertificationForm
           elevatorClassification={selectedElevator.classification}
@@ -591,5 +605,3 @@ export function MaintenanceChecklistView() {
     </div>
   );
 }
-
-
