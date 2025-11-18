@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Check, X, ChevronDown, ChevronUp, AlertCircle, Save } from 'lucide-react';
-import { PhotoCapture } from './PhotoCapture';
+import PhotoCapture from './PhotoCapture';
 
 interface Question {
   id: string;
@@ -31,7 +31,7 @@ interface DynamicChecklistFormProps {
 
 export function DynamicChecklistForm({
   checklistId,
-  elevatorId,
+  elevatorId, // (no se usa aún, pero lo dejamos por si después lo necesitas)
   isHydraulic,
   month,
   onComplete,
@@ -47,6 +47,7 @@ export function DynamicChecklistForm({
 
   useEffect(() => {
     loadQuestionsAndAnswers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checklistId, month, isHydraulic]);
 
   useEffect(() => {
@@ -64,7 +65,11 @@ export function DynamicChecklistForm({
 
       if (questionsError) throw questionsError;
 
-      const filteredQuestions = filterQuestionsByFrequency(questionsData || [], month, isHydraulic);
+      const filteredQuestions = filterQuestionsByFrequency(
+        (questionsData || []) as Question[],
+        month,
+        isHydraulic
+      );
       setQuestions(filteredQuestions);
 
       const { data: answersData, error: answersError } = await supabase
@@ -75,10 +80,10 @@ export function DynamicChecklistForm({
       if (answersError) throw answersError;
 
       const answersMap = new Map<string, Answer>();
-      answersData?.forEach((answer) => {
+      (answersData || []).forEach((answer: any) => {
         answersMap.set(answer.question_id, {
           question_id: answer.question_id,
-          status: answer.status,
+          status: answer.status as Answer['status'],
           observations: answer.observations || '',
           photo_1_url: answer.photo_1_url,
           photo_2_url: answer.photo_2_url,
@@ -86,7 +91,7 @@ export function DynamicChecklistForm({
       });
       setAnswers(answersMap);
 
-      const sections = new Set(filteredQuestions.map(q => q.section));
+      const sections = new Set(filteredQuestions.map((q) => q.section));
       setExpandedSections(sections);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -115,13 +120,14 @@ export function DynamicChecklistForm({
   };
 
   const handleAnswerChange = (questionId: string, status: 'approved' | 'rejected') => {
-    const currentAnswer = answers.get(questionId) || {
-      question_id: questionId,
-      status: 'pending',
-      observations: '',
-      photo_1_url: null,
-      photo_2_url: null,
-    };
+    const currentAnswer: Answer =
+      answers.get(questionId) || {
+        question_id: questionId,
+        status: 'pending',
+        observations: '',
+        photo_1_url: null,
+        photo_2_url: null,
+      };
 
     const newAnswer: Answer = {
       ...currentAnswer,
@@ -131,32 +137,34 @@ export function DynamicChecklistForm({
       photo_2_url: status === 'approved' ? null : currentAnswer.photo_2_url,
     };
 
-    setAnswers(new Map(answers.set(questionId, newAnswer)));
-    setChangeCount(prev => prev + 1);
+    const newMap = new Map(answers);
+    newMap.set(questionId, newAnswer);
+    setAnswers(newMap);
+    setChangeCount((prev) => prev + 1);
   };
 
   const handleObservationsChange = (questionId: string, observations: string) => {
     const currentAnswer = answers.get(questionId);
     if (!currentAnswer) return;
 
-    setAnswers(new Map(answers.set(questionId, { ...currentAnswer, observations })));
-    setChangeCount(prev => prev + 1);
+    const newMap = new Map(answers);
+    newMap.set(questionId, { ...currentAnswer, observations });
+    setAnswers(newMap);
+    setChangeCount((prev) => prev + 1);
   };
 
   const handlePhotosChange = (questionId: string, photo1: string | null, photo2: string | null) => {
     const currentAnswer = answers.get(questionId);
     if (!currentAnswer) return;
 
-    setAnswers(
-      new Map(
-        answers.set(questionId, {
-          ...currentAnswer,
-          photo_1_url: photo1,
-          photo_2_url: photo2,
-        })
-      )
-    );
-    setChangeCount(prev => prev + 1);
+    const newMap = new Map(answers);
+    newMap.set(questionId, {
+      ...currentAnswer,
+      photo_1_url: photo1,
+      photo_2_url: photo2,
+    });
+    setAnswers(newMap);
+    setChangeCount((prev) => prev + 1);
   };
 
   const handleAutoSave = async () => {
@@ -189,7 +197,7 @@ export function DynamicChecklistForm({
         if (error) throw error;
       }
 
-      // 🔧 FIX AUTOSAVE — remover supabase.rpc()
+      // autosave simple: solo actualizamos updated_at
       if (isAutoSave) {
         const { error: updateError } = await supabase
           .from('mnt_checklists')
@@ -199,7 +207,7 @@ export function DynamicChecklistForm({
           .eq('id', checklistId);
 
         if (updateError) {
-          console.error('Error updating auto_save_count:', updateError);
+          console.error('Error updating checklist on autosave:', updateError);
         }
       }
 
@@ -237,8 +245,15 @@ export function DynamicChecklistForm({
 
   const getProgress = () => {
     const total = questions.length;
-    const answered = Array.from(answers.values()).filter((a) => a.status !== 'pending').length;
-    return { answered, total, percentage: total > 0 ? Math.round((answered / total) * 100) : 0 };
+    const answered = Array.from(answers.values()).filter(
+      (a) => a.status !== 'pending'
+    ).length;
+
+    return {
+      answered,
+      total,
+      percentage: total > 0 ? Math.round((answered / total) * 100) : 0,
+    };
   };
 
   const canComplete = () => {
@@ -263,7 +278,7 @@ export function DynamicChecklistForm({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </div>
     );
   }
@@ -278,7 +293,8 @@ export function DynamicChecklistForm({
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Checklist de Mantenimiento</h2>
             <p className="text-sm text-slate-600">
-              {progress.answered} de {progress.total} preguntas respondidas ({progress.percentage}%)
+              {progress.answered} de {progress.total} preguntas respondidas (
+              {progress.percentage}%)
             </p>
           </div>
           <div className="text-right">
@@ -329,7 +345,10 @@ export function DynamicChecklistForm({
         }).length;
 
         return (
-          <div key={section} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div
+            key={section}
+            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+          >
             <button
               onClick={() => toggleSection(section)}
               className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition"
@@ -353,7 +372,7 @@ export function DynamicChecklistForm({
               <div className="divide-y divide-slate-200">
                 {sectionQuestions.map((question) => {
                   const answer = answers.get(question.id);
-                  const status = answer?.status || 'pending';
+                  const status: Answer['status'] = answer?.status || 'pending';
 
                   return (
                     <div key={question.id} className="p-6 bg-slate-50">
@@ -363,7 +382,9 @@ export function DynamicChecklistForm({
                         </div>
 
                         <div className="flex-1">
-                          <p className="font-medium text-slate-900 mb-3">{question.question_text}</p>
+                          <p className="font-medium text-slate-900 mb-3">
+                            {question.question_text}
+                          </p>
 
                           <div className="flex gap-3 mb-4">
                             <button
@@ -399,7 +420,9 @@ export function DynamicChecklistForm({
                                 </label>
                                 <textarea
                                   value={answer?.observations || ''}
-                                  onChange={(e) => handleObservationsChange(question.id, e.target.value)}
+                                  onChange={(e) =>
+                                    handleObservationsChange(question.id, e.target.value)
+                                  }
                                   placeholder="Describe el problema encontrado..."
                                   rows={3}
                                   className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
@@ -444,3 +467,4 @@ export function DynamicChecklistForm({
     </div>
   );
 }
+
