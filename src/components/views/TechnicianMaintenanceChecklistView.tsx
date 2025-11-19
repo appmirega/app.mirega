@@ -15,7 +15,10 @@ import {
 import { QRScanner } from '../checklist/QRScanner';
 import { CertificationForm } from '../checklist/CertificationForm';
 import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
-import { generateMaintenancePDF, generatePDFFilename } from '../../utils/pdfGenerator';
+import {
+  generateMaintenancePDF,
+  generatePDFFilename,
+} from '../../utils/pdfGenerator';
 
 interface Client {
   id: string;
@@ -74,7 +77,13 @@ interface PDFRecord {
   };
 }
 
-type ViewMode = 'start' | 'select-elevator' | 'certification' | 'checklist' | 'history' | 'pdfs';
+type ViewMode =
+  | 'start'
+  | 'select-elevator'
+  | 'certification'
+  | 'checklist'
+  | 'history'
+  | 'pdfs';
 
 export function TechnicianMaintenanceChecklistView() {
   const { profile } = useAuth();
@@ -83,9 +92,14 @@ export function TechnicianMaintenanceChecklistView() {
   const [showBuildingSearch, setShowBuildingSearch] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [elevators, setElevators] = useState<Elevator[]>([]);
-  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(null);
-  const [activeChecklist, setActiveChecklist] = useState<ActiveChecklist | null>(null);
-  const [maintenanceHistory, setMaintenanceHistory] = useState<MaintenanceHistory[]>([]);
+  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(
+    null,
+  );
+  const [activeChecklist, setActiveChecklist] =
+    useState<ActiveChecklist | null>(null);
+  const [maintenanceHistory, setMaintenanceHistory] = useState<
+    MaintenanceHistory[]
+  >([]);
   const [pdfs, setPdfs] = useState<PDFRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +132,8 @@ export function TechnicianMaintenanceChecklistView() {
     try {
       const { data, error } = await supabase
         .from('mnt_checklists')
-        .select(`
+        .select(
+          `
           id,
           month,
           year,
@@ -132,7 +147,8 @@ export function TechnicianMaintenanceChecklistView() {
           clients (
             company_name
           )
-        `)
+        `,
+        )
         .eq('technician_id', profile?.id)
         .order('completion_date', { ascending: false })
         .limit(50);
@@ -160,7 +176,8 @@ export function TechnicianMaintenanceChecklistView() {
 
       const { data, error } = await supabase
         .from('mnt_maintenance_pdfs')
-        .select(`
+        .select(
+          `
           *,
           checklist:mnt_checklists!inner (
             month,
@@ -173,16 +190,20 @@ export function TechnicianMaintenanceChecklistView() {
               model
             )
           )
-        `)
+        `,
+        )
         .in('checklist_id', ids)
         .order('folio_number', { ascending: false });
 
       if (error) throw error;
 
-      const formattedData = data?.map((item) => ({
-        ...item,
-        checklist: Array.isArray(item.checklist) ? item.checklist[0] : item.checklist,
-      })) || [];
+      const formattedData =
+        data?.map((item) => ({
+          ...item,
+          checklist: Array.isArray(item.checklist)
+            ? item.checklist[0]
+            : item.checklist,
+        })) || [];
 
       setPdfs(formattedData);
     } catch (err) {
@@ -198,7 +219,8 @@ export function TechnicianMaintenanceChecklistView() {
     try {
       const { data: elevatorData, error: elevatorError } = await supabase
         .from('elevators')
-        .select(`
+        .select(
+          `
           id,
           brand,
           model,
@@ -211,7 +233,8 @@ export function TechnicianMaintenanceChecklistView() {
             company_name,
             address
           )
-        `)
+        `,
+        )
         .eq('id', qrCode)
         .single();
 
@@ -237,7 +260,9 @@ export function TechnicianMaintenanceChecklistView() {
     try {
       const { data: elevatorsData, error: elevatorsError } = await supabase
         .from('elevators')
-        .select('id, brand, model, serial_number, is_hydraulic, location_name')
+        .select(
+          'id, brand, model, serial_number, is_hydraulic, location_name',
+        )
         .eq('client_id', client.id)
         .eq('status', 'active')
         .order('location_name');
@@ -309,6 +334,11 @@ export function TechnicianMaintenanceChecklistView() {
     setElevators([]);
   };
 
+  // NUEVO: manejar mensaje al guardar
+  const handleChecklistSave = () => {
+    alert('Progreso guardado exitosamente');
+  };
+
   const handleViewHistory = () => {
     loadMaintenanceHistory();
     setViewMode('history');
@@ -326,7 +356,10 @@ export function TechnicianMaintenanceChecklistView() {
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = generatePDFFilename(pdf.checklist.clients.company_name, pdf.folio_number);
+      link.download = generatePDFFilename(
+        pdf.checklist.clients.company_name,
+        pdf.folio_number,
+      );
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -338,7 +371,7 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   const filteredClients = clients.filter((c) =>
-    c.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+    c.company_name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (viewMode === 'certification' && selectedClient && selectedElevator) {
@@ -352,15 +385,16 @@ export function TechnicianMaintenanceChecklistView() {
     );
   }
 
+  // 🔧 ACTUALIZADO: usar la nueva firma de DynamicChecklistForm
   if (viewMode === 'checklist' && activeChecklist) {
     return (
       <DynamicChecklistForm
         checklistId={activeChecklist.id}
-        elevator={activeChecklist.elevator}
+        elevatorId={activeChecklist.elevator.id}
+        isHydraulic={activeChecklist.elevator.is_hydraulic}
         month={activeChecklist.month}
-        year={activeChecklist.year}
         onComplete={handleChecklistComplete}
-        onCancel={() => setViewMode('start')}
+        onSave={handleChecklistSave}
       />
     );
   }
@@ -369,7 +403,9 @@ export function TechnicianMaintenanceChecklistView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Checklist de Mantenimiento</h1>
+          <h1 className="text-3xl font-bold text-slate-900">
+            Checklist de Mantenimiento
+          </h1>
           <p className="text-slate-600 mt-1">Gestión completa de mantenimientos</p>
         </div>
         {viewMode !== 'start' && (
@@ -414,7 +450,9 @@ export function TechnicianMaintenanceChecklistView() {
             >
               <History className="w-8 h-8 text-purple-600 mb-3" />
               <h3 className="font-bold text-slate-900 mb-1">Historial</h3>
-              <p className="text-sm text-slate-600">Ver mantenimientos realizados</p>
+              <p className="text-sm text-slate-600">
+                Ver mantenimientos realizados
+              </p>
             </button>
 
             <button
@@ -435,7 +473,9 @@ export function TechnicianMaintenanceChecklistView() {
             Seleccionar Ascensor - {selectedClient?.company_name}
           </h2>
           {elevators.length === 0 ? (
-            <p className="text-slate-600 text-center py-8">No hay ascensores disponibles</p>
+            <p className="text-slate-600 text-center py-8">
+              No hay ascensores disponibles
+            </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {elevators.map((elevator) => (
@@ -447,8 +487,12 @@ export function TechnicianMaintenanceChecklistView() {
                   <h3 className="font-bold text-slate-900 mb-2">
                     {elevator.brand} {elevator.model}
                   </h3>
-                  <p className="text-sm text-slate-600">S/N: {elevator.serial_number}</p>
-                  <p className="text-sm text-slate-600">{elevator.location_name}</p>
+                  <p className="text-sm text-slate-600">
+                    S/N: {elevator.serial_number}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {elevator.location_name}
+                  </p>
                   <p className="text-xs text-slate-500 mt-2">
                     {elevator.is_hydraulic ? 'Hidráulico' : 'Eléctrico'}
                   </p>
@@ -461,9 +505,13 @@ export function TechnicianMaintenanceChecklistView() {
 
       {viewMode === 'history' && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Historial de Mantenimientos</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">
+            Historial de Mantenimientos
+          </h2>
           {maintenanceHistory.length === 0 ? (
-            <p className="text-slate-600 text-center py-8">No hay historial disponible</p>
+            <p className="text-slate-600 text-center py-8">
+              No hay historial disponible
+            </p>
           ) : (
             <div className="space-y-4">
               {maintenanceHistory.map((maintenance) => (
@@ -477,7 +525,8 @@ export function TechnicianMaintenanceChecklistView() {
                         {maintenance.client.company_name}
                       </h3>
                       <p className="text-sm text-slate-600 mb-2">
-                        {maintenance.elevator.brand} {maintenance.elevator.model} - S/N:{' '}
+                        {maintenance.elevator.brand}{' '}
+                        {maintenance.elevator.model} - S/N:{' '}
                         {maintenance.elevator.serial_number}
                       </p>
                       <div className="flex items-center gap-4 text-sm text-slate-600">
@@ -486,14 +535,19 @@ export function TechnicianMaintenanceChecklistView() {
                           <span>
                             {new Date(
                               maintenance.year,
-                              maintenance.month - 1
-                            ).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                              maintenance.month - 1,
+                            ).toLocaleDateString('es-ES', {
+                              month: 'long',
+                              year: 'numeric',
+                            })}
                           </span>
                         </div>
                         {maintenance.completion_date && (
                           <span>
                             Completado:{' '}
-                            {new Date(maintenance.completion_date).toLocaleDateString('es-ES')}
+                            {new Date(
+                              maintenance.completion_date,
+                            ).toLocaleDateString('es-ES')}
                           </span>
                         )}
                       </div>
@@ -505,7 +559,9 @@ export function TechnicianMaintenanceChecklistView() {
                           : 'bg-yellow-100 text-yellow-800'
                       }`}
                     >
-                      {maintenance.status === 'completed' ? 'Completado' : 'En Progreso'}
+                      {maintenance.status === 'completed'
+                        ? 'Completado'
+                        : 'En Progreso'}
                     </span>
                   </div>
                 </div>
@@ -517,9 +573,13 @@ export function TechnicianMaintenanceChecklistView() {
 
       {viewMode === 'pdfs' && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">PDFs de Mantenimiento</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">
+            PDFs de Mantenimiento
+          </h2>
           {pdfs.length === 0 ? (
-            <p className="text-slate-600 text-center py-8">No hay PDFs disponibles</p>
+            <p className="text-slate-600 text-center py-8">
+              No hay PDFs disponibles
+            </p>
           ) : (
             <div className="space-y-4">
               {pdfs.map((pdf) => (
@@ -531,16 +591,22 @@ export function TechnicianMaintenanceChecklistView() {
                     <div className="flex items-start gap-4 flex-1">
                       <FileText className="w-5 h-5 text-blue-600 mt-1" />
                       <div className="flex-1">
-                        <h3 className="font-bold text-slate-900 mb-1">Folio #{pdf.folio_number}</h3>
+                        <h3 className="font-bold text-slate-900 mb-1">
+                          Folio #{pdf.folio_number}
+                        </h3>
                         <p className="text-sm text-slate-600 mb-2">
-                          {pdf.checklist.clients.company_name} - {pdf.checklist.elevators.brand}{' '}
+                          {pdf.checklist.clients.company_name} -{' '}
+                          {pdf.checklist.elevators.brand}{' '}
                           {pdf.checklist.elevators.model}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {new Date(pdf.checklist.year, pdf.checklist.month - 1).toLocaleDateString(
-                            'es-ES',
-                            { month: 'long', year: 'numeric' }
-                          )}
+                          {new Date(
+                            pdf.checklist.year,
+                            pdf.checklist.month - 1,
+                          ).toLocaleDateString('es-ES', {
+                            month: 'long',
+                            year: 'numeric',
+                          })}
                         </p>
                       </div>
                     </div>
@@ -563,7 +629,9 @@ export function TechnicianMaintenanceChecklistView() {
       {showQRScanner && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Escanear Código QR</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-4">
+              Escanear Código QR
+            </h3>
             <QRScanner
               onScan={handleQRScan}
               onClose={() => setShowQRScanner(false)}
@@ -576,7 +644,9 @@ export function TechnicianMaintenanceChecklistView() {
       {showBuildingSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Buscar Edificio</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-4">
+              Buscar Edificio
+            </h3>
 
             <div className="mb-4">
               <div className="relative">
@@ -594,7 +664,9 @@ export function TechnicianMaintenanceChecklistView() {
 
             <div className="max-h-96 overflow-y-auto space-y-2">
               {filteredClients.length === 0 ? (
-                <p className="text-slate-600 text-center py-8">No se encontraron edificios</p>
+                <p className="text-slate-600 text-center py-8">
+                  No se encontraron edificios
+                </p>
               ) : (
                 filteredClients.map((client) => (
                   <button
@@ -602,7 +674,9 @@ export function TechnicianMaintenanceChecklistView() {
                     onClick={() => handleBuildingSelect(client)}
                     className="w-full p-4 border border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-left"
                   >
-                    <h4 className="font-bold text-slate-900">{client.company_name}</h4>
+                    <h4 className="font-bold text-slate-900">
+                      {client.company_name}
+                    </h4>
                     <p className="text-sm text-slate-600">{client.address}</p>
                   </button>
                 ))
