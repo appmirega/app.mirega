@@ -21,7 +21,7 @@ interface Answer {
 
 interface DynamicChecklistFormProps {
   checklistId: string;
-  elevatorId: string;
+  elevatorId: string;          // reservado para futuros usos
   isHydraulic: boolean;
   month: number;
   onComplete: () => void;
@@ -30,11 +30,12 @@ interface DynamicChecklistFormProps {
 
 export function DynamicChecklistForm({
   checklistId,
-  elevatorId, // reservado para futuros usos
+  elevatorId,                 // reservado para futuros usos
   isHydraulic,
   month,
-  onComplete,
-  onSave,
+  // 🔒 valores por defecto para evitar undefined
+  onComplete = () => {},
+  onSave = () => {},
 }: DynamicChecklistFormProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Map<string, Answer>>(new Map());
@@ -197,7 +198,8 @@ export function DynamicChecklistForm({
 
       setLastSaved(new Date());
 
-      if (!isAutoSave) {
+      // solo llamamos al callback si realmente es una función
+      if (!isAutoSave && typeof onSave === 'function') {
         onSave();
       }
     } catch (error) {
@@ -245,7 +247,7 @@ export function DynamicChecklistForm({
       const answer = answers.get(q.id);
       if (!answer || answer.status === 'pending') return false;
 
-      // 🔁 AHORA SOLO EXIGIMOS OBSERVACIONES PARA RECHAZADOS
+      // solo exigimos observaciones si está RECHAZADO
       if (answer.status === 'rejected') {
         return answer.observations.trim() !== '';
       }
@@ -254,6 +256,26 @@ export function DynamicChecklistForm({
     });
 
     return allAnswered;
+  };
+
+  // 🔒 handler seguro para el botón "Completar Checklist"
+  const handleCompleteClick = () => {
+    if (!canComplete() || saving) return;
+
+    if (typeof onComplete === 'function') {
+      try {
+        onComplete();
+      } catch (err) {
+        console.error('Error en onComplete:', err);
+        alert('Error al completar el checklist (onComplete lanzó una excepción).');
+      }
+    } else {
+      console.error('onComplete NO es una función:', onComplete);
+      alert(
+        'No se pudo completar el checklist por un error de configuración. ' +
+        'Avise al administrador.'
+      );
+    }
   };
 
   if (loading) {
@@ -309,7 +331,7 @@ export function DynamicChecklistForm({
             {saving ? 'Guardando...' : 'Guardar'}
           </button>
           <button
-            onClick={onComplete}
+            onClick={handleCompleteClick}
             disabled={!canComplete() || saving}
             className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -409,7 +431,6 @@ export function DynamicChecklistForm({
                                   className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                                 />
                               </div>
-                              {/* Aquí antes iban las fotos, ahora las quitamos para probar */}
                             </div>
                           )}
                         </div>
@@ -437,4 +458,3 @@ export function DynamicChecklistForm({
     </div>
   );
 }
-
