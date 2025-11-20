@@ -21,7 +21,7 @@ interface Answer {
 
 interface DynamicChecklistFormProps {
   checklistId: string;
-  elevatorId: string;          // reservado para futuros usos
+  elevatorId: string;        // reservado para futuros usos
   isHydraulic: boolean;
   month: number;
   onComplete: () => void;
@@ -30,12 +30,11 @@ interface DynamicChecklistFormProps {
 
 export function DynamicChecklistForm({
   checklistId,
-  elevatorId,                 // reservado para futuros usos
+  elevatorId, // no usado de momento
   isHydraulic,
   month,
-  // 🔒 valores por defecto para evitar undefined
-  onComplete = () => {},
-  onSave = () => {},
+  onComplete,
+  onSave,
 }: DynamicChecklistFormProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Map<string, Answer>>(new Map());
@@ -45,11 +44,13 @@ export function DynamicChecklistForm({
   const [changeCount, setChangeCount] = useState(0);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
+  // Carga preguntas y respuestas
   useEffect(() => {
     loadQuestionsAndAnswers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checklistId, month, isHydraulic]);
 
+  // Autosave cada 5 cambios
   useEffect(() => {
     if (changeCount > 0 && changeCount % 5 === 0) {
       handleAutoSave();
@@ -198,8 +199,7 @@ export function DynamicChecklistForm({
 
       setLastSaved(new Date());
 
-      // solo llamamos al callback si realmente es una función
-      if (!isAutoSave && typeof onSave === 'function') {
+      if (!isAutoSave) {
         onSave();
       }
     } catch (error) {
@@ -242,12 +242,12 @@ export function DynamicChecklistForm({
     };
   };
 
+  // ✅ Solo exige observaciones en rechazadas
   const canComplete = () => {
     const allAnswered = questions.every((q) => {
       const answer = answers.get(q.id);
       if (!answer || answer.status === 'pending') return false;
 
-      // solo exigimos observaciones si está RECHAZADO
       if (answer.status === 'rejected') {
         return answer.observations.trim() !== '';
       }
@@ -258,23 +258,24 @@ export function DynamicChecklistForm({
     return allAnswered;
   };
 
-  // 🔒 handler seguro para el botón "Completar Checklist"
+  // ✅ Handler seguro para el botón "Completar Checklist"
   const handleCompleteClick = () => {
-    if (!canComplete() || saving) return;
+    if (!canComplete()) {
+      alert('Aún hay preguntas sin responder o sin observaciones donde corresponde.');
+      return;
+    }
 
-    if (typeof onComplete === 'function') {
-      try {
-        onComplete();
-      } catch (err) {
-        console.error('Error en onComplete:', err);
-        alert('Error al completar el checklist (onComplete lanzó una excepción).');
-      }
-    } else {
-      console.error('onComplete NO es una función:', onComplete);
-      alert(
-        'No se pudo completar el checklist por un error de configuración. ' +
-        'Avise al administrador.'
-      );
+    if (typeof onComplete !== 'function') {
+      console.error('onComplete no es una función. Valor recibido:', onComplete);
+      alert('Error interno: onComplete no es una función. Revisa la vista padre del checklist.');
+      return;
+    }
+
+    try {
+      onComplete();
+    } catch (err) {
+      console.error('Error ejecutando onComplete:', err);
+      alert('Ocurrió un error al completar el checklist (revisa la consola).');
     }
   };
 
@@ -291,6 +292,7 @@ export function DynamicChecklistForm({
 
   return (
     <div className="space-y-6">
+      {/* Barra superior de progreso */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -332,7 +334,7 @@ export function DynamicChecklistForm({
           </button>
           <button
             onClick={handleCompleteClick}
-            disabled={!canComplete() || saving}
+            disabled={saving || !canComplete()}
             className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Completar Checklist
@@ -340,6 +342,7 @@ export function DynamicChecklistForm({
         </div>
       </div>
 
+      {/* Secciones y preguntas */}
       {Array.from(sectionedQuestions.entries()).map(([section, sectionQuestions]) => {
         const isExpanded = expandedSections.has(section);
         const sectionAnswered = sectionQuestions.filter((q) => {
