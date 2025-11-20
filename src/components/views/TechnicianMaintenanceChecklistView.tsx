@@ -92,9 +92,8 @@ export function TechnicianMaintenanceChecklistView() {
   const [showBuildingSearch, setShowBuildingSearch] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [elevators, setElevators] = useState<Elevator[]>([]);
-  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(
-    null,
-  );
+  const [selectedElevator, setSelectedElevator] =
+    useState<Elevator | null>(null);
   const [activeChecklist, setActiveChecklist] =
     useState<ActiveChecklist | null>(null);
   const [maintenanceHistory, setMaintenanceHistory] = useState<
@@ -154,7 +153,7 @@ export function TechnicianMaintenanceChecklistView() {
         .limit(50);
 
       if (error) throw error;
-      setMaintenanceHistory(data || []);
+      setMaintenanceHistory((data || []) as MaintenanceHistory[]);
     } catch (err) {
       console.error('Error loading history:', err);
     }
@@ -198,7 +197,7 @@ export function TechnicianMaintenanceChecklistView() {
       if (error) throw error;
 
       const formattedData =
-        data?.map((item) => ({
+        data?.map((item: any) => ({
           ...item,
           checklist: Array.isArray(item.checklist)
             ? item.checklist[0]
@@ -242,7 +241,7 @@ export function TechnicianMaintenanceChecklistView() {
 
       const client = elevatorData.clients as unknown as Client;
       setSelectedClient(client);
-      setElevators([elevatorData]);
+      setElevators([elevatorData as Elevator]);
       setViewMode('select-elevator');
     } catch (err: any) {
       console.error('Error processing QR:', err);
@@ -260,9 +259,7 @@ export function TechnicianMaintenanceChecklistView() {
     try {
       const { data: elevatorsData, error: elevatorsError } = await supabase
         .from('elevators')
-        .select(
-          'id, brand, model, serial_number, is_hydraulic, location_name',
-        )
+        .select('id, brand, model, serial_number, is_hydraulic, location_name')
         .eq('client_id', client.id)
         .eq('status', 'active')
         .order('location_name');
@@ -270,7 +267,7 @@ export function TechnicianMaintenanceChecklistView() {
       if (elevatorsError) throw elevatorsError;
 
       setSelectedClient(client);
-      setElevators(elevatorsData || []);
+      setElevators((elevatorsData || []) as Elevator[]);
       setViewMode('select-elevator');
     } catch (err: any) {
       console.error('Error loading elevators:', err);
@@ -300,7 +297,7 @@ export function TechnicianMaintenanceChecklistView() {
       setActiveChecklist({
         id: existingChecklist.id,
         elevator_id: elevator.id,
-        elevator: elevator,
+        elevator,
         month: currentMonth,
         year: currentYear,
       });
@@ -334,8 +331,9 @@ export function TechnicianMaintenanceChecklistView() {
     setElevators([]);
   };
 
-  // NUEVO: manejar mensaje al guardar
+  // 👉 esta función se pasa a DynamicChecklistForm como onSave
   const handleChecklistSave = () => {
+    // Por ahora solo mostramos un mensaje simple
     alert('Progreso guardado exitosamente');
   };
 
@@ -374,6 +372,8 @@ export function TechnicianMaintenanceChecklistView() {
     c.company_name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  // ---- RENDERS ESPECIALES ----
+
   if (viewMode === 'certification' && selectedClient && selectedElevator) {
     return (
       <CertificationForm
@@ -385,7 +385,6 @@ export function TechnicianMaintenanceChecklistView() {
     );
   }
 
-  // 🔧 ACTUALIZADO: usar la nueva firma de DynamicChecklistForm
   if (viewMode === 'checklist' && activeChecklist) {
     return (
       <DynamicChecklistForm
@@ -399,6 +398,8 @@ export function TechnicianMaintenanceChecklistView() {
     );
   }
 
+  // ---- VISTA PRINCIPAL ----
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -406,7 +407,9 @@ export function TechnicianMaintenanceChecklistView() {
           <h1 className="text-3xl font-bold text-slate-900">
             Checklist de Mantenimiento
           </h1>
-          <p className="text-slate-600 mt-1">Gestión completa de mantenimientos</p>
+          <p className="text-slate-600 mt-1">
+            Gestión completa de mantenimientos
+          </p>
         </div>
         {viewMode !== 'start' && (
           <button
@@ -616,7 +619,9 @@ export function TechnicianMaintenanceChecklistView() {
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                     >
                       <Download className="w-4 h-4" />
-                      {downloading === pdf.id ? 'Descargando...' : 'Descargar'}
+                      {downloading === pdf.id
+                        ? 'Descargando...'
+                        : 'Descargar'}
                     </button>
                   </div>
                 </div>
@@ -712,3 +717,4 @@ export function TechnicianMaintenanceChecklistView() {
     </div>
   );
 }
+
