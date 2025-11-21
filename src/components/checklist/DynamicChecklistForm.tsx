@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Check, X, ChevronDown, ChevronUp, AlertCircle, Save } from 'lucide-react';
+import PhotoCapture from './PhotoCapture';
 
 interface Question {
   id: string;
@@ -46,89 +47,101 @@ export function DynamicChecklistForm({
 
   // Carga preguntas y respuestas
   useEffect(() => {
-    loadQuestionsAndAnswers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const { data: questionsData, error: questionsError } = await supabase
+          .from('mnt_checklist_questions')
+          .select('*')
+          .order('question_number');
+
+        if (questionsError) throw questionsError;
+
+        const filteredQuestions = filterQuestionsByFrequency(
+          (questionsData || []) as Question[],
+          month,
+          isHydraulic
+        );
+        setQuestions(filteredQuestions);
+
+        const { data: answersData, error: answersError } = await supabase
+          .from('mnt_checklist_answers')
+          .select('*')
+          .eq('checklist_id', checklistId);
+
+        if (answersError) throw answersError;
+
+        const answersMap = new Map<string, Answer>();
+        (answersData || []).forEach((answer: any) => {
+          answersMap.set(answer.question_id, {
+            question_id: answer.question_id,
+            status: answer.status as Answer['status'],
+            observations: answer.observations || '',
+            photo_1_url: answer.photo_1_url,
+            photo_2_url: answer.photo_2_url,
+          });
+        });
+
+        setAnswers(answersMap);
+
+        const sections = new Set<string>();
+        filteredQuestions.forEach((q) => sections.add(q.section));
+        setExpandedSections(sections);
+      } catch (error) {
+        console.error('Error loading checklist data:', error);
+        alert('Error al cargar el checklist');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [checklistId, month, isHydraulic]);
 
-  // Autosave cada 5 cambios
-  useEffect(() => {
-    if (changeCount > 0 && changeCount % 5 === 0) {
-      handleAutoSave();
-    }
-  }, [changeCount]);
-
-  const loadQuestionsAndAnswers = async () => {
-    try {
-      const { data: questionsData, error: questionsError } = await supabase
-        .from('mnt_checklist_questions')
-        .select('*')
-        .order('question_number');
-
-      if (questionsError) throw questionsError;
-
-      const filteredQuestions = filterQuestionsByFrequency(
-        (questionsData || []) as Question[],
-        month,
-        isHydraulic
-      );
-      setQuestions(filteredQuestions);
-
-      const { data: answersData, error: answersError } = await supabase
-        .from('mnt_checklist_answers')
-        .select('*')
-        .eq('checklist_id', checklistId);
-
-      if (answersError) throw answersError;
-
-      const answersMap = new Map<string, Answer>();
-      (answersData || []).forEach((answer: any) => {
-        answersMap.set(answer.question_id, {
-          question_id: answer.question_id,
-          status: answer.status as Answer['status'],
-          observations: answer.observations || '',
-          photo_1_url: answer.photo_1_url,
-          photo_2_url: answer.photo_2_url,
-        });
-      });
-      setAnswers(answersMap);
-
-      const sections = new Set(filteredQuestions.map((q) => q.section));
-      setExpandedSections(sections);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Filtro de preguntas por frecuencia y tipo
   const filterQuestionsByFrequency = (
     allQuestions: Question[],
     currentMonth: number,
-    hydraulic: boolean
-  ) => {
-    const quarters = [3, 6, 9, 12];
-    const semesters = [3, 9];
+    isHydraulicElevator: boolean
+  ): Question[] => {
+    const monthlyQuestions = allQuestions.filter((q) => q.frequency === 'M');
 
-    return allQuestions.filter((q) => {
-      if (q.is_hydraulic_only && !hydraulic) return false;
+    let trimestralQuestions: Question[] = [];
+    let semestralQuestions: Question[] = [];
 
-      if (q.frequency === 'M') return true;
-      if (q.frequency === 'T') return quarters.includes(currentMonth);
-      if (q.frequency === 'S') return semesters.includes(currentMonth);
+    if (currentMonth % 3 === 0) {
+      trimestralQuestions = allQuestions.filter((q) => q.frequency === 'T');
+    }
 
-      return false;
-    });
+    if (currentMonth % 6 === 0) {
+      semestralQuestions = allQuestions.filter((q) => q.frequency === 'S');
+    }
+
+    let filtered = [
+      ...monthlyQuestions,
+      ...trimestralQuestions,
+      ...semestralQuestions,
+    ];
+
+    if (!isHydraulicElevator) {
+      filtered = filtered.filter((q) => !q.is_hydraulic_only);
+    }
+
+    return filtered;
   };
 
-  const handleAnswerChange = (questionId: string, status: 'approved' | 'rejected') => {
-    const currentAnswer: Answer =
-      answers.get(questionId) || {
-        question_id: questionId,
-        status: 'pending',
-        observations: '',
-        photo_1_url: null,
-        photo_2_url: null,
-      };
+  const getAnswer = (questionId: string): Answer | undefined => {
+    return answers.get(questionId);
+  };
+
+  const handleAnswerChange = (questionId: string, status: Answer['status']) => {
+    const currentAnswer = answers.get(questionId) || {
+      question_id: questionId,
+      status: 'pending',
+      observations: '',
+      photo_1_url: null,
+      photo_2_url: null,
+    };
 
     const newAnswer: Answer = {
       ...currentAnswer,
@@ -150,6 +163,20 @@ export function DynamicChecklistForm({
 
     const newMap = new Map(answers);
     newMap.set(questionId, { ...currentAnswer, observations });
+    setAnswers(newMap);
+    setChangeCount((prev) => prev + 1);
+  };
+
+  const handlePhotosChange = (
+    questionId: string,
+    photo1Url: string | null,
+    photo2Url: string | null
+  ) => {
+    const currentAnswer = answers.get(questionId);
+    if (!currentAnswer) return;
+
+    const newMap = new Map(answers);
+    newMap.set(questionId, { ...currentAnswer, photo_1_url: photo1Url, photo_2_url: photo2Url });
     setAnswers(newMap);
     setChangeCount((prev) => prev + 1);
   };
@@ -187,17 +214,14 @@ export function DynamicChecklistForm({
       if (isAutoSave) {
         const { error: updateError } = await supabase
           .from('mnt_checklists')
-          .update({
-            updated_at: new Date().toISOString(),
-          })
+          .update({ last_auto_save_at: new Date().toISOString() })
           .eq('id', checklistId);
 
-        if (updateError) {
-          console.error('Error updating checklist on autosave:', updateError);
-        }
+        if (updateError) throw updateError;
       }
 
       setLastSaved(new Date());
+      setChangeCount(0);
 
       if (!isAutoSave) {
         onSave();
@@ -220,20 +244,16 @@ export function DynamicChecklistForm({
     setExpandedSections(newExpanded);
   };
 
-  const groupQuestionsBySection = () => {
-    const grouped = new Map<string, Question[]>();
-    questions.forEach((q) => {
-      const existing = grouped.get(q.section) || [];
-      grouped.set(q.section, [...existing, q]);
-    });
-    return grouped;
-  };
-
   const getProgress = () => {
     const total = questions.length;
-    const answered = Array.from(answers.values()).filter(
-      (a) => a.status !== 'pending'
-    ).length;
+    let answered = 0;
+
+    questions.forEach((q) => {
+      const answer = answers.get(q.id);
+      if (answer && answer.status !== 'pending') {
+        answered++;
+      }
+    });
 
     return {
       answered,
@@ -242,14 +262,17 @@ export function DynamicChecklistForm({
     };
   };
 
-  // ✅ Solo exige observaciones en rechazadas
+  // ✅ Ahora exige observaciones Y al menos 1 foto cuando está "rechazado"
   const canComplete = () => {
     const allAnswered = questions.every((q) => {
       const answer = answers.get(q.id);
       if (!answer || answer.status === 'pending') return false;
 
       if (answer.status === 'rejected') {
-        return answer.observations.trim() !== '';
+        return (
+          answer.observations.trim() !== '' &&
+          !!answer.photo_1_url
+        );
       }
 
       return true;
@@ -261,181 +284,249 @@ export function DynamicChecklistForm({
   // ✅ Handler seguro para el botón "Completar Checklist"
   const handleCompleteClick = () => {
     if (!canComplete()) {
-      alert('Aún hay preguntas sin responder o sin observaciones donde corresponde.');
+      alert('Aún hay preguntas sin responder o sin observaciones/fotos donde corresponde.');
       return;
     }
 
     if (typeof onComplete !== 'function') {
-      console.error('onComplete no es una función. Valor recibido:', onComplete);
-      alert('Error interno: onComplete no es una función. Revisa la vista padre del checklist.');
+      console.error('onComplete no es una función válida');
       return;
     }
 
-    try {
-      onComplete();
-    } catch (err) {
-      console.error('Error ejecutando onComplete:', err);
-      alert('Ocurrió un error al completar el checklist (revisa la consola).');
-    }
+    onComplete();
   };
+
+  useEffect(() => {
+    if (changeCount >= 5) {
+      handleAutoSave();
+    }
+  }, [changeCount]);
+
+  const progress = getProgress();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="flex items-center justify-center py-10">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
       </div>
     );
   }
 
-  const progress = getProgress();
-  const sectionedQuestions = groupQuestionsBySection();
+  const groupedQuestions = questions.reduce((groups, question) => {
+    if (!groups[question.section]) {
+      groups[question.section] = [];
+    }
+    groups[question.section].push(question);
+    return groups;
+  }, {} as Record<string, Question[]>);
+
+  const formatDateTime = (date: Date) => {
+    return date.toLocaleString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
     <div className="space-y-6">
-      {/* Barra superior de progreso */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-0 z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Checklist de Mantenimiento</h2>
-            <p className="text-sm text-slate-600">
-              {progress.answered} de {progress.total} preguntas respondidas (
-              {progress.percentage}%)
-            </p>
+      {/* Header de Progreso */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Checklist de Mantenimiento
+          </h2>
+          <p className="text-sm text-slate-600">
+            Responde todas las preguntas. Las respuestas rechazadas requieren observaciones y al menos 1 foto.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-start md:items-end gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-40 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="h-full bg-blue-600 rounded-full transition-all"
+                style={{ width: `${progress.percentage}%` }}
+              />
+            </div>
+            <span className="text-sm font-medium text-slate-700">
+              {progress.answered} / {progress.total} respondidas ({progress.percentage}%)
+            </span>
           </div>
-          <div className="text-right">
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             {lastSaved && (
-              <p className="text-xs text-slate-500">
-                Guardado: {lastSaved.toLocaleTimeString('es-ES')}
-              </p>
+              <span>
+                Último guardado: <span className="font-medium">{formatDateTime(lastSaved)}</span>
+              </span>
             )}
-            {changeCount > 0 && changeCount % 5 !== 0 && (
-              <p className="text-xs text-amber-600">
-                {5 - (changeCount % 5)} cambios para autoguardar
-              </p>
+            {changeCount > 0 && (
+              <span className="flex items-center gap-1 text-amber-600">
+                <AlertCircle className="w-4 h-4" />
+                Cambios sin guardar: {changeCount}
+              </span>
             )}
           </div>
-        </div>
-
-        <div className="w-full bg-slate-200 rounded-full h-3 mb-4">
-          <div
-            className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-            style={{ width: `${progress.percentage}%` }}
-          />
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleManualSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-          <button
-            onClick={handleCompleteClick}
-            disabled={saving || !canComplete()}
-            className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Completar Checklist
-          </button>
         </div>
       </div>
 
-      {/* Secciones y preguntas */}
-      {Array.from(sectionedQuestions.entries()).map(([section, sectionQuestions]) => {
-        const isExpanded = expandedSections.has(section);
-        const sectionAnswered = sectionQuestions.filter((q) => {
-          const answer = answers.get(q.id);
-          return answer && answer.status !== 'pending';
-        }).length;
-
-        return (
-          <div
-            key={section}
-            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+      {/* Botones de acción */}
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleManualSave}
+            disabled={saving || changeCount === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+                       border border-slate-300 bg-white hover:bg-slate-50 text-slate-700
+                       disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            <Save className="w-4 h-4" />
+            {saving ? 'Guardando...' : 'Guardar Manualmente'}
+          </button>
+        </div>
+
+        <button
+          onClick={handleCompleteClick}
+          disabled={!canComplete() || saving}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold
+                      text-white shadow-sm transition
+                      ${
+                        canComplete() && !saving
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-slate-400 cursor-not-allowed'
+                      }`}
+        >
+          <Check className="w-4 h-4" />
+          {saving ? 'Guardando...' : 'Completar Checklist'}
+        </button>
+      </div>
+
+      {/* Mensaje de validación si falta algo */}
+      {!canComplete() && progress.answered > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-900">Checklist Incompleto</p>
+            <p className="text-sm text-amber-800">
+              Todas las preguntas rechazadas deben incluir observaciones y al menos 1 fotografía.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Secciones del checklist */}
+      <div className="space-y-4">
+        {Object.entries(groupedQuestions).map(([section, sectionQuestions]) => (
+          <div key={section} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <button
+              type="button"
               onClick={() => toggleSection(section)}
-              className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition"
+              className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100"
             >
-              <div className="flex items-center gap-4">
-                <div className="text-left">
-                  <h3 className="text-lg font-bold text-slate-900">{section}</h3>
-                  <p className="text-sm text-slate-600">
-                    {sectionAnswered} de {sectionQuestions.length} completadas
-                  </p>
-                </div>
-              </div>
-              {isExpanded ? (
-                <ChevronUp className="w-5 h-5 text-slate-600" />
+              <span className="font-semibold text-slate-800">{section}</span>
+              {expandedSections.has(section) ? (
+                <ChevronUp className="w-5 h-5 text-slate-500" />
               ) : (
-                <ChevronDown className="w-5 h-5 text-slate-600" />
+                <ChevronDown className="w-5 h-5 text-slate-500" />
               )}
             </button>
 
-            {isExpanded && (
-              <div className="divide-y divide-slate-200">
+            {expandedSections.has(section) && (
+              <div className="divide-y divide-slate-100">
                 {sectionQuestions.map((question) => {
-                  const answer = answers.get(question.id);
-                  const status: Answer['status'] = answer?.status || 'pending';
+                  const answer = getAnswer(question.id);
+                  const status = answer?.status ?? 'pending';
 
                   return (
-                    <div key={question.id} className="p-6 bg-slate-50">
-                      <div className="flex items-start gap-4 mb-4">
-                        <div className="flex-shrink-0 w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-700 text-sm">
-                          {question.question_number}
-                        </div>
-
-                        <div className="flex-1">
-                          <p className="font-medium text-slate-900 mb-3">
-                            {question.question_text}
-                          </p>
-
-                          <div className="flex gap-3 mb-4">
-                            <button
-                              onClick={() => handleAnswerChange(question.id, 'approved')}
-                              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${
-                                status === 'approved'
-                                  ? 'bg-green-600 text-white shadow-lg'
-                                  : 'bg-white border-2 border-slate-300 text-slate-700 hover:border-green-500'
-                              }`}
-                            >
-                              <Check className="w-5 h-5" />
-                              Aprobado
-                            </button>
-
-                            <button
-                              onClick={() => handleAnswerChange(question.id, 'rejected')}
-                              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${
-                                status === 'rejected'
-                                  ? 'bg-red-600 text-white shadow-lg'
-                                  : 'bg-white border-2 border-slate-300 text-slate-700 hover:border-red-500'
-                              }`}
-                            >
-                              <X className="w-5 h-5" />
-                              Rechazado
-                            </button>
+                    <div key={question.id} className="p-4 hover:bg-slate-50 transition">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                          <div className="space-y-1 md:flex-1">
+                            <div className="flex items-start gap-2">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
+                                {question.question_number}
+                              </span>
+                              <p className="font-medium text-slate-900">{question.question_text}</p>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              Frecuencia:{' '}
+                              {question.frequency === 'M'
+                                ? 'Mensual'
+                                : question.frequency === 'T'
+                                ? 'Trimestral'
+                                : 'Semestral'}
+                              {question.is_hydraulic_only && ' • Solo ascensores hidráulicos'}
+                            </p>
                           </div>
 
-                          {status === 'rejected' && (
-                            <div className="space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                              <div>
-                                <label className="block text-sm font-semibold text-red-900 mb-2">
-                                  Observaciones (Obligatorias)
-                                </label>
-                                <textarea
-                                  value={answer?.observations || ''}
-                                  onChange={(e) =>
-                                    handleObservationsChange(question.id, e.target.value)
-                                  }
-                                  placeholder="Describe el problema encontrado..."
-                                  rows={3}
-                                  className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                                />
-                              </div>
+                          <div className="flex flex-col gap-2 md:w-64">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleAnswerChange(question.id, 'approved')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${
+                                  status === 'approved'
+                                    ? 'bg-green-600 text-white shadow-lg'
+                                    : 'bg-white border-2 border-slate-300 text-slate-700 hover:border-green-500'
+                                }`}
+                              >
+                                <Check className="w-5 h-5" />
+                                Aprobado
+                              </button>
+
+                              <button
+                                onClick={() => handleAnswerChange(question.id, 'rejected')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${
+                                  status === 'rejected'
+                                    ? 'bg-red-600 text-white shadow-lg'
+                                    : 'bg-white border-2 border-slate-300 text-slate-700 hover:border-red-500'
+                                }`}
+                              >
+                                <X className="w-5 h-5" />
+                                Rechazado
+                              </button>
                             </div>
-                          )}
+
+                            {status === 'rejected' && (
+                              <div className="space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                <div>
+                                  <label className="block text-sm font-semibold text-red-900 mb-2">
+                                    Observaciones (Obligatorias)
+                                  </label>
+                                  <textarea
+                                    value={answer?.observations || ''}
+                                    onChange={(e) =>
+                                      handleObservationsChange(question.id, e.target.value)
+                                    }
+                                    placeholder="Describe el problema encontrado..."
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-semibold text-red-900 mb-2">
+                                    Evidencia Fotográfica (mínimo 1 foto)
+                                  </label>
+                                  <PhotoCapture
+                                    questionId={question.id}
+                                    checklistId={checklistId}
+                                    existingPhotos={{
+                                      photo1: answer?.photo_1_url || undefined,
+                                      photo2: answer?.photo_2_url || undefined,
+                                    }}
+                                    onPhotosChange={(photo1Url, photo2Url) =>
+                                      handlePhotosChange(question.id, photo1Url, photo2Url)
+                                    }
+                                  />
+                                  <p className="mt-2 text-xs text-red-700">
+                                    • Foto 1 es obligatoria cuando la respuesta es Rechazado. Foto 2 es opcional.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -444,20 +535,8 @@ export function DynamicChecklistForm({
               </div>
             )}
           </div>
-        );
-      })}
-
-      {!canComplete() && progress.answered > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-amber-900">Checklist Incompleto</p>
-            <p className="text-sm text-amber-800">
-              Todas las preguntas rechazadas deben incluir observaciones.
-            </p>
-          </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
