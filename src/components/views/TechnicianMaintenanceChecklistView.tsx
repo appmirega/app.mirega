@@ -16,18 +16,9 @@ import { QRScanner } from '../checklist/QRScanner';
 import { CertificationForm } from '../checklist/CertificationForm';
 import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
 import {
-  generateMaintenanceChecklistPDF,
-  generateMaintenancePDFsZip,
-} from '../../utils/pdf/maintenanceChecklistPDF';
-
-type ViewMode =
-  | 'start'
-  | 'select-client'
-  | 'select-elevator'
-  | 'certification'
-  | 'checklist'
-  | 'history'
-  | 'pdfs';
+  generateMaintenancePDF,
+  generatePDFFilename,
+} from '../../utils/pdfGenerator';
 
 interface Client {
   id: string;
@@ -52,7 +43,7 @@ interface ActiveChecklist {
   year: number;
 }
 
-interface MaintenanceRecord {
+interface MaintenanceHistory {
   id: string;
   month: number;
   year: number;
@@ -68,25 +59,12 @@ interface MaintenanceRecord {
   };
 }
 
-interface PDFRecord {
-  id: string;
-  month: number;
-  year: number;
-  completion_date: string;
-  elevator: {
-    brand: string;
-    model: string;
-    serial_number: string;
-  };
-  client: {
-    company_name: string;
-  };
-}
-
 export function TechnicianMaintenanceChecklistView() {
   const { profile } = useAuth();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('start');
+  const [viewMode, setViewMode] = useState<
+    'start' | 'select-client' | 'select-elevator' | 'certification' | 'checklist' | 'history' | 'pdfs'
+  >('start');
   const [showQRScanner, setShowQRScanner] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -96,21 +74,22 @@ export function TechnicianMaintenanceChecklistView() {
 
   const [activeChecklist, setActiveChecklist] = useState<ActiveChecklist | null>(null);
 
-  const [historyRecords, setHistoryRecords] = useState<MaintenanceRecord[]>([]);
-  const [pdfRecords, setPdfRecords] = useState<PDFRecord[]>([]);
+  const [maintenanceHistory, setMaintenanceHistory] = useState<MaintenanceHistory[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchingClient, setSearchingClient] = useState(false);
+  const [showBuildingSearch, setShowBuildingSearch] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
-  // --------- Cargar clientes para selección ---------
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
+  // Cargar clientes
   useEffect(() => {
     if (viewMode !== 'select-client') return;
 
@@ -123,7 +102,7 @@ export function TechnicianMaintenanceChecklistView() {
           .from('clients')
           .select('id, company_name, address')
           .eq('status', 'active')
-          .order('company_name');
+          .order('company_name', { ascending: true });
 
         if (error) throw error;
 
@@ -139,8 +118,7 @@ export function TechnicianMaintenanceChecklistView() {
     loadClients();
   }, [viewMode]);
 
-  // --------- Buscar clientes ---------
-
+  // Buscar clientes por nombre
   const handleSearchClients = async () => {
     if (!searchTerm.trim()) {
       setError('Ingresa un término de búsqueda');
@@ -156,7 +134,7 @@ export function TechnicianMaintenanceChecklistView() {
         .select('id, company_name, address')
         .ilike('company_name', `%${searchTerm}%`)
         .eq('status', 'active')
-        .order('company_name');
+        .order('company_name', { ascending: true });
 
       if (error) throw error;
 
@@ -169,29 +147,26 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // --------- Seleccionar cliente y cargar ascensores ---------
-
+  // Seleccionar cliente y cargar ascensores
   const handleSelectClient = async (client: Client) => {
+    setSelectedClient(client);
+    setSelectedElevator(null);
+    setActiveChecklist(null);
+    setViewMode('select-elevator');
     setLoading(true);
     setError(null);
-    setElevators([]);
-    setSelectedElevator(null);
 
     try {
       const { data, error } = await supabase
         .from('elevators')
-        .select(
-          'id, brand, model, serial_number, is_hydraulic, location_name',
-        )
+        .select('id, brand, model, serial_number, is_hydraulic, location_name')
         .eq('client_id', client.id)
         .eq('status', 'active')
-        .order('location_name');
+        .order('location_name', { ascending: true });
 
       if (error) throw error;
 
-      setSelectedClient(client);
       setElevators((data || []) as Elevator[]);
-      setViewMode('select-elevator');
     } catch (err) {
       console.error('Error loading elevators:', err);
       setError('Error al cargar los ascensores del cliente');
@@ -200,8 +175,7 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // --------- Seleccionar ascensor (lista o QR) ---------
-
+  // ✅ Seleccionar ascensor con bloqueo por ascensor/mes
   const handleSelectElevator = async (elevator: Elevator) => {
     setSelectedElevator(elevator);
 
@@ -209,7 +183,6 @@ export function TechnicianMaintenanceChecklistView() {
     const currentYear = new Date().getFullYear();
 
     try {
-      // Buscar cualquier checklist de este ascensor en el mes/año actual
       const { data: existingChecklist, error } = await supabase
         .from('mnt_checklists')
         .select('*')
@@ -253,41 +226,55 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
+  // Manejo de QR
   const handleQRCodeScanned = async (qrData: string) => {
     setShowQRScanner(false);
 
     try {
-      const { data: elevator, error } = await supabase
+      const { data, error } = await supabase
         .from('elevators')
         .select(
-          'id, brand, model, serial_number, is_hydraulic, location_name, client:clients(id, company_name, address)',
+          `
+          id,
+          brand,
+          model,
+          serial_number,
+          is_hydraulic,
+          location_name,
+          client:clients(
+            id,
+            company_name,
+            address
+          )
+        `,
         )
         .eq('qr_code', qrData)
         .maybeSingle();
 
       if (error) throw error;
-      if (!elevator) {
+
+      if (!data) {
         setError('No se encontró un ascensor con ese código QR');
         return;
       }
 
-      const client: Client = {
-        id: elevator.client.id,
-        company_name: elevator.client.company_name,
-        address: elevator.client.address,
+      const elevatorData: Elevator = {
+        id: data.id,
+        brand: data.brand,
+        model: data.model,
+        serial_number: data.serial_number,
+        is_hydraulic: data.is_hydraulic,
+        location_name: data.location_name,
       };
 
-      const selectedElevator: Elevator = {
-        id: elevator.id,
-        brand: elevator.brand,
-        model: elevator.model,
-        serial_number: elevator.serial_number,
-        is_hydraulic: elevator.is_hydraulic,
-        location_name: elevator.location_name,
+      const clientData: Client = {
+        id: data.client.id,
+        company_name: data.client.company_name,
+        address: data.client.address,
       };
 
-      setSelectedClient(client);
-      setSelectedElevator(selectedElevator);
+      setSelectedClient(clientData);
+      setSelectedElevator(elevatorData);
       setViewMode('certification');
     } catch (err) {
       console.error('Error handling QR code:', err);
@@ -295,8 +282,7 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // --------- Certificación → crear checklist ---------
-
+  // Certificación → crear checklist
   const handleCertificationSubmit = async (certData: {
     lastCertificationDate: string | null;
     nextCertificationDate: string | null;
@@ -311,7 +297,7 @@ export function TechnicianMaintenanceChecklistView() {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
 
-      const { data: newChecklist, error: createError } = await supabase
+      const { data, error } = await supabase
         .from('mnt_checklists')
         .insert({
           client_id: selectedClient.id,
@@ -327,11 +313,11 @@ export function TechnicianMaintenanceChecklistView() {
         .select()
         .maybeSingle();
 
-      if (createError) throw createError;
-      if (!newChecklist) throw new Error('No se pudo crear el checklist');
+      if (error) throw error;
+      if (!data) throw new Error('No se pudo crear el checklist');
 
       setActiveChecklist({
-        id: newChecklist.id,
+        id: data.id,
         elevator_id: selectedElevator.id,
         elevator: selectedElevator,
         month: currentMonth,
@@ -347,8 +333,7 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // --------- Completar checklist ---------
-
+  // Completar checklist
   const handleChecklistComplete = async () => {
     if (!activeChecklist) return;
 
@@ -356,7 +341,7 @@ export function TechnicianMaintenanceChecklistView() {
     setError(null);
 
     try {
-      const { error: updateError } = await supabase
+      const { error } = await supabase
         .from('mnt_checklists')
         .update({
           status: 'completed',
@@ -364,7 +349,7 @@ export function TechnicianMaintenanceChecklistView() {
         })
         .eq('id', activeChecklist.id);
 
-      if (updateError) throw updateError;
+      if (error) throw error;
 
       setViewMode('history');
       await loadHistory();
@@ -376,8 +361,7 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // --------- Cargar historial ---------
-
+  // Cargar historial de mantenimientos
   const loadHistory = async () => {
     if (!profile?.id) return;
 
@@ -405,109 +389,127 @@ export function TechnicianMaintenanceChecklistView() {
         `,
         )
         .eq('technician_id', profile.id)
-        .eq('status', 'completed')
-        .order('completion_date', { ascending: false });
+        .order('completion_date', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
-      setHistoryRecords((data || []) as MaintenanceRecord[]);
+      setMaintenanceHistory((data || []) as MaintenanceHistory[]);
     } catch (err) {
       console.error('Error loading history:', err);
-      setError('Error al cargar el historial de mantenimientos');
+      setError('Error al cargar el historial');
     } finally {
       setLoading(false);
     }
   };
 
-  // --------- Cargar PDFs ---------
-
-  const loadPDFRecords = async () => {
-    if (!profile?.id) return;
-
-    setLoading(true);
-    setError(null);
-
+  // Descargar PDF individual
+  const handleDownloadPDF = async (record: MaintenanceHistory) => {
     try {
-      const { data, error } = await supabase
+      setDownloadingPDF(true);
+
+      const { data: checklistData, error } = await supabase
         .from('mnt_checklists')
         .select(
           `
           id,
           month,
           year,
-          status,
           completion_date,
+          client:clients(
+            business_name:company_name,
+            address,
+            contact_name
+          ),
           elevator:elevators(
             brand,
             model,
-            serial_number
-          ),
-          client:clients(
-            company_name
+            serial_number,
+            is_hydraulic
           )
         `,
         )
-        .eq('technician_id', profile.id)
-        .eq('status', 'completed')
-        .order('completion_date', { ascending: false });
+        .eq('id', record.id)
+        .maybeSingle();
 
       if (error) throw error;
+      if (!checklistData) throw new Error('No se encontró información del checklist');
 
-      setPdfRecords((data || []) as PDFRecord[]);
+      const pdfBlob = await generateMaintenancePDF({
+        folio: record.id,
+        client: {
+          business_name: checklistData.client.business_name,
+          address: checklistData.client.address,
+          contact_name: checklistData.client.contact_name || '',
+        },
+        elevator: {
+          brand: checklistData.elevator.brand,
+          model: checklistData.elevator.model,
+          serial_number: checklistData.elevator.serial_number,
+          is_hydraulic: checklistData.elevator.is_hydraulic,
+        },
+        checklist: {
+          month: checklistData.month,
+          year: checklistData.year,
+        },
+        meta: {
+          technician_name: profile?.full_name || '',
+          completion_date: checklistData.completion_date,
+          signer_name: '',
+          signature_data: '',
+          signed_at: '',
+        },
+      });
+
+      const filename = generatePDFFilename(
+        checklistData.client.business_name,
+        checklistData.elevator.serial_number,
+        checklistData.month,
+        checklistData.year,
+      );
+
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Error loading PDF records:', err);
-      setError('Error al cargar los informes PDF');
+      console.error('Error downloading PDF:', err);
+      alert('Error al generar el PDF del mantenimiento');
     } finally {
-      setLoading(false);
+      setDownloadingPDF(false);
     }
   };
 
-  // --------- Generar y descargar PDF individual ---------
-
-  const handleDownloadSinglePDF = async (record: PDFRecord) => {
+  // Descargar ZIP de PDFs (placeholder, lógica futura)
+  const handleDownloadZip = async () => {
     try {
-      await generateMaintenanceChecklistPDF(record.id);
-    } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Error al generar el PDF');
-    }
-  };
-
-  // --------- Generar ZIP con PDFs ---------
-
-  const handleDownloadPDFsZip = async () => {
-    try {
-      await generateMaintenancePDFsZip(
-        selectedMonth,
-        selectedYear,
-        profile?.id || '',
+      setDownloadingZip(true);
+      alert(
+        'La descarga masiva de PDFs aún no está implementada completamente. Esta función se agregará más adelante.',
       );
     } catch (err) {
-      console.error('Error generating PDFs ZIP:', err);
-      alert('Error al generar los PDFs');
+      console.error('Error downloading ZIP:', err);
+    } finally {
+      setDownloadingZip(false);
     }
   };
 
-  // --------- Helpers UI ---------
-
+  // Navegación atrás
   const handleGoBack = () => {
     switch (viewMode) {
       case 'select-client':
         setViewMode('start');
-        setClients([]);
-        setSelectedClient(null);
         break;
       case 'select-elevator':
         setViewMode('select-client');
-        setElevators([]);
-        setSelectedElevator(null);
         break;
       case 'certification':
         setViewMode('select-elevator');
         break;
       case 'checklist':
         setViewMode('select-elevator');
-        setActiveChecklist(null);
         break;
       case 'history':
       case 'pdfs':
@@ -519,10 +521,7 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
-  const yearOptions = Array.from(
-    { length: 5 },
-    (_, i) => new Date().getFullYear() - 2 + i,
-  );
+  const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
   const formatMonthYear = (month: number, year: number) => {
     const date = new Date(year, month - 1, 1);
@@ -531,8 +530,6 @@ export function TechnicianMaintenanceChecklistView() {
       year: 'numeric',
     });
   };
-
-  // --------- Render principal ---------
 
   return (
     <div className="space-y-6">
@@ -553,15 +550,17 @@ export function TechnicianMaintenanceChecklistView() {
               Checklist de Mantenimiento
             </h1>
             <p className="text-sm text-slate-600">
-              Gestiona los checklists de mantenimiento de ascensores de tus
-              clientes.
+              Gestiona los checklists de mantenimiento de ascensores de tus clientes.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setViewMode('history')}
+            onClick={() => {
+              setViewMode('history');
+              loadHistory();
+            }}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${
               viewMode === 'history'
                 ? 'bg-blue-600 text-white border-blue-600'
@@ -573,10 +572,7 @@ export function TechnicianMaintenanceChecklistView() {
           </button>
 
           <button
-            onClick={() => {
-              setViewMode('pdfs');
-              loadPDFRecords();
-            }}
+            onClick={() => setViewMode('pdfs')}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${
               viewMode === 'pdfs'
                 ? 'bg-blue-600 text-white border-blue-600'
@@ -598,20 +594,15 @@ export function TechnicianMaintenanceChecklistView() {
           >
             <Building2 className="w-8 h-8 text-blue-600" />
             <div className="text-left">
-              <h2 className="text-base font-semibold text-slate-900">
-                Iniciar nuevo checklist
-              </h2>
+              <h2 className="text-base font-semibold text-slate-900">Iniciar nuevo checklist</h2>
               <p className="text-sm text-slate-600">
-                Selecciona un cliente y ascensor para realizar el checklist del
-                mes.
+                Selecciona un cliente y ascensor para realizar el checklist del mes.
               </p>
             </div>
           </button>
 
           <button
-            onClick={() => {
-              setShowQRScanner(true);
-            }}
+            onClick={() => setShowQRScanner(true)}
             className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-500 hover:shadow-md transition"
           >
             <QrCode className="w-8 h-8 text-blue-600" />
@@ -620,8 +611,7 @@ export function TechnicianMaintenanceChecklistView() {
                 Escanear QR de ascensor
               </h2>
               <p className="text-sm text-slate-600">
-                Escanea el código QR del ascensor para iniciar el checklist
-                rápidamente.
+                Escanea el código QR del ascensor para iniciar el checklist rápidamente.
               </p>
             </div>
           </button>
@@ -635,9 +625,7 @@ export function TechnicianMaintenanceChecklistView() {
             <div className="flex items-center gap-3">
               <Building2 className="w-6 h-6 text-blue-600" />
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Seleccionar Cliente
-                </h2>
+                <h2 className="text-lg font-semibold text-slate-900">Seleccionar Cliente</h2>
                 <p className="text-sm text-slate-600">
                   Elige el cliente al que pertenece el ascensor.
                 </p>
@@ -684,9 +672,7 @@ export function TechnicianMaintenanceChecklistView() {
                       className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between"
                     >
                       <div>
-                        <p className="font-medium text-slate-900">
-                          {client.company_name}
-                        </p>
+                        <p className="font-medium text-slate-900">{client.company_name}</p>
                         <p className="text-xs text-slate-500">
                           {client.address || 'Dirección no registrada'}
                         </p>
@@ -703,18 +689,15 @@ export function TechnicianMaintenanceChecklistView() {
       {/* Selección de ascensor */}
       {viewMode === 'select-elevator' && selectedClient && (
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <ClipboardList className="w-6 h-6 text-blue-600" />
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Ascensores de {selectedClient.company_name}
-                </h2>
-                <p className="text-sm text-slate-600">
-                  Selecciona el ascensor al que le realizarás el checklist de
-                  mantenimiento.
-                </p>
-              </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
+            <ClipboardList className="w-6 h-6 text-blue-600" />
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Ascensores de {selectedClient.company_name}
+              </h2>
+              <p className="text-sm text-slate-600">
+                Selecciona el ascensor al que le realizarás el checklist de mantenimiento.
+              </p>
             </div>
           </div>
 
@@ -732,12 +715,9 @@ export function TechnicianMaintenanceChecklistView() {
                       className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between"
                     >
                       <div>
-                        <p className="font-medium text-slate-900">
-                          {elevator.location_name}
-                        </p>
+                        <p className="font-medium text-slate-900">{elevator.location_name}</p>
                         <p className="text-xs text-slate-500">
-                          {elevator.brand} {elevator.model} • N° Serie:{' '}
-                          {elevator.serial_number}
+                          {elevator.brand} {elevator.model} • N° Serie: {elevator.serial_number}
                         </p>
                       </div>
                     </button>
@@ -755,12 +735,10 @@ export function TechnicianMaintenanceChecklistView() {
           <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
             <ClipboardList className="w-6 h-6 text-blue-600" />
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Certificación del Ascensor
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">Certificación del Ascensor</h2>
               <p className="text-sm text-slate-600">
-                Registra la información de certificación antes de iniciar el
-                checklist de mantenimiento.
+                Registra la información de certificación antes de iniciar el checklist de
+                mantenimiento.
               </p>
             </div>
           </div>
@@ -782,7 +760,7 @@ export function TechnicianMaintenanceChecklistView() {
           month={activeChecklist.month}
           onComplete={handleChecklistComplete}
           onSave={() => {
-            // opcional: mostrar toast, etc.
+            // podrías mostrar un toast aquí si quieres
           }}
         />
       )}
@@ -811,26 +789,26 @@ export function TechnicianMaintenanceChecklistView() {
           </button>
 
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            {historyRecords.length === 0 ? (
+            {maintenanceHistory.length === 0 ? (
               <div className="p-6 text-center text-slate-500 text-sm">
                 No hay registros de mantenimiento completados.
               </div>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {historyRecords.map((record) => (
-                  <li key={record.id} className="px-4 py-3 flex items-center justify-between">
+                {maintenanceHistory.map((record) => (
+                  <li
+                    key={record.id}
+                    className="px-4 py-3 flex items-center justify-between"
+                  >
                     <div>
                       <p className="font-medium text-slate-900">
-                        {record.client.company_name} •{' '}
-                        {record.elevator.brand} {record.elevator.model} (
-                        {record.elevator.serial_number})
+                        {record.client.company_name} • {record.elevator.brand}{' '}
+                        {record.elevator.model} ({record.elevator.serial_number})
                       </p>
                       <p className="text-xs text-slate-500">
                         {formatMonthYear(record.month, record.year)} • Estado:{' '}
                         <span className="font-semibold">
-                          {record.status === 'completed'
-                            ? 'Completado'
-                            : record.status}
+                          {record.status === 'completed' ? 'Completado' : record.status}
                         </span>
                       </p>
                     </div>
@@ -838,6 +816,14 @@ export function TechnicianMaintenanceChecklistView() {
                       {record.completion_date &&
                         new Date(record.completion_date).toLocaleString('es-CL')}
                     </div>
+                    <button
+                      onClick={() => handleDownloadPDF(record)}
+                      disabled={downloadingPDF}
+                      className="ml-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" />
+                      PDF
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -846,7 +832,7 @@ export function TechnicianMaintenanceChecklistView() {
         </div>
       )}
 
-      {/* Informes PDF */}
+      {/* Informes PDF (descarga masiva futura) */}
       {viewMode === 'pdfs' && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -857,8 +843,8 @@ export function TechnicianMaintenanceChecklistView() {
                   Informes de Mantenimiento en PDF
                 </h2>
                 <p className="text-sm text-slate-600">
-                  Descarga los informes individuales o un archivo ZIP con los
-                  informes del período seleccionado.
+                  Descarga los informes individuales desde el historial o utiliza la descarga
+                  masiva (próximamente).
                 </p>
               </div>
             </div>
@@ -891,8 +877,9 @@ export function TechnicianMaintenanceChecklistView() {
               </div>
 
               <button
-                onClick={handleDownloadPDFsZip}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                onClick={handleDownloadZip}
+                disabled={downloadingZip}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
                 Descargar ZIP
@@ -900,45 +887,16 @@ export function TechnicianMaintenanceChecklistView() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            {pdfRecords.length === 0 ? (
-              <div className="p-6 text-center text-slate-500 text-sm">
-                No hay informes disponibles. Asegúrate de actualizar la lista o
-                de que existan mantenimientos completados.
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {pdfRecords.map((record) => (
-                  <li
-                    key={record.id}
-                    className="px-4 py-3 flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {record.client.company_name} •{' '}
-                        {record.elevator.brand} {record.elevator.model} (
-                        {record.elevator.serial_number})
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {formatMonthYear(record.month, record.year)}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleDownloadSinglePDF(record)}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 hover:bg-slate-50"
-                    >
-                      <Download className="w-4 h-4" />
-                      Descargar PDF
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-sm text-slate-600">
+            <p>
+              Aquí podrás descargar de forma masiva los informes de mantenimiento del período
+              seleccionado. Esta funcionalidad se encuentra en desarrollo.
+            </p>
           </div>
         </div>
       )}
 
-      {/* QR Scanner */}
+      {/* Modal de QR */}
       {showQRScanner && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
