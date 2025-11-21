@@ -87,19 +87,24 @@ type ViewMode =
 
 export function TechnicianMaintenanceChecklistView() {
   const { profile } = useAuth();
+
   const [viewMode, setViewMode] = useState<ViewMode>('start');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showBuildingSearch, setShowBuildingSearch] = useState(false);
+
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [elevators, setElevators] = useState<Elevator[]>([]);
   const [selectedElevator, setSelectedElevator] =
     useState<Elevator | null>(null);
+
   const [activeChecklist, setActiveChecklist] =
     useState<ActiveChecklist | null>(null);
+
   const [maintenanceHistory, setMaintenanceHistory] = useState<
     MaintenanceHistory[]
   >([]);
   const [pdfs, setPdfs] = useState<PDFRecord[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -112,6 +117,17 @@ export function TechnicianMaintenanceChecklistView() {
       loadClients();
     }
   }, [profile]);
+
+  const resetState = () => {
+    setViewMode('start');
+    setSelectedClient(null);
+    setSelectedElevator(null);
+    setElevators([]);
+    setActiveChecklist(null);
+    setError(null);
+  };
+
+  // --------- Cargas básicas ---------
 
   const loadClients = async () => {
     try {
@@ -196,7 +212,7 @@ export function TechnicianMaintenanceChecklistView() {
 
       if (error) throw error;
 
-      const formattedData =
+      const formatted =
         data?.map((item: any) => ({
           ...item,
           checklist: Array.isArray(item.checklist)
@@ -204,11 +220,13 @@ export function TechnicianMaintenanceChecklistView() {
             : item.checklist,
         })) || [];
 
-      setPdfs(formattedData);
+      setPdfs(formatted);
     } catch (err) {
       console.error('Error loading PDFs:', err);
     }
   };
+
+  // --------- Flujo QR / búsqueda ---------
 
   const handleQRScan = async (qrCode: string) => {
     setLoading(true);
@@ -257,17 +275,19 @@ export function TechnicianMaintenanceChecklistView() {
     setShowBuildingSearch(false);
 
     try {
-      const { data: elevatorsData, error: elevatorsError } = await supabase
+      const { data, error } = await supabase
         .from('elevators')
-        .select('id, brand, model, serial_number, is_hydraulic, location_name')
+        .select(
+          'id, brand, model, serial_number, is_hydraulic, location_name',
+        )
         .eq('client_id', client.id)
         .eq('status', 'active')
         .order('location_name');
 
-      if (elevatorsError) throw elevatorsError;
+      if (error) throw error;
 
       setSelectedClient(client);
-      setElevators((elevatorsData || []) as Elevator[]);
+      setElevators((data || []) as Elevator[]);
       setViewMode('select-elevator');
     } catch (err: any) {
       console.error('Error loading elevators:', err);
@@ -307,35 +327,99 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  const handleCertificationComplete = (checklistId: string) => {
-    if (selectedElevator) {
+  // --------- Certificación → crear checklist ---------
+
+  const handleCertificationSubmit = async (certData: {
+    lastCertificationDate: string | null;
+    nextCertificationDate: string | null;
+    certificationNotLegible: boolean;
+  }) => {
+    if (!selectedClient || !selectedElevator || !profile?.id) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
 
+      const { data: newChecklist, error: createError } = await supabase
+        .from('mnt_checklists')
+        .insert([
+          {
+            elevator_id: selectedElevator.id,
+            technician_id: profile.id,
+            client_id: selectedClient.id,
+            month: currentMonth,
+            year: currentYear,
+            last_certification_date: certData.lastCertificationDate,
+            next_certification_date: certData.nextCertificationDate,
+            certification_not_legible: certData.certificationNotLegible,
+            status: 'in_progress',
+          },
+        ])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
       setActiveChecklist({
-        id: checklistId,
+        id: newChecklist.id,
         elevator_id: selectedElevator.id,
         elevator: selectedElevator,
         month: currentMonth,
         year: currentYear,
       });
+
       setViewMode('checklist');
+    } catch (err: any) {
+      console.error('Error creating checklist:', err);
+      const msg =
+        err?.message || err?.details || 'Error desconocido al crear el checklist';
+      setError('Error al crear el checklist: ' + msg);
+      alert('Error al crear el checklist: ' + msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleChecklistComplete = () => {
-    setViewMode('start');
-    setSelectedClient(null);
-    setSelectedElevator(null);
-    setActiveChecklist(null);
-    setElevators([]);
+  // --------- Checklist completado ---------
+
+  const handleChecklistComplete = async () => {
+    if (!activeChecklist) return;
+
+    const confirmComplete = confirm(
+      '¿Estás seguro de completar este checklist? No podrás modificarlo después.',
+    );
+    if (!confirmComplete) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('mnt_checklists')
+        .update({
+          status: 'completed',
+          completion_date: new Date().toISOString(),
+        })
+        .eq('id', activeChecklist.id);
+
+      if (error) throw error;
+
+      alert('Checklist completado exitosamente');
+      resetState();
+    } catch (err: any) {
+      console.error('Error completing checklist:', err);
+      alert('Error al completar el checklist: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 👉 esta función se pasa a DynamicChecklistForm como onSave
-  const handleChecklistSave = () => {
-    // Por ahora solo mostramos un mensaje simple
+  const handleSave = () => {
     alert('Progreso guardado exitosamente');
   };
+
+  // --------- Historial / PDFs ---------
 
   const handleViewHistory = () => {
     loadMaintenanceHistory();
@@ -372,33 +456,64 @@ export function TechnicianMaintenanceChecklistView() {
     c.company_name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // ---- RENDERS ESPECIALES ----
+  // --------- VISTAS CONDICIONALES ---------
 
+  // Vista de certificación
   if (viewMode === 'certification' && selectedClient && selectedElevator) {
     return (
       <CertificationForm
-        client={selectedClient}
-        elevator={selectedElevator}
-        onComplete={handleCertificationComplete}
+        elevatorClassification={null} // no tenemos clasificación aquí
+        onSubmit={handleCertificationSubmit}
         onCancel={() => setViewMode('select-elevator')}
       />
     );
   }
 
+  // Vista del checklist dinámico
   if (viewMode === 'checklist' && activeChecklist) {
     return (
-      <DynamicChecklistForm
-        checklistId={activeChecklist.id}
-        elevatorId={activeChecklist.elevator.id}
-        isHydraulic={activeChecklist.elevator.is_hydraulic}
-        month={activeChecklist.month}
-        onComplete={handleChecklistComplete}
-        onSave={handleChecklistSave}
-      />
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={resetState}
+                className="p-2 hover:bg-slate-100 rounded-lg transition"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">
+                  {activeChecklist.elevator.brand}{' '}
+                  {activeChecklist.elevator.model}
+                </h1>
+                <p className="text-sm text-slate-600">
+                  S/N: {activeChecklist.elevator.serial_number} •{' '}
+                  {activeChecklist.month}/{activeChecklist.year}
+                </p>
+              </div>
+            </div>
+            {activeChecklist.elevator.is_hydraulic && (
+              <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm font-semibold rounded-full">
+                Hidráulico
+              </span>
+            )}
+          </div>
+        </div>
+
+        <DynamicChecklistForm
+          checklistId={activeChecklist.id}
+          elevatorId={activeChecklist.elevator_id}
+          isHydraulic={activeChecklist.elevator.is_hydraulic}
+          month={activeChecklist.month}
+          onComplete={handleChecklistComplete}
+          onSave={handleSave}
+        />
+      </div>
     );
   }
 
-  // ---- VISTA PRINCIPAL ----
+  // --------- Vista principal + modales ---------
 
   return (
     <div className="space-y-6">
@@ -413,11 +528,7 @@ export function TechnicianMaintenanceChecklistView() {
         </div>
         {viewMode !== 'start' && (
           <button
-            onClick={() => {
-              setViewMode('start');
-              setSelectedClient(null);
-              setSelectedElevator(null);
-            }}
+            onClick={resetState}
             className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -464,7 +575,9 @@ export function TechnicianMaintenanceChecklistView() {
             >
               <FileText className="w-8 h-8 text-orange-600 mb-3" />
               <h3 className="font-bold text-slate-900 mb-1">PDFs</h3>
-              <p className="text-sm text-slate-600">Ver y descargar reportes</p>
+              <p className="text-sm text-slate-600">
+                Ver y descargar reportes
+              </p>
             </button>
           </div>
         </div>
