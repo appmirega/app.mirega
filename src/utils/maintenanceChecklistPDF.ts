@@ -1,6 +1,5 @@
 // src/utils/maintenanceChecklistPDF.ts
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 export type ChecklistStatus = 'approved' | 'rejected';
 
@@ -74,9 +73,35 @@ export function getChecklistPDFFileName(data: ChecklistPDFData): string {
   const mm = String(data.month).padStart(2, '0');
   const year = safeText(data.year);
 
-  return `MANTENIMIENTO_${client}_${elevator}_${year}_${mm}.pdf`
-    .replace(/\s+/g, '_')
-    .toUpperCase();
+  // Nos aseguramos de que el resultado final sea string
+  const fileName = `MANTENIMIENTO_${client}_${elevator}_${year}_${mm}.pdf`;
+  return fileName.replace(/\s+/g, '_').toUpperCase();
+}
+
+/**
+ * Agrega texto con salto de página si se acerca al final.
+ */
+function addWrappedText(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  cursorY: number,
+  maxWidth: number,
+): number {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bottomMargin = 20;
+  const lines = doc.splitTextToSize(text, maxWidth);
+
+  lines.forEach((line) => {
+    if (cursorY > pageHeight - bottomMargin) {
+      doc.addPage();
+      cursorY = 20;
+    }
+    doc.text(line, x, cursorY);
+    cursorY += 4;
+  });
+
+  return cursorY;
 }
 
 /**
@@ -92,6 +117,7 @@ export async function generateMaintenanceChecklistPDF(
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - 30; // margen izq 15, der 15
   let cursorY = 15;
 
   // === ENCABEZADO ===
@@ -107,32 +133,49 @@ export async function generateMaintenanceChecklistPDF(
 
   const monthName = getMonthNameEs(data.month);
 
-  doc.text(`Cliente: ${safeText(data.clientName)}`, 15, cursorY);
-  cursorY += 6;
-
-  if (data.clientAddress) {
-    doc.text(`Dirección: ${safeText(data.clientAddress)}`, 15, cursorY);
-    cursorY += 6;
-  }
-
-  doc.text(
-    `Ascensor: ${safeText(data.elevatorAlias || data.elevatorCode)}   (Código: ${safeText(
-      data.elevatorCode,
-    )})`,
+  cursorY = addWrappedText(
+    doc,
+    `Cliente: ${safeText(data.clientName)}`,
     15,
     cursorY,
+    contentWidth,
   );
-  cursorY += 6;
 
-  doc.text(
+  if (data.clientAddress) {
+    cursorY = addWrappedText(
+      doc,
+      `Dirección: ${safeText(data.clientAddress)}`,
+      15,
+      cursorY,
+      contentWidth,
+    );
+  }
+
+  cursorY = addWrappedText(
+    doc,
+    `Ascensor: ${safeText(
+      data.elevatorAlias || data.elevatorCode,
+    )}   (Código: ${safeText(data.elevatorCode)})`,
+    15,
+    cursorY,
+    contentWidth,
+  );
+
+  cursorY = addWrappedText(
+    doc,
     `Período de mantenimiento: ${monthName} ${safeText(data.year)}`,
     15,
     cursorY,
+    contentWidth,
   );
-  cursorY += 6;
 
-  doc.text(`Técnico: ${safeText(data.technicianName)}`, 15, cursorY);
-  cursorY += 6;
+  cursorY = addWrappedText(
+    doc,
+    `Técnico: ${safeText(data.technicianName)}`,
+    15,
+    cursorY,
+    contentWidth,
+  );
 
   let estadoTexto = '';
   switch (data.certificationStatus) {
@@ -154,75 +197,76 @@ export async function generateMaintenanceChecklistPDF(
       break;
   }
 
-  doc.text(`Estado de certificación: ${estadoTexto}`, 15, cursorY);
-  cursorY += 6;
+  cursorY = addWrappedText(
+    doc,
+    `Estado de certificación: ${estadoTexto}`,
+    15,
+    cursorY,
+    contentWidth,
+  );
 
-  doc.text(
+  cursorY = addWrappedText(
+    doc,
     `Resumen de observaciones: ${safeText(data.observationSummary)}`,
     15,
     cursorY,
+    contentWidth,
   );
-  cursorY += 10;
 
-  // === TABLA PRINCIPAL (PREGUNTAS) ===
-  const tableBody = data.questions.map((q) => {
+  cursorY += 4;
+
+  // === DETALLE DE PREGUNTAS ===
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  cursorY = addWrappedText(doc, 'Detalle de checklist:', 15, cursorY, contentWidth);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  cursorY += 2;
+
+  for (const q of data.questions) {
     const statusLabel = q.status === 'approved' ? 'APROBADO' : 'RECHAZADO';
-
+    const obs = (q.observations || '').toString().trim() || 'Sin observaciones';
     const photos = (q.photoUrls || [])
       .filter((p): p is string => !!p)
       .map((p) => safeText(p))
-      .join('\n');
+      .join(', ');
 
-    return [
-      safeText(q.number),
-      safeText(q.section),
-      safeText(q.text),
-      statusLabel,
-      safeText((q.observations || '').toString().trim()) || '-',
-      photos || '-',
-    ];
-  });
+    const headerLine = `${q.number}. [${safeText(q.section)}] ${safeText(q.text)}`;
+    cursorY = addWrappedText(doc, headerLine, 15, cursorY, contentWidth);
 
-  autoTable(doc, {
-    startY: cursorY,
-    head: [['N°', 'Sección', 'Pregunta', 'Estado', 'Observaciones', 'Fotos']],
-    body: tableBody,
-    styles: {
-      fontSize: 8,
-      cellPadding: 2,
-      valign: 'top',
-    },
-    headStyles: {
-      fillColor: [30, 64, 175], // azul oscuro
-      textColor: 255,
-    },
-    columnStyles: {
-      0: { cellWidth: 8 }, // N°
-      1: { cellWidth: 25 }, // Sección
-      2: { cellWidth: 70 }, // Pregunta
-      3: { cellWidth: 20 }, // Estado
-      4: { cellWidth: 40 }, // Observaciones
-      5: { cellWidth: 30 }, // Fotos (urls)
-    },
-    theme: 'grid',
-  });
+    cursorY = addWrappedText(doc, `   Estado: ${statusLabel}`, 15, cursorY, contentWidth);
+    cursorY = addWrappedText(
+      doc,
+      `   Observaciones: ${obs}`,
+      15,
+      cursorY,
+      contentWidth,
+    );
+    cursorY = addWrappedText(
+      doc,
+      `   Fotos: ${photos || 'Sin fotos'}`,
+      15,
+      cursorY,
+      contentWidth,
+    );
 
-  // Posición después de la tabla
-  // @ts-expect-error: autoTable any type
-  const finalY: number =
-    (doc as any).lastAutoTable?.finalY ??
-    (doc as any).previousAutoTable?.finalY ??
-    cursorY;
-
-  cursorY = finalY + 20;
+    cursorY += 2;
+  }
 
   // === FIRMA ===
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (cursorY > pageHeight - 50) {
+    doc.addPage();
+    cursorY = 20;
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
+  cursorY += 8;
   doc.text('Firma de conformidad', 15, cursorY);
   cursorY += 6;
 
-  // Línea de firma
   const lineXStart = 15;
   const lineXEnd = 90;
   const lineY = cursorY + 15;
@@ -232,7 +276,6 @@ export async function generateMaintenanceChecklistPDF(
   doc.setFont('helvetica', 'normal');
   doc.text('Nombre y firma', lineXStart, lineY + 5);
 
-  // Si tenemos imagen de la firma (dataURL), la incrustamos sobre la línea
   if (data.signatureDataUrl && typeof data.signatureDataUrl === 'string') {
     try {
       doc.addImage(
@@ -240,11 +283,10 @@ export async function generateMaintenanceChecklistPDF(
         'PNG',
         lineXStart,
         lineY - 15,
-        60, // ancho aprox
-        15, // alto aprox
+        60, // ancho
+        15, // alto
       );
     } catch (e) {
-      // Si falla, dejamos solo la línea
       console.error('Error al agregar imagen de firma al PDF:', e);
     }
   }
@@ -265,3 +307,4 @@ export async function generateMaintenanceChecklistPDF(
   // Devolver Blob
   return doc.output('blob');
 }
+
