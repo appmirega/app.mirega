@@ -17,9 +17,9 @@ import { QRScanner } from '../checklist/QRScanner';
 import { CertificationForm } from '../checklist/CertificationForm';
 import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
 import {
-  generateMaintenancePDF,
-  generatePDFFilename,
-} from '../../utils/pdfGenerator';
+  generateMaintenanceChecklistPDF,
+  CertificationStatus,
+} from '../../utils/maintenanceChecklistPDF';
 import { ChecklistSignatureModal } from '../checklist/ChecklistSignatureModal';
 
 interface Client {
@@ -78,6 +78,7 @@ interface VisitSummary {
   totalRejected: number;
   certificationStatus: string;
   allCompleted: boolean;
+  alreadySigned: boolean;
 }
 
 export function TechnicianMaintenanceChecklistView() {
@@ -235,7 +236,7 @@ export function TechnicianMaintenanceChecklistView() {
       if (existingChecklist) {
         if (existingChecklist.status === 'completed') {
           alert(
-            'Este ascensor ya tiene un checklist de mantenimiento registrado para este mes. No se pueden crear más.'
+            'Este ascensor ya tiene un checklist de mantenimiento registrado para este mes. No se pueden crear más.',
           );
           return;
         }
@@ -446,12 +447,13 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   // ---------------------------------------------------
-  // Descargar PDF individual desde historial
+  // Descargar PDF individual desde historial (con firma y detalles)
   // ---------------------------------------------------
   const handleDownloadPDF = async (record: MaintenanceHistory) => {
     try {
       setDownloadingPDF(true);
 
+      // 1) Datos completos del checklist
       const { data: checklistData, error } = await supabase
         .from('mnt_checklists')
         .select(
@@ -464,15 +466,16 @@ export function TechnicianMaintenanceChecklistView() {
           next_certification_date,
           certification_not_legible,
           client:clients(
-            business_name:company_name,
-            address,
-            contact_name
+            id,
+            company_name,
+            address
           ),
           elevator:elevators(
             brand,
             model,
             serial_number,
-            is_hydraulic
+            is_hydraulic,
+            location_name
           ),
           profiles:profiles!mnt_checklists_technician_id_fkey(
             full_name,
@@ -486,61 +489,97 @@ export function TechnicianMaintenanceChecklistView() {
       if (error) throw error;
       if (!checklistData) throw new Error('No se encontró información del checklist');
 
-      const { data: answers } = await supabase
+      // 2) Respuestas del checklist (preguntas + estado + observaciones + fotos)
+      const { data: answers, error: ansError } = await supabase
         .from('mnt_checklist_answers')
-        .select('*, mnt_checklist_questions(*)')
+        .select(
+          `
+          status,
+          observations,
+          photo_1_url,
+          photo_2_url,
+          mnt_checklist_questions(
+            question_number,
+            section,
+            question_text
+          )
+        `,
+        )
         .eq('checklist_id', checklistData.id);
 
-      const questionsWithAnswers =
+      if (ansError) throw ansError;
+
+      const answeredQuestions =
         answers
-          ?.map((a: any) => ({
-            question_number: a.mnt_checklist_questions.question_number,
+          ?.filter((a: any) => a.status === 'approved' || a.status === 'rejected')
+          .map((a: any) => ({
+            number: a.mnt_checklist_questions.question_number,
             section: a.mnt_checklist_questions.section,
-            question_text: a.mnt_checklist_questions.question_text,
-            answer_status: a.status,
+            text: a.mnt_checklist_questions.question_text,
+            status: a.status as 'approved' | 'rejected',
             observations: a.observations,
-          }))
-          .filter((q: any) => q.answer_status !== 'pending') || [];
+            photoUrls: [a.photo_1_url, a.photo_2_url],
+          })) || [];
 
-      const pdfBlob = await generateMaintenancePDF({
-        folio: 0,
-        client: {
-          business_name: checklistData.client.business_name,
-          address: checklistData.client.address,
-          contact_name: checklistData.client.contact_name || '',
-        },
-        elevator: {
-          brand: checklistData.elevator.brand,
-          model: checklistData.elevator.model,
-          serial_number: checklistData.elevator.serial_number,
-          is_hydraulic: checklistData.elevator.is_hydraulic,
-        },
-        checklist: {
-          month: checklistData.month,
-          year: checklistData.year,
-          last_certification_date: checklistData.last_certification_date,
-          next_certification_date: checklistData.next_certification_date,
-          certification_not_legible: checklistData.certification_not_legible,
-          completion_date: checklistData.completion_date,
-        },
-        technician: {
-          full_name: checklistData.profiles.full_name,
-          email: checklistData.profiles.email,
-        },
-        questions: questionsWithAnswers,
-        signature: {
-          signer_name: '',
-          signature_data: '',
-          signed_at: '',
-        },
-      });
+      const totalRejected =
+        answeredQuestions.filter((q) => q.status === 'rejected').length;
 
-      const filename = generatePDFFilename(
-        checklistData.client.business_name,
-        checklistData.elevator.serial_number,
-        checklistData.month,
-        checklistData.year,
-      );
+      const observationSummary =
+        totalRejected === 0
+          ? 'Sin observaciones'
+          : `Presenta ${totalRejected} observaciones.`;
+
+      // 3) Firma (si existe) desde mnt_checklist_signatures
+      const { data: signatureRow } = await supabase
+        .from('mnt_checklist_signatures')
+        .select('signer_name, signature_data, signed_at')
+        .eq('checklist_id', checklistData.id)
+        .order('signed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const signatureDataUrl: string | null =
+        (signatureRow && signatureRow.signature_data) || null;
+
+      // 4) Estado de certificación para el PDF
+      let certStatus: CertificationStatus = 'sin_info';
+
+      if (checklistData.certification_not_legible) {
+        certStatus = 'no_legible';
+      } else if (checklistData.next_certification_date) {
+        const nextDate = new Date(checklistData.next_certification_date);
+        const today = new Date();
+        const diffDays =
+          (nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+
+        if (diffDays < 0) certStatus = 'vencida';
+        else if (diffDays <= 30) certStatus = 'por_vencer';
+        else certStatus = 'vigente';
+      }
+
+      // 5) Armar datos para el PDF
+      const pdfData = {
+        clientName: checklistData.client.company_name,
+        clientCode: checklistData.client.id || checklistData.client.company_name,
+        clientAddress: checklistData.client.address,
+        elevatorCode: checklistData.elevator.serial_number,
+        elevatorAlias: checklistData.elevator.location_name,
+        month: checklistData.month,
+        year: checklistData.year,
+        technicianName: checklistData.profiles.full_name,
+        certificationStatus: certStatus,
+        observationSummary,
+        questions: answeredQuestions,
+        signatureDataUrl,
+      };
+
+      // 6) Generar PDF
+      const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
+
+      // Nombre de archivo MUY simple para evitar cualquier problema
+      const filename = `MANTENIMIENTO_${checklistData.client.company_name || 'CLIENTE'}_${
+        checklistData.elevator.serial_number || 'ASCENSOR'
+      }_${checklistData.year}_${String(checklistData.month).padStart(2, '0')}.pdf`;
 
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
@@ -563,7 +602,7 @@ export function TechnicianMaintenanceChecklistView() {
     try {
       setDownloadingZip(true);
       alert(
-        'La descarga masiva de PDFs aún no está implementada completamente. Esta función se agregará más adelante.'
+        'La descarga masiva de PDFs aún no está implementada completamente. Esta función se agregará más adelante.',
       );
     } catch (err) {
       console.error('Error downloading ZIP:', err);
@@ -693,6 +732,19 @@ export function TechnicianMaintenanceChecklistView() {
           (answers || []).filter((a: any) => a.status === 'rejected').length;
       }
 
+      // ¿Ya está firmada la visita? (firma en cualquier checklist del periodo)
+      let alreadySigned = false;
+      if (ids.length > 0) {
+        const { data: signatures, error: sigError } = await supabase
+          .from('mnt_checklist_signatures')
+          .select('id')
+          .in('checklist_id', ids)
+          .limit(1);
+
+        if (sigError) throw sigError;
+        alreadySigned = !!(signatures && signatures.length > 0);
+      }
+
       // Determinar estado de certificación resumido
       let certificationStatus = 'Sin información';
       const today = new Date();
@@ -732,6 +784,7 @@ export function TechnicianMaintenanceChecklistView() {
         totalRejected,
         certificationStatus,
         allCompleted,
+        alreadySigned,
       });
     } catch (err) {
       console.error('Error loading visit summary:', err);
@@ -749,6 +802,15 @@ export function TechnicianMaintenanceChecklistView() {
     signatureDataURL: string,
   ) => {
     if (!signVisitChecklists.length) return;
+
+    // Resguardo adicional: si ya hay firma, no permitir
+    if (signVisitSummary?.alreadySigned) {
+      alert(
+        'Esta visita ya fue firmada anteriormente para este cliente y periodo. No es posible registrar una nueva firma.',
+      );
+      setShowSignatureModal(false);
+      return;
+    }
 
     setIsSigningVisit(true);
     setError(null);
@@ -772,6 +834,14 @@ export function TechnicianMaintenanceChecklistView() {
       );
 
       setShowSignatureModal(false);
+
+      // Actualizamos estado para marcar como ya firmada
+      if (signVisitSummary) {
+        setSignVisitSummary({
+          ...signVisitSummary,
+          alreadySigned: true,
+        });
+      }
     } catch (err) {
       console.error('Error al guardar firma de visita:', err);
       setError('Error al guardar la firma de la visita.');
@@ -1361,7 +1431,6 @@ export function TechnicianMaintenanceChecklistView() {
                         </div>
                       </div>
 
-                      {/* Mensaje si faltan ascensores */}
                       {!signVisitSummary.allCompleted && (
                         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                           Faltan mantenimientos por realizar: se han completado{' '}
@@ -1374,6 +1443,13 @@ export function TechnicianMaintenanceChecklistView() {
                           </span>{' '}
                           ascensores registrados para este cliente en el periodo seleccionado.
                           No es posible firmar la visita hasta completar todos.
+                        </div>
+                      )}
+
+                      {signVisitSummary.alreadySigned && (
+                        <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                          Esta visita ya fue firmada para este cliente y periodo. No es posible
+                          registrar una nueva firma.
                         </div>
                       )}
                     </>
@@ -1411,7 +1487,8 @@ export function TechnicianMaintenanceChecklistView() {
                       disabled={
                         !signVisitChecklists.length ||
                         isSigningVisit ||
-                        !signVisitSummary?.allCompleted
+                        !signVisitSummary?.allCompleted ||
+                        !!signVisitSummary?.alreadySigned
                       }
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -1491,3 +1568,4 @@ export function TechnicianMaintenanceChecklistView() {
     </div>
   );
 }
+
