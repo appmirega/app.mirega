@@ -1,16 +1,11 @@
 // src/utils/maintenanceChecklistPDF.ts
 import jsPDF from 'jspdf';
 
-export type ChecklistStatus = 'approved' | 'rejected';
-
-export interface ChecklistQuestionRow {
-  number: number;
-  section: string;
-  text: string;
-  status: ChecklistStatus;
-  observations?: string | null;
-  photoUrls?: (string | null | undefined)[];
-}
+export type ChecklistStatus =
+  | 'approved'
+  | 'rejected'
+  | 'not_applicable'
+  | 'out_of_period';
 
 export type CertificationStatus =
   | 'vigente'
@@ -19,32 +14,50 @@ export type CertificationStatus =
   | 'no_legible'
   | 'sin_info';
 
+export interface ChecklistQuestionRow {
+  number: number;
+  section: string;
+  text: string;
+  status: ChecklistStatus;
+  observations?: string | null;
+}
+
 export interface ChecklistPDFData {
   clientName: string;
   clientCode: string;
   clientAddress?: string | null;
+
   elevatorCode: string;
   elevatorAlias?: string | null;
+
   month: number;
   year: number;
+
   technicianName: string;
   certificationStatus: CertificationStatus;
-  observationSummary: string; // Ej: "Sin observaciones" o "Presenta 3 observaciones."
+  observationSummary: string;
+
+  // Checklist completo (todas las preguntas)
   questions: ChecklistQuestionRow[];
-  signatureDataUrl?: string | null; // data:image/png;base64,...
+
+  // Solo las rechazadas (para la página 2)
+  rejectedQuestions: ChecklistQuestionRow[];
+
+  // Firma de la visita (si existe)
+  signatureDataUrl?: string | null;
 }
 
-/**
- * Convierte cualquier valor a texto seguro para el PDF.
- */
+// --- Datos de cabecera corporativa (puedes ajustarlos a tu gusto) ---
+const COMPANY_NAME = 'MIREGA Ascensores';
+const COMPANY_ADDRESS = 'Dirección de la empresa';
+const COMPANY_PHONE = '+56 9 0000 0000';
+const COMPANY_WEBSITE = 'www.mirega.cl';
+
 function safeText(value: any): string {
   if (value === null || value === undefined) return '';
   return String(value);
 }
 
-/**
- * Convierte un número de mes (1-12) a texto en español.
- */
 function getMonthNameEs(month: number): string {
   const months = [
     'Enero',
@@ -63,24 +76,98 @@ function getMonthNameEs(month: number): string {
   return months[month - 1] ?? safeText(month);
 }
 
-/**
- * Genera el nombre de archivo del PDF de mantenimiento.
- * Ejemplo: MANTENIMIENTO_ALCANTARA_A1_2025_03.pdf
- */
 export function getChecklistPDFFileName(data: ChecklistPDFData): string {
   const client = safeText(data.clientCode || data.clientName || 'CLIENTE');
   const elevator = safeText(data.elevatorCode || data.elevatorAlias || 'ASCENSOR');
   const mm = String(data.month).padStart(2, '0');
   const year = safeText(data.year);
 
-  // Nos aseguramos de que el resultado final sea string
-  const fileName = `MANTENIMIENTO_${client}_${elevator}_${year}_${mm}.pdf`;
-  return fileName.replace(/\s+/g, '_').toUpperCase();
+  const raw = `MANTENIMIENTO_${client}_${elevator}_${year}_${mm}.pdf`;
+  return raw.replace(/\s+/g, '_').toUpperCase();
 }
 
-/**
- * Agrega texto con salto de página si se acerca al final.
- */
+// Iconito para cada estado
+function statusIcon(status: ChecklistStatus): string {
+  switch (status) {
+    case 'approved':
+      return '✔'; // Aprobado
+    case 'rejected':
+      return '✘'; // Rechazado
+    case 'not_applicable':
+      return '○'; // No aplica
+    case 'out_of_period':
+    default:
+      return '◌'; // Fuera de periodo
+  }
+}
+
+// Texto de estado para leyenda, si lo quieres usar después
+function statusLabel(status: ChecklistStatus): string {
+  switch (status) {
+    case 'approved':
+      return 'Aprobado';
+    case 'rejected':
+      return 'Rechazado';
+    case 'not_applicable':
+      return 'No aplica';
+    case 'out_of_period':
+    default:
+      return 'Fuera de periodo';
+  }
+}
+
+// Estado de certificación a texto
+function certificationLabel(status: CertificationStatus): string {
+  switch (status) {
+    case 'vigente':
+      return 'Vigente';
+    case 'vencida':
+      return 'Vencida';
+    case 'por_vencer':
+      return 'Próxima a vencer';
+    case 'no_legible':
+      return 'No legible';
+    case 'sin_info':
+    default:
+      return 'Sin información';
+  }
+}
+
+// Dibuja el banner corporativo y devuelve la primera posición Y disponible
+function drawHeader(doc: jsPDF, data: ChecklistPDFData): number {
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Barra roja arriba
+  doc.setFillColor(220, 38, 38); // rojo
+  doc.rect(0, 0, pageWidth, 25, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(COMPANY_NAME, 15, 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(COMPANY_ADDRESS, 15, 15);
+  doc.text(`Tel: ${COMPANY_PHONE}`, 15, 20);
+
+  const websiteText = safeText(COMPANY_WEBSITE);
+  if (websiteText) {
+    doc.text(websiteText, pageWidth - 15, 20, { align: 'right' });
+  }
+
+  // Título del informe
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('INFORME DE MANTENIMIENTO DE ASCENSOR', pageWidth / 2, 32, {
+    align: 'center',
+  });
+
+  return 38; // siguiente Y libre
+}
+
+// Añade texto con salto de página cuando se acerca al final
 function addWrappedText(
   doc: jsPDF,
   text: string,
@@ -92,21 +179,33 @@ function addWrappedText(
   const bottomMargin = 20;
   const lines = doc.splitTextToSize(text, maxWidth);
 
-  lines.forEach((line) => {
+  for (const line of lines) {
     if (cursorY > pageHeight - bottomMargin) {
       doc.addPage();
-      cursorY = 20;
+      cursorY = drawHeader(doc, {
+        // Cabecera solo necesita algunos campos – el resto da igual aquí
+        clientName: '',
+        clientCode: '',
+        clientAddress: '',
+        elevatorCode: '',
+        elevatorAlias: '',
+        month: 1,
+        year: 2000,
+        technicianName: '',
+        certificationStatus: 'sin_info',
+        observationSummary: '',
+        questions: [],
+        rejectedQuestions: [],
+        signatureDataUrl: null,
+      });
     }
     doc.text(line, x, cursorY);
     cursorY += 4;
-  });
+  }
 
   return cursorY;
 }
 
-/**
- * Genera un Blob con el PDF del checklist de mantenimiento.
- */
 export async function generateMaintenanceChecklistPDF(
   data: ChecklistPDFData,
 ): Promise<Blob> {
@@ -117,159 +216,232 @@ export async function generateMaintenanceChecklistPDF(
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const contentWidth = pageWidth - 30; // margen izq 15, der 15
-  let cursorY = 15;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const contentMarginX = 15;
 
-  // === ENCABEZADO ===
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('INFORME DE MANTENIMIENTO DE ASCENSOR', pageWidth / 2, cursorY, {
-    align: 'center',
-  });
+  // --- Página 1: cabecera y resumen ---
+  let cursorY = drawHeader(doc, data);
+  cursorY += 2;
 
-  cursorY += 8;
-  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
 
   const monthName = getMonthNameEs(data.month);
 
+  // Bloque de resumen
   cursorY = addWrappedText(
     doc,
     `Cliente: ${safeText(data.clientName)}`,
-    15,
+    contentMarginX,
     cursorY,
-    contentWidth,
+    pageWidth - contentMarginX * 2,
   );
-
   if (data.clientAddress) {
     cursorY = addWrappedText(
       doc,
       `Dirección: ${safeText(data.clientAddress)}`,
-      15,
+      contentMarginX,
       cursorY,
-      contentWidth,
+      pageWidth - contentMarginX * 2,
     );
   }
-
   cursorY = addWrappedText(
     doc,
     `Ascensor: ${safeText(
       data.elevatorAlias || data.elevatorCode,
-    )}   (Código: ${safeText(data.elevatorCode)})`,
-    15,
+    )} (Código: ${safeText(data.elevatorCode)})`,
+    contentMarginX,
     cursorY,
-    contentWidth,
+    pageWidth - contentMarginX * 2,
   );
-
   cursorY = addWrappedText(
     doc,
     `Período de mantenimiento: ${monthName} ${safeText(data.year)}`,
-    15,
+    contentMarginX,
     cursorY,
-    contentWidth,
+    pageWidth - contentMarginX * 2,
   );
-
   cursorY = addWrappedText(
     doc,
     `Técnico: ${safeText(data.technicianName)}`,
-    15,
+    contentMarginX,
     cursorY,
-    contentWidth,
+    pageWidth - contentMarginX * 2,
   );
-
-  let estadoTexto = '';
-  switch (data.certificationStatus) {
-    case 'vigente':
-      estadoTexto = 'Vigente';
-      break;
-    case 'vencida':
-      estadoTexto = 'Vencida';
-      break;
-    case 'por_vencer':
-      estadoTexto = 'Próxima a vencer';
-      break;
-    case 'no_legible':
-      estadoTexto = 'No legible';
-      break;
-    case 'sin_info':
-    default:
-      estadoTexto = 'Sin información';
-      break;
-  }
-
   cursorY = addWrappedText(
     doc,
-    `Estado de certificación: ${estadoTexto}`,
-    15,
+    `Estado de certificación: ${certificationLabel(data.certificationStatus)}`,
+    contentMarginX,
     cursorY,
-    contentWidth,
+    pageWidth - contentMarginX * 2,
   );
-
   cursorY = addWrappedText(
     doc,
     `Resumen de observaciones: ${safeText(data.observationSummary)}`,
-    15,
+    contentMarginX,
     cursorY,
-    contentWidth,
+    pageWidth - contentMarginX * 2,
   );
 
   cursorY += 4;
 
-  // === DETALLE DE PREGUNTAS ===
+  // Leyenda de iconos
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  cursorY = addWrappedText(doc, 'Detalle de checklist:', 15, cursorY, contentWidth);
-
+  doc.text('Leyenda:', contentMarginX, cursorY);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  cursorY += 2;
 
-  for (const q of data.questions) {
-    const statusLabel = q.status === 'approved' ? 'APROBADO' : 'RECHAZADO';
-    const obs = (q.observations || '').toString().trim() || 'Sin observaciones';
-    const photos = (q.photoUrls || [])
-      .filter((p): p is string => !!p)
-      .map((p) => safeText(p))
-      .join(', ');
-
-    const headerLine = `${q.number}. [${safeText(q.section)}] ${safeText(q.text)}`;
-    cursorY = addWrappedText(doc, headerLine, 15, cursorY, contentWidth);
-
-    cursorY = addWrappedText(doc, `   Estado: ${statusLabel}`, 15, cursorY, contentWidth);
-    cursorY = addWrappedText(
-      doc,
-      `   Observaciones: ${obs}`,
-      15,
-      cursorY,
-      contentWidth,
-    );
-    cursorY = addWrappedText(
-      doc,
-      `   Fotos: ${photos || 'Sin fotos'}`,
-      15,
-      cursorY,
-      contentWidth,
-    );
-
-    cursorY += 2;
-  }
-
-  // === FIRMA ===
-  const pageHeight = doc.internal.pageSize.getHeight();
-  if (cursorY > pageHeight - 50) {
-    doc.addPage();
-    cursorY = 20;
-  }
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  cursorY += 8;
-  doc.text('Firma de conformidad', 15, cursorY);
+  const legend = `✔ Aprobado   ✘ Rechazado   ○ No aplica   ◌ Fuera de periodo`;
+  doc.text(legend, contentMarginX + 20, cursorY);
   cursorY += 6;
 
-  const lineXStart = 15;
-  const lineXEnd = 90;
-  const lineY = cursorY + 15;
+  // --- Checklist por secciones ---
+  const groupedBySection: Record<string, ChecklistQuestionRow[]> = {};
+
+  (data.questions || []).forEach((q) => {
+    if (!groupedBySection[q.section]) groupedBySection[q.section] = [];
+    groupedBySection[q.section].push(q);
+  });
+
+  const sections = Object.keys(groupedBySection).sort();
+
+  const statusColX = pageWidth - 15; // columna derecha para el icono
+  const textMaxWidth = statusColX - contentMarginX - 10; // espacio para el texto
+
+  sections.forEach((section) => {
+    const sectionQuestions = groupedBySection[section].sort(
+      (a, b) => a.number - b.number,
+    );
+
+    // Salto de página si se acerca al final
+    if (cursorY > pageHeight - 20) {
+      doc.addPage();
+      cursorY = drawHeader(doc, data);
+      cursorY += 4;
+    }
+
+    // Título de sección con barra gris
+    doc.setFillColor(241, 245, 249); // gris clarito
+    doc.rect(contentMarginX - 2, cursorY - 4, pageWidth - contentMarginX * 2 + 4, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(section.toUpperCase(), contentMarginX, cursorY);
+    cursorY += 5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    for (const q of sectionQuestions) {
+      if (cursorY > pageHeight - 20) {
+        doc.addPage();
+        cursorY = drawHeader(doc, data);
+        cursorY += 4;
+
+        // repetir encabezado de sección para continuidad
+        doc.setFillColor(241, 245, 249);
+        doc.rect(
+          contentMarginX - 2,
+          cursorY - 4,
+          pageWidth - contentMarginX * 2 + 4,
+          7,
+          'F',
+        );
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(section.toUpperCase(), contentMarginX, cursorY);
+        cursorY += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+      }
+
+      // Número de pregunta
+      const questionNumberText = `${q.number}.`;
+      doc.text(questionNumberText, contentMarginX, cursorY);
+
+      // Texto de pregunta (multilínea)
+      const textX = contentMarginX + 8;
+      const lines = doc.splitTextToSize(q.text, textMaxWidth);
+      let lineY = cursorY;
+
+      for (const line of lines) {
+        doc.text(line, textX, lineY);
+        lineY += 4;
+      }
+
+      // Icono del estado en la columna derecha
+      const icon = statusIcon(q.status);
+      doc.setFont('helvetica', 'bold');
+      doc.text(icon, statusColX, cursorY);
+      doc.setFont('helvetica', 'normal');
+
+      // Avanzar cursor (dejo un pequeño espacio entre preguntas)
+      cursorY = lineY + 1;
+    }
+
+    cursorY += 3;
+  });
+
+  // --- Página de observaciones (solo si hay rechazadas) ---
+  const rejected = data.rejectedQuestions || [];
+  if (rejected.length > 0) {
+    doc.addPage();
+    cursorY = drawHeader(doc, data);
+    cursorY += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Observaciones levantadas', contentMarginX, cursorY);
+    cursorY += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    rejected.forEach((q) => {
+      if (cursorY > pageHeight - 20) {
+        doc.addPage();
+        cursorY = drawHeader(doc, data);
+        cursorY += 4;
+      }
+
+      const title = `N° ${q.number} • ${q.section}`;
+      cursorY = addWrappedText(
+        doc,
+        title,
+        contentMarginX,
+        cursorY,
+        pageWidth - contentMarginX * 2,
+      );
+
+      const obsText = q.observations
+        ? `Observación: ${q.observations}`
+        : 'Observación: (sin detalle registrado)';
+      cursorY = addWrappedText(
+        doc,
+        obsText,
+        contentMarginX,
+        cursorY,
+        pageWidth - contentMarginX * 2,
+      );
+
+      cursorY += 2;
+    });
+  }
+
+  // --- Bloque de firma al final del último documento ---
+  let lastPageIndex = doc.getNumberOfPages();
+  doc.setPage(lastPageIndex);
+
+  let signatureY = cursorY + 10;
+  if (signatureY > pageHeight - 40) {
+    doc.addPage();
+    lastPageIndex = doc.getNumberOfPages();
+    doc.setPage(lastPageIndex);
+    signatureY = drawHeader(doc, data) + 10;
+  }
+
+  // Línea de firma
+  const lineXStart = contentMarginX;
+  const lineXEnd = contentMarginX + 75;
+  const lineY = signatureY + 15;
   doc.line(lineXStart, lineY, lineXEnd, lineY);
 
   doc.setFontSize(9);
@@ -283,8 +455,8 @@ export async function generateMaintenanceChecklistPDF(
         'PNG',
         lineXStart,
         lineY - 15,
-        60, // ancho
-        15, // alto
+        60, // ancho firma
+        15, // alto firma
       );
     } catch (e) {
       console.error('Error al agregar imagen de firma al PDF:', e);
@@ -300,11 +472,10 @@ export async function generateMaintenanceChecklistPDF(
     .padStart(2, '0')}/${now.getFullYear()}`;
 
   doc.setFontSize(8);
-  doc.text(`Informe generado el ${fechaStr}`, pageWidth - 15, 285, {
+  doc.text(`Informe generado el ${fechaStr}`, pageWidth - 15, pageHeight - 10, {
     align: 'right',
   });
 
-  // Devolver Blob
   return doc.output('blob');
 }
 
