@@ -81,7 +81,6 @@ export function TechnicianMaintenanceChecklistView() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [showBuildingSearch, setShowBuildingSearch] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -89,7 +88,9 @@ export function TechnicianMaintenanceChecklistView() {
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
 
-  // Cargar clientes
+  // ---------------------------------------------------
+  // Cargar clientes (cuando estamos en "select-client")
+  // ---------------------------------------------------
   useEffect(() => {
     if (viewMode !== 'select-client') return;
 
@@ -100,8 +101,8 @@ export function TechnicianMaintenanceChecklistView() {
       try {
         const { data, error } = await supabase
           .from('clients')
-          .select('id, company_name, address')
-          .eq('status', 'active')
+          .select('id, company_name, address, is_active')
+          .eq('is_active', true) // ✅ columna correcta
           .order('company_name', { ascending: true });
 
         if (error) throw error;
@@ -118,7 +119,9 @@ export function TechnicianMaintenanceChecklistView() {
     loadClients();
   }, [viewMode]);
 
+  // ---------------------------------------------------
   // Buscar clientes por nombre
+  // ---------------------------------------------------
   const handleSearchClients = async () => {
     if (!searchTerm.trim()) {
       setError('Ingresa un término de búsqueda');
@@ -131,9 +134,9 @@ export function TechnicianMaintenanceChecklistView() {
     try {
       const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, address')
+        .select('id, company_name, address, is_active')
         .ilike('company_name', `%${searchTerm}%`)
-        .eq('status', 'active')
+        .eq('is_active', true) // ✅ columna correcta también aquí
         .order('company_name', { ascending: true });
 
       if (error) throw error;
@@ -147,7 +150,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // Seleccionar cliente y cargar ascensores
+  // ---------------------------------------------------
+  // Seleccionar cliente → cargar ascensores
+  // ---------------------------------------------------
   const handleSelectClient = async (client: Client) => {
     setSelectedClient(client);
     setSelectedElevator(null);
@@ -175,7 +180,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // ✅ Seleccionar ascensor con bloqueo por ascensor/mes
+  // ---------------------------------------------------
+  // Seleccionar ascensor (con bloqueo 1 checklist/mes)
+  // ---------------------------------------------------
   const handleSelectElevator = async (elevator: Elevator) => {
     setSelectedElevator(elevator);
 
@@ -198,7 +205,7 @@ export function TechnicianMaintenanceChecklistView() {
       }
 
       if (existingChecklist) {
-        // Si ya está completado, no dejamos crear otro
+        // Si ya está completado → no se puede crear otro
         if (existingChecklist.status === 'completed') {
           alert(
             'Este ascensor ya tiene un checklist de mantenimiento registrado para este mes. No se pueden crear más.'
@@ -206,7 +213,7 @@ export function TechnicianMaintenanceChecklistView() {
           return;
         }
 
-        // Si existe y no está completado, retomamos ese mismo
+        // Si existe y NO está completado → retomamos ese mismo checklist
         setActiveChecklist({
           id: existingChecklist.id,
           elevator_id: elevator.id,
@@ -226,7 +233,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // Manejo de QR
+  // ---------------------------------------------------
+  // QR escaneado
+  // ---------------------------------------------------
   const handleQRCodeScanned = async (qrData: string) => {
     setShowQRScanner(false);
 
@@ -282,7 +291,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
+  // ---------------------------------------------------
   // Certificación → crear checklist
+  // ---------------------------------------------------
   const handleCertificationSubmit = async (certData: {
     lastCertificationDate: string | null;
     nextCertificationDate: string | null;
@@ -333,7 +344,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
+  // ---------------------------------------------------
   // Completar checklist
+  // ---------------------------------------------------
   const handleChecklistComplete = async () => {
     if (!activeChecklist) return;
 
@@ -361,7 +374,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // Cargar historial de mantenimientos
+  // ---------------------------------------------------
+  // Cargar historial
+  // ---------------------------------------------------
   const loadHistory = async () => {
     if (!profile?.id) return;
 
@@ -403,7 +418,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
+  // ---------------------------------------------------
   // Descargar PDF individual
+  // ---------------------------------------------------
   const handleDownloadPDF = async (record: MaintenanceHistory) => {
     try {
       setDownloadingPDF(true);
@@ -482,12 +499,14 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
-  // Descargar ZIP de PDFs (placeholder, lógica futura)
+  // ---------------------------------------------------
+  // Descargar ZIP (placeholder)
+  // ---------------------------------------------------
   const handleDownloadZip = async () => {
     try {
       setDownloadingZip(true);
       alert(
-        'La descarga masiva de PDFs aún no está implementada completamente. Esta función se agregará más adelante.',
+        'La descarga masiva de PDFs aún no está implementada completamente. Esta función se agregará más adelante.'
       );
     } catch (err) {
       console.error('Error downloading ZIP:', err);
@@ -496,7 +515,9 @@ export function TechnicianMaintenanceChecklistView() {
     }
   };
 
+  // ---------------------------------------------------
   // Navegación atrás
+  // ---------------------------------------------------
   const handleGoBack = () => {
     switch (viewMode) {
       case 'select-client':
@@ -531,6 +552,9 @@ export function TechnicianMaintenanceChecklistView() {
     });
   };
 
+  // ---------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------
   return (
     <div className="space-y-6">
       {/* Header principal */}
@@ -760,7 +784,7 @@ export function TechnicianMaintenanceChecklistView() {
           month={activeChecklist.month}
           onComplete={handleChecklistComplete}
           onSave={() => {
-            // podrías mostrar un toast aquí si quieres
+            // aquí podrías mostrar un toast si quieres
           }}
         />
       )}
@@ -832,7 +856,7 @@ export function TechnicianMaintenanceChecklistView() {
         </div>
       )}
 
-      {/* Informes PDF (descarga masiva futura) */}
+      {/* Informes PDF (vista general / ZIP futuro) */}
       {viewMode === 'pdfs' && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -943,3 +967,4 @@ export function TechnicianMaintenanceChecklistView() {
     </div>
   );
 }
+
