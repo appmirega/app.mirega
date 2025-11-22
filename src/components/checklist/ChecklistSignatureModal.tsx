@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { X, RotateCcw, Check } from 'lucide-react';
 
@@ -23,6 +23,17 @@ export function ChecklistSignatureModal({
   const [signerName, setSignerName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 🔄 Cada vez que se abre el modal, reseteamos nombre y firma
+  useEffect(() => {
+    if (open) {
+      setSignerName('');
+      setError(null);
+      if (sigCanvas.current) {
+        sigCanvas.current.clear();
+      }
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -163,3 +174,4 @@ export function ChecklistSignatureModal({
     </div>
   );
 }
+
