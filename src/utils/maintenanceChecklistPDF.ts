@@ -36,6 +36,14 @@ export interface ChecklistPDFData {
 }
 
 /**
+ * Convierte cualquier valor a texto seguro para el PDF.
+ */
+function safeText(value: any): string {
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+/**
  * Convierte un número de mes (1-12) a texto en español.
  */
 function getMonthNameEs(month: number): string {
@@ -53,7 +61,7 @@ function getMonthNameEs(month: number): string {
     'Noviembre',
     'Diciembre',
   ];
-  return months[month - 1] ?? String(month);
+  return months[month - 1] ?? safeText(month);
 }
 
 /**
@@ -61,11 +69,12 @@ function getMonthNameEs(month: number): string {
  * Ejemplo: MANTENIMIENTO_ALCANTARA_A1_2025_03.pdf
  */
 export function getChecklistPDFFileName(data: ChecklistPDFData): string {
-  const safeClient = data.clientCode || data.clientName || 'CLIENTE';
-  const safeElevator = data.elevatorCode || data.elevatorAlias || 'ASCENSOR';
+  const client = safeText(data.clientCode || data.clientName || 'CLIENTE');
+  const elevator = safeText(data.elevatorCode || data.elevatorAlias || 'ASCENSOR');
   const mm = String(data.month).padStart(2, '0');
+  const year = safeText(data.year);
 
-  return `MANTENIMIENTO_${safeClient}_${safeElevator}_${data.year}_${mm}.pdf`
+  return `MANTENIMIENTO_${client}_${elevator}_${year}_${mm}.pdf`
     .replace(/\s+/g, '_')
     .toUpperCase();
 }
@@ -98,29 +107,31 @@ export async function generateMaintenanceChecklistPDF(
 
   const monthName = getMonthNameEs(data.month);
 
-  doc.text(`Cliente: ${data.clientName}`, 15, cursorY);
+  doc.text(`Cliente: ${safeText(data.clientName)}`, 15, cursorY);
   cursorY += 6;
 
   if (data.clientAddress) {
-    doc.text(`Dirección: ${data.clientAddress}`, 15, cursorY);
+    doc.text(`Dirección: ${safeText(data.clientAddress)}`, 15, cursorY);
     cursorY += 6;
   }
 
   doc.text(
-    `Ascensor: ${data.elevatorAlias || data.elevatorCode}   (Código: ${data.elevatorCode})`,
+    `Ascensor: ${safeText(data.elevatorAlias || data.elevatorCode)}   (Código: ${safeText(
+      data.elevatorCode,
+    )})`,
     15,
     cursorY,
   );
   cursorY += 6;
 
   doc.text(
-    `Período de mantenimiento: ${monthName} ${data.year}`,
+    `Período de mantenimiento: ${monthName} ${safeText(data.year)}`,
     15,
     cursorY,
   );
   cursorY += 6;
 
-  doc.text(`Técnico: ${data.technicianName}`, 15, cursorY);
+  doc.text(`Técnico: ${safeText(data.technicianName)}`, 15, cursorY);
   cursorY += 6;
 
   let estadoTexto = '';
@@ -146,7 +157,11 @@ export async function generateMaintenanceChecklistPDF(
   doc.text(`Estado de certificación: ${estadoTexto}`, 15, cursorY);
   cursorY += 6;
 
-  doc.text(`Resumen de observaciones: ${data.observationSummary}`, 15, cursorY);
+  doc.text(
+    `Resumen de observaciones: ${safeText(data.observationSummary)}`,
+    15,
+    cursorY,
+  );
   cursorY += 10;
 
   // === TABLA PRINCIPAL (PREGUNTAS) ===
@@ -155,14 +170,15 @@ export async function generateMaintenanceChecklistPDF(
 
     const photos = (q.photoUrls || [])
       .filter((p): p is string => !!p)
+      .map((p) => safeText(p))
       .join('\n');
 
     return [
-      q.number.toString(),
-      q.section,
-      q.text,
+      safeText(q.number),
+      safeText(q.section),
+      safeText(q.text),
       statusLabel,
-      (q.observations || '').trim() || '-',
+      safeText((q.observations || '').toString().trim()) || '-',
       photos || '-',
     ];
   });
@@ -217,7 +233,7 @@ export async function generateMaintenanceChecklistPDF(
   doc.text('Nombre y firma', lineXStart, lineY + 5);
 
   // Si tenemos imagen de la firma (dataURL), la incrustamos sobre la línea
-  if (data.signatureDataUrl) {
+  if (data.signatureDataUrl && typeof data.signatureDataUrl === 'string') {
     try {
       doc.addImage(
         data.signatureDataUrl,
@@ -227,8 +243,9 @@ export async function generateMaintenanceChecklistPDF(
         60, // ancho aprox
         15, // alto aprox
       );
-    } catch {
+    } catch (e) {
       // Si falla, dejamos solo la línea
+      console.error('Error al agregar imagen de firma al PDF:', e);
     }
   }
 
