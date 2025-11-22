@@ -71,6 +71,15 @@ type ViewMode =
   | 'pdfs'
   | 'sign-visit';
 
+interface VisitSummary {
+  totalChecklists: number;
+  totalElevatorsCompleted: number;
+  totalActiveElevators: number;
+  totalRejected: number;
+  certificationStatus: string;
+  allCompleted: boolean;
+}
+
 export function TechnicianMaintenanceChecklistView() {
   const { profile } = useAuth();
 
@@ -102,12 +111,7 @@ export function TechnicianMaintenanceChecklistView() {
   const [signClients, setSignClients] = useState<Client[]>([]);
   const [signSelectedClient, setSignSelectedClient] = useState<Client | null>(null);
   const [signVisitChecklists, setSignVisitChecklists] = useState<any[]>([]);
-  const [signVisitSummary, setSignVisitSummary] = useState<{
-    totalChecklists: number;
-    totalElevators: number;
-    totalRejected: number;
-    certificationStatus: string;
-  } | null>(null);
+  const [signVisitSummary, setSignVisitSummary] = useState<VisitSummary | null>(null);
   const [loadingSignClients, setLoadingSignClients] = useState(false);
   const [isSigningVisit, setIsSigningVisit] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -126,7 +130,7 @@ export function TechnicianMaintenanceChecklistView() {
         const { data, error } = await supabase
           .from('clients')
           .select('id, company_name, address, is_active')
-          .eq('is_active', true) // usamos is_active, no status
+          .eq('is_active', true)
           .order('company_name', { ascending: true });
 
         if (error) throw error;
@@ -443,7 +447,6 @@ export function TechnicianMaintenanceChecklistView() {
 
   // ---------------------------------------------------
   // Descargar PDF individual desde historial
-  // (PDF on-the-fly, aún sin firma de visita)
   // ---------------------------------------------------
   const handleDownloadPDF = async (record: MaintenanceHistory) => {
     try {
@@ -500,7 +503,7 @@ export function TechnicianMaintenanceChecklistView() {
           .filter((q: any) => q.answer_status !== 'pending') || [];
 
       const pdfBlob = await generateMaintenancePDF({
-        folio: 0, // en el historial técnico no usamos folio correlativo aún
+        folio: 0,
         client: {
           business_name: checklistData.client.business_name,
           address: checklistData.client.address,
@@ -634,6 +637,7 @@ export function TechnicianMaintenanceChecklistView() {
     setError(null);
 
     try {
+      // Checklists completados del cliente en el periodo
       const { data: checklists, error: clError } = await supabase
         .from('mnt_checklists')
         .select(
@@ -662,6 +666,18 @@ export function TechnicianMaintenanceChecklistView() {
       const checklistList = (checklists || []) as any[];
       setSignVisitChecklists(checklistList);
 
+      // Total de ascensores activos para este cliente
+      const { data: elevatorsData, error: elevError } = await supabase
+        .from('elevators')
+        .select('id')
+        .eq('client_id', client.id)
+        .eq('status', 'active');
+
+      if (elevError) throw elevError;
+
+      const totalActiveElevators = elevatorsData?.length || 0;
+
+      // Total de observaciones (respuestas rechazadas)
       const ids = checklistList.map((c) => c.id);
       let totalRejected = 0;
 
@@ -704,11 +720,18 @@ export function TechnicianMaintenanceChecklistView() {
         }
       }
 
+      const totalElevatorsCompleted = checklistList.length;
+      const allCompleted =
+        totalActiveElevators > 0 &&
+        totalElevatorsCompleted === totalActiveElevators;
+
       setSignVisitSummary({
         totalChecklists: checklistList.length,
-        totalElevators: checklistList.length,
+        totalElevatorsCompleted,
+        totalActiveElevators,
         totalRejected,
         certificationStatus,
+        allCompleted,
       });
     } catch (err) {
       console.error('Error loading visit summary:', err);
@@ -1295,32 +1318,65 @@ export function TechnicianMaintenanceChecklistView() {
                   </div>
 
                   {signVisitSummary && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <p className="text-[11px] text-slate-500">Ascensores</p>
-                        <p className="text-lg font-semibold text-slate-900">
-                          {signVisitSummary.totalElevators}
-                        </p>
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="text-[11px] text-slate-500">
+                            Ascensores con mantenimiento
+                          </p>
+                          <p className="text-lg font-semibold text-slate-900">
+                            {signVisitSummary.totalElevatorsCompleted}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            De {signVisitSummary.totalActiveElevators} registrados
+                          </p>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="text-[11px] text-slate-500">Checklists</p>
+                          <p className="text-lg font-semibold text-slate-900">
+                            {signVisitSummary.totalChecklists}
+                          </p>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="text-[11px] text-slate-500">
+                            {signVisitSummary.totalRejected === 0
+                              ? 'No presenta observaciones'
+                              : 'Observaciones totales'}
+                          </p>
+                          <p className="text-lg font-semibold text-amber-700">
+                            {signVisitSummary.totalRejected}
+                          </p>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="text-[11px] text-slate-500">Certificación</p>
+                          <p className="text-[12px] font-semibold text-slate-900">
+                            {signVisitSummary.certificationStatus}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Visita:{' '}
+                            {signVisitSummary.allCompleted
+                              ? 'Completa'
+                              : 'Incompleta (faltan ascensores)'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <p className="text-[11px] text-slate-500">Checklists</p>
-                        <p className="text-lg font-semibold text-slate-900">
-                          {signVisitSummary.totalChecklists}
-                        </p>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <p className="text-[11px] text-slate-500">Observaciones</p>
-                        <p className="text-lg font-semibold text-amber-700">
-                          {signVisitSummary.totalRejected}
-                        </p>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <p className="text-[11px] text-slate-500">Certificación</p>
-                        <p className="text-[12px] font-semibold text-slate-900">
-                          {signVisitSummary.certificationStatus}
-                        </p>
-                      </div>
-                    </div>
+
+                      {/* Mensaje si faltan ascensores */}
+                      {!signVisitSummary.allCompleted && (
+                        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          Faltan mantenimientos por realizar: se han completado{' '}
+                          <span className="font-semibold">
+                            {signVisitSummary.totalElevatorsCompleted}
+                          </span>{' '}
+                          de{' '}
+                          <span className="font-semibold">
+                            {signVisitSummary.totalActiveElevators}
+                          </span>{' '}
+                          ascensores registrados para este cliente en el periodo seleccionado.
+                          No es posible firmar la visita hasta completar todos.
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Lista simple de ascensores incluidos */}
@@ -1353,9 +1409,11 @@ export function TechnicianMaintenanceChecklistView() {
                     <button
                       onClick={() => setShowSignatureModal(true)}
                       disabled={
-                        !signVisitChecklists.length || isSigningVisit
+                        !signVisitChecklists.length ||
+                        isSigningVisit ||
+                        !signVisitSummary?.allCompleted
                       }
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSigningVisit ? (
                         <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -1412,8 +1470,8 @@ export function TechnicianMaintenanceChecklistView() {
         onConfirm={handleVisitSignatureConfirm}
         clientName={signSelectedClient?.company_name}
         elevatorSummary={
-          signVisitChecklists.length
-            ? `${signVisitChecklists.length} ascensores`
+          signVisitSummary
+            ? `${signVisitSummary.totalElevatorsCompleted} ascensores`
             : undefined
         }
         periodLabel={formatMonthYear(selectedMonth, selectedYear)}
@@ -1433,4 +1491,3 @@ export function TechnicianMaintenanceChecklistView() {
     </div>
   );
 }
-
