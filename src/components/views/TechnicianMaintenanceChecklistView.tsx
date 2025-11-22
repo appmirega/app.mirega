@@ -11,6 +11,7 @@ import {
   Download,
   ArrowLeft,
   Calendar,
+  Check,
 } from 'lucide-react';
 import { QRScanner } from '../checklist/QRScanner';
 import { CertificationForm } from '../checklist/CertificationForm';
@@ -19,6 +20,7 @@ import {
   generateMaintenancePDF,
   generatePDFFilename,
 } from '../../utils/pdfGenerator';
+import { ChecklistSignatureModal } from '../checklist/ChecklistSignatureModal';
 
 interface Client {
   id: string;
@@ -59,12 +61,20 @@ interface MaintenanceHistory {
   };
 }
 
+type ViewMode =
+  | 'start'
+  | 'select-client'
+  | 'select-elevator'
+  | 'certification'
+  | 'checklist'
+  | 'history'
+  | 'pdfs'
+  | 'sign-visit';
+
 export function TechnicianMaintenanceChecklistView() {
   const { profile } = useAuth();
 
-  const [viewMode, setViewMode] = useState<
-    'start' | 'select-client' | 'select-elevator' | 'certification' | 'checklist' | 'history' | 'pdfs'
-  >('start');
+  const [viewMode, setViewMode] = useState<ViewMode>('start');
   const [showQRScanner, setShowQRScanner] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -88,6 +98,20 @@ export function TechnicianMaintenanceChecklistView() {
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
 
+  // ---- Firma de visita (por cliente/mes) ----
+  const [signClients, setSignClients] = useState<Client[]>([]);
+  const [signSelectedClient, setSignSelectedClient] = useState<Client | null>(null);
+  const [signVisitChecklists, setSignVisitChecklists] = useState<any[]>([]);
+  const [signVisitSummary, setSignVisitSummary] = useState<{
+    totalChecklists: number;
+    totalElevators: number;
+    totalRejected: number;
+    certificationStatus: string;
+  } | null>(null);
+  const [loadingSignClients, setLoadingSignClients] = useState(false);
+  const [isSigningVisit, setIsSigningVisit] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+
   // ---------------------------------------------------
   // Cargar clientes (cuando estamos en "select-client")
   // ---------------------------------------------------
@@ -102,7 +126,7 @@ export function TechnicianMaintenanceChecklistView() {
         const { data, error } = await supabase
           .from('clients')
           .select('id, company_name, address, is_active')
-          .eq('is_active', true) // ✅ columna correcta
+          .eq('is_active', true) // usamos is_active, no status
           .order('company_name', { ascending: true });
 
         if (error) throw error;
@@ -136,7 +160,7 @@ export function TechnicianMaintenanceChecklistView() {
         .from('clients')
         .select('id, company_name, address, is_active')
         .ilike('company_name', `%${searchTerm}%`)
-        .eq('is_active', true) // ✅ columna correcta también aquí
+        .eq('is_active', true)
         .order('company_name', { ascending: true });
 
       if (error) throw error;
@@ -181,7 +205,7 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   // ---------------------------------------------------
-  // Seleccionar ascensor (con bloqueo 1 checklist/mes)
+  // Seleccionar ascensor (1 checklist/ascensor/mes)
   // ---------------------------------------------------
   const handleSelectElevator = async (elevator: Elevator) => {
     setSelectedElevator(elevator);
@@ -205,7 +229,6 @@ export function TechnicianMaintenanceChecklistView() {
       }
 
       if (existingChecklist) {
-        // Si ya está completado → no se puede crear otro
         if (existingChecklist.status === 'completed') {
           alert(
             'Este ascensor ya tiene un checklist de mantenimiento registrado para este mes. No se pueden crear más.'
@@ -213,7 +236,7 @@ export function TechnicianMaintenanceChecklistView() {
           return;
         }
 
-        // Si existe y NO está completado → retomamos ese mismo checklist
+        // Si hay checklist en progreso → retomamos
         setActiveChecklist({
           id: existingChecklist.id,
           elevator_id: elevator.id,
@@ -225,7 +248,7 @@ export function TechnicianMaintenanceChecklistView() {
         return;
       }
 
-      // Si no hay ningún checklist en el mes actual → pasar a certificación
+      // No hay checklist todavía → pasamos a certificación
       setViewMode('certification');
     } catch (err) {
       console.error('Error en handleSelectElevator:', err);
@@ -345,7 +368,7 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   // ---------------------------------------------------
-  // Completar checklist
+  // Completar checklist (solo marca como completed)
   // ---------------------------------------------------
   const handleChecklistComplete = async () => {
     if (!activeChecklist) return;
@@ -419,7 +442,8 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   // ---------------------------------------------------
-  // Descargar PDF individual
+  // Descargar PDF individual desde historial
+  // (PDF on-the-fly, aún sin firma de visita)
   // ---------------------------------------------------
   const handleDownloadPDF = async (record: MaintenanceHistory) => {
     try {
@@ -433,6 +457,9 @@ export function TechnicianMaintenanceChecklistView() {
           month,
           year,
           completion_date,
+          last_certification_date,
+          next_certification_date,
+          certification_not_legible,
           client:clients(
             business_name:company_name,
             address,
@@ -443,6 +470,10 @@ export function TechnicianMaintenanceChecklistView() {
             model,
             serial_number,
             is_hydraulic
+          ),
+          profiles:profiles!mnt_checklists_technician_id_fkey(
+            full_name,
+            email
           )
         `,
         )
@@ -452,8 +483,24 @@ export function TechnicianMaintenanceChecklistView() {
       if (error) throw error;
       if (!checklistData) throw new Error('No se encontró información del checklist');
 
+      const { data: answers } = await supabase
+        .from('mnt_checklist_answers')
+        .select('*, mnt_checklist_questions(*)')
+        .eq('checklist_id', checklistData.id);
+
+      const questionsWithAnswers =
+        answers
+          ?.map((a: any) => ({
+            question_number: a.mnt_checklist_questions.question_number,
+            section: a.mnt_checklist_questions.section,
+            question_text: a.mnt_checklist_questions.question_text,
+            answer_status: a.status,
+            observations: a.observations,
+          }))
+          .filter((q: any) => q.answer_status !== 'pending') || [];
+
       const pdfBlob = await generateMaintenancePDF({
-        folio: record.id,
+        folio: 0, // en el historial técnico no usamos folio correlativo aún
         client: {
           business_name: checklistData.client.business_name,
           address: checklistData.client.address,
@@ -468,10 +515,17 @@ export function TechnicianMaintenanceChecklistView() {
         checklist: {
           month: checklistData.month,
           year: checklistData.year,
-        },
-        meta: {
-          technician_name: profile?.full_name || '',
+          last_certification_date: checklistData.last_certification_date,
+          next_certification_date: checklistData.next_certification_date,
+          certification_not_legible: checklistData.certification_not_legible,
           completion_date: checklistData.completion_date,
+        },
+        technician: {
+          full_name: checklistData.profiles.full_name,
+          email: checklistData.profiles.email,
+        },
+        questions: questionsWithAnswers,
+        signature: {
           signer_name: '',
           signature_data: '',
           signed_at: '',
@@ -516,6 +570,194 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   // ---------------------------------------------------
+  // Firma de visita: cargar clientes con checklists completados
+  // ---------------------------------------------------
+  const loadSignClients = async () => {
+    if (!profile?.id) return;
+
+    setLoadingSignClients(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('mnt_checklists')
+        .select(
+          `
+          id,
+          client_id,
+          status,
+          clients(
+            id,
+            company_name,
+            address
+          )
+        `,
+        )
+        .eq('technician_id', profile.id)
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear)
+        .eq('status', 'completed');
+
+      if (error) throw error;
+
+      const clientMap = new Map<string, Client>();
+      (data || []).forEach((row: any) => {
+        if (row.clients) {
+          clientMap.set(row.clients.id, {
+            id: row.clients.id,
+            company_name: row.clients.company_name,
+            address: row.clients.address,
+          });
+        }
+      });
+
+      setSignClients(Array.from(clientMap.values()));
+      setSignSelectedClient(null);
+      setSignVisitChecklists([]);
+      setSignVisitSummary(null);
+    } catch (err) {
+      console.error('Error loading clients for signature:', err);
+      setError('Error al cargar clientes con mantenimientos completados.');
+    } finally {
+      setLoadingSignClients(false);
+    }
+  };
+
+  // ---------------------------------------------------
+  // Firma de visita: cargar resumen para un cliente
+  // ---------------------------------------------------
+  const loadVisitDataForClient = async (client: Client) => {
+    if (!profile?.id) return;
+
+    setSignSelectedClient(client);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data: checklists, error: clError } = await supabase
+        .from('mnt_checklists')
+        .select(
+          `
+          id,
+          elevator_id,
+          completion_date,
+          last_certification_date,
+          next_certification_date,
+          certification_not_legible,
+          elevators(
+            id,
+            location_name
+          )
+        `,
+        )
+        .eq('technician_id', profile.id)
+        .eq('client_id', client.id)
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear)
+        .eq('status', 'completed')
+        .order('completion_date', { ascending: true });
+
+      if (clError) throw clError;
+
+      const checklistList = (checklists || []) as any[];
+      setSignVisitChecklists(checklistList);
+
+      const ids = checklistList.map((c) => c.id);
+      let totalRejected = 0;
+
+      if (ids.length > 0) {
+        const { data: answers, error: ansError } = await supabase
+          .from('mnt_checklist_answers')
+          .select('id, status, checklist_id')
+          .in('checklist_id', ids);
+
+        if (ansError) throw ansError;
+
+        totalRejected =
+          (answers || []).filter((a: any) => a.status === 'rejected').length;
+      }
+
+      // Determinar estado de certificación resumido
+      let certificationStatus = 'Sin información';
+      const today = new Date();
+      const allCerts = checklistList.map((c) => ({
+        last: c.last_certification_date as string | null,
+        next: c.next_certification_date as string | null,
+        notLegible: c.certification_not_legible as boolean,
+      }));
+
+      if (allCerts.some((c) => c.notLegible)) {
+        certificationStatus = 'No legible';
+      } else {
+        const validNextDates = allCerts
+          .map((c) => (c.next ? new Date(c.next) : null))
+          .filter((d): d is Date => d !== null);
+
+        if (validNextDates.length > 0) {
+          const minNext = validNextDates.reduce((a, b) => (a < b ? a : b));
+          const diffDays =
+            (minNext.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+
+          if (diffDays < 0) certificationStatus = 'Vencida';
+          else if (diffDays <= 30) certificationStatus = 'Próxima a vencer';
+          else certificationStatus = 'Vigente';
+        }
+      }
+
+      setSignVisitSummary({
+        totalChecklists: checklistList.length,
+        totalElevators: checklistList.length,
+        totalRejected,
+        certificationStatus,
+      });
+    } catch (err) {
+      console.error('Error loading visit summary:', err);
+      setError('Error al cargar el resumen de la visita.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---------------------------------------------------
+  // Firma de visita: guardar firma para todos los checklists
+  // ---------------------------------------------------
+  const handleVisitSignatureConfirm = async (
+    signerName: string,
+    signatureDataURL: string,
+  ) => {
+    if (!signVisitChecklists.length) return;
+
+    setIsSigningVisit(true);
+    setError(null);
+
+    try {
+      const rows = signVisitChecklists.map((cl: any) => ({
+        checklist_id: cl.id,
+        signer_name: signerName,
+        signature_data: signatureDataURL,
+        signed_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from('mnt_checklist_signatures')
+        .insert(rows);
+
+      if (error) throw error;
+
+      alert(
+        'Firma registrada para los mantenimientos de este cliente en el periodo seleccionado.',
+      );
+
+      setShowSignatureModal(false);
+    } catch (err) {
+      console.error('Error al guardar firma de visita:', err);
+      setError('Error al guardar la firma de la visita.');
+    } finally {
+      setIsSigningVisit(false);
+    }
+  };
+
+  // ---------------------------------------------------
   // Navegación atrás
   // ---------------------------------------------------
   const handleGoBack = () => {
@@ -534,6 +776,7 @@ export function TechnicianMaintenanceChecklistView() {
         break;
       case 'history':
       case 'pdfs':
+      case 'sign-visit':
         setViewMode('start');
         break;
       default:
@@ -605,6 +848,24 @@ export function TechnicianMaintenanceChecklistView() {
           >
             <FileText className="w-4 h-4" />
             Informes PDF
+          </button>
+
+          <button
+            onClick={() => {
+              setViewMode('sign-visit');
+              setSignSelectedClient(null);
+              setSignClients([]);
+              setSignVisitChecklists([]);
+              setSignVisitSummary(null);
+            }}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${
+              viewMode === 'sign-visit'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <Check className="w-4 h-4" />
+            Firma visita
           </button>
         </div>
       </div>
@@ -784,7 +1045,7 @@ export function TechnicianMaintenanceChecklistView() {
           month={activeChecklist.month}
           onComplete={handleChecklistComplete}
           onSave={() => {
-            // aquí podrías mostrar un toast si quieres
+            // aquí podrías mostrar un mensaje de "guardado" si quieres
           }}
         />
       )}
@@ -822,9 +1083,9 @@ export function TechnicianMaintenanceChecklistView() {
                 {maintenanceHistory.map((record) => (
                   <li
                     key={record.id}
-                    className="px-4 py-3 flex items-center justify-between"
+                    className="px-4 py-3 flex items-center gap-4 justify-between"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium text-slate-900">
                         {record.client.company_name} • {record.elevator.brand}{' '}
                         {record.elevator.model} ({record.elevator.serial_number})
@@ -836,7 +1097,7 @@ export function TechnicianMaintenanceChecklistView() {
                         </span>
                       </p>
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 text-right">
                       {record.completion_date &&
                         new Date(record.completion_date).toLocaleString('es-CL')}
                     </div>
@@ -920,6 +1181,197 @@ export function TechnicianMaintenanceChecklistView() {
         </div>
       )}
 
+      {/* Firma de visita (por cliente/mes) */}
+      {viewMode === 'sign-visit' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <Check className="w-6 h-6 text-blue-600" />
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Firma de visita por cliente
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Selecciona el periodo y el cliente para firmar todos los checklists completados.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-500" />
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="text-sm border border-slate-300 rounded-lg px-2 py-1"
+                >
+                  {monthOptions.map((month) => (
+                    <option key={month} value={month}>
+                      {month.toString().padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="text-sm border border-slate-300 rounded-lg px-2 py-1"
+                >
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-500">
+                  Periodo: {formatMonthYear(selectedMonth, selectedYear)}
+                </span>
+              </div>
+
+              <button
+                onClick={loadSignClients}
+                disabled={loadingSignClients}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {loadingSignClients ? (
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                Buscar clientes con mantenimientos
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Lista de clientes */}
+            <div className="md:col-span-1 bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-4 py-2 border-b border-slate-200">
+                <p className="text-xs font-semibold text-slate-700">
+                  Clientes con checklists completados
+                </p>
+              </div>
+              {signClients.length === 0 ? (
+                <div className="p-4 text-xs text-slate-500">
+                  No se encontraron clientes con checklists completados en este periodo.
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100 max-h-[320px] overflow-y-auto">
+                  {signClients.map((client) => (
+                    <li key={client.id}>
+                      <button
+                        onClick={() => loadVisitDataForClient(client)}
+                        className={`w-full text-left px-4 py-3 hover:bg-slate-50 text-xs ${
+                          signSelectedClient?.id === client.id ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <p className="font-medium text-slate-900 text-sm">
+                          {client.company_name}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {client.address || 'Sin dirección registrada'}
+                        </p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Resumen de visita */}
+            <div className="md:col-span-2 bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-4">
+              {!signSelectedClient ? (
+                <div className="text-sm text-slate-500">
+                  Selecciona un cliente de la lista para ver el resumen de la visita.
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Cliente: {signSelectedClient.company_name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Periodo: {formatMonthYear(selectedMonth, selectedYear)}
+                    </p>
+                  </div>
+
+                  {signVisitSummary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="text-[11px] text-slate-500">Ascensores</p>
+                        <p className="text-lg font-semibold text-slate-900">
+                          {signVisitSummary.totalElevators}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="text-[11px] text-slate-500">Checklists</p>
+                        <p className="text-lg font-semibold text-slate-900">
+                          {signVisitSummary.totalChecklists}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="text-[11px] text-slate-500">Observaciones</p>
+                        <p className="text-lg font-semibold text-amber-700">
+                          {signVisitSummary.totalRejected}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="text-[11px] text-slate-500">Certificación</p>
+                        <p className="text-[12px] font-semibold text-slate-900">
+                          {signVisitSummary.certificationStatus}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista simple de ascensores incluidos */}
+                  <div className="border border-slate-200 rounded-lg max-h-[200px] overflow-y-auto">
+                    {signVisitChecklists.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-500">
+                        No se encontraron checklists completados para este cliente en el periodo.
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-slate-100 text-xs">
+                        {signVisitChecklists.map((cl: any) => (
+                          <li key={cl.id} className="px-3 py-2 flex justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {cl.elevators?.location_name || 'Ascensor sin nombre'}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Completado:{' '}
+                                {cl.completion_date &&
+                                  new Date(cl.completion_date).toLocaleString('es-CL')}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShowSignatureModal(true)}
+                      disabled={
+                        !signVisitChecklists.length || isSigningVisit
+                      }
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {isSigningVisit ? (
+                        <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      Firmar visita
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de QR */}
       {showQRScanner && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -953,13 +1405,27 @@ export function TechnicianMaintenanceChecklistView() {
         </div>
       )}
 
+      {/* Modal de firma de visita */}
+      <ChecklistSignatureModal
+        open={showSignatureModal && !!signSelectedClient && signVisitChecklists.length > 0}
+        onClose={() => setShowSignatureModal(false)}
+        onConfirm={handleVisitSignatureConfirm}
+        clientName={signSelectedClient?.company_name}
+        elevatorSummary={
+          signVisitChecklists.length
+            ? `${signVisitChecklists.length} ascensores`
+            : undefined
+        }
+        periodLabel={formatMonthYear(selectedMonth, selectedYear)}
+      />
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+          <p className="text-red-800 text-sm">{error}</p>
         </div>
       )}
 
-      {loading && (
+      {loading && viewMode !== 'select-client' && viewMode !== 'sign-visit' && (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
