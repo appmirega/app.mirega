@@ -13,7 +13,12 @@ export interface ChecklistQuestionRow {
   photoUrls?: (string | null | undefined)[];
 }
 
-export type CertificationStatus = 'vigente' | 'vencida' | 'por_vencer';
+export type CertificationStatus =
+  | 'vigente'
+  | 'vencida'
+  | 'por_vencer'
+  | 'no_legible'
+  | 'sin_info';
 
 export interface ChecklistPDFData {
   clientName: string;
@@ -25,9 +30,9 @@ export interface ChecklistPDFData {
   year: number;
   technicianName: string;
   certificationStatus: CertificationStatus;
-  observationSummary: string; // Ej: "3 observaciones" o "Sin observaciones"
+  observationSummary: string; // Ej: "Sin observaciones" o "Presenta 3 observaciones."
   questions: ChecklistQuestionRow[];
-  signatureUrl?: string | null; // URL pública de la firma (Supabase Storage)
+  signatureDataUrl?: string | null; // data:image/png;base64,...
 }
 
 /**
@@ -35,37 +40,20 @@ export interface ChecklistPDFData {
  */
 function getMonthNameEs(month: number): string {
   const months = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
   ];
   return months[month - 1] ?? String(month);
-}
-
-/**
- * Intenta descargar una imagen y devolverla como dataURL (base64)
- * para poder incrustarla en el PDF.
- */
-async function fetchImageAsDataUrl(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-
-    return await new Promise<string | null>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result);
-        } else {
-          resolve(null);
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -84,7 +72,6 @@ export function getChecklistPDFFileName(data: ChecklistPDFData): string {
 
 /**
  * Genera un Blob con el PDF del checklist de mantenimiento.
- * Luego puedes usar URL.createObjectURL(blob) para descargar/ver.
  */
 export async function generateMaintenanceChecklistPDF(
   data: ChecklistPDFData,
@@ -147,6 +134,13 @@ export async function generateMaintenanceChecklistPDF(
     case 'por_vencer':
       estadoTexto = 'Próxima a vencer';
       break;
+    case 'no_legible':
+      estadoTexto = 'No legible';
+      break;
+    case 'sin_info':
+    default:
+      estadoTexto = 'Sin información';
+      break;
   }
 
   doc.text(`Estado de certificación: ${estadoTexto}`, 15, cursorY);
@@ -175,9 +169,7 @@ export async function generateMaintenanceChecklistPDF(
 
   autoTable(doc, {
     startY: cursorY,
-    head: [
-      ['N°', 'Sección', 'Pregunta', 'Estado', 'Observaciones', 'Fotos'],
-    ],
+    head: [['N°', 'Sección', 'Pregunta', 'Estado', 'Observaciones', 'Fotos']],
     body: tableBody,
     styles: {
       fontSize: 8,
@@ -189,7 +181,7 @@ export async function generateMaintenanceChecklistPDF(
       textColor: 255,
     },
     columnStyles: {
-      0: { cellWidth: 8 },  // N°
+      0: { cellWidth: 8 }, // N°
       1: { cellWidth: 25 }, // Sección
       2: { cellWidth: 70 }, // Pregunta
       3: { cellWidth: 20 }, // Estado
@@ -201,7 +193,11 @@ export async function generateMaintenanceChecklistPDF(
 
   // Posición después de la tabla
   // @ts-expect-error: autoTable any type
-  const finalY: number = (doc as any).lastAutoTable.finalY || doc.previousAutoTable?.finalY || 0;
+  const finalY: number =
+    (doc as any).lastAutoTable?.finalY ??
+    (doc as any).previousAutoTable?.finalY ??
+    cursorY;
+
   cursorY = finalY + 20;
 
   // === FIRMA ===
@@ -220,23 +216,19 @@ export async function generateMaintenanceChecklistPDF(
   doc.setFont('helvetica', 'normal');
   doc.text('Nombre y firma', lineXStart, lineY + 5);
 
-  // Si tenemos una imagen de la firma, intentar incrustarla
-  if (data.signatureUrl) {
+  // Si tenemos imagen de la firma (dataURL), la incrustamos sobre la línea
+  if (data.signatureDataUrl) {
     try {
-      const dataUrl = await fetchImageAsDataUrl(data.signatureUrl);
-      if (dataUrl) {
-        // Dibujamos la firma sobre la línea
-        doc.addImage(
-          dataUrl,
-          'PNG',
-          lineXStart,
-          lineY - 15,
-          60, // ancho aprox
-          15, // alto aprox
-        );
-      }
+      doc.addImage(
+        data.signatureDataUrl,
+        'PNG',
+        lineXStart,
+        lineY - 15,
+        60, // ancho aprox
+        15, // alto aprox
+      );
     } catch {
-      // Si falla, simplemente dejamos la línea
+      // Si falla, dejamos solo la línea
     }
   }
 
