@@ -28,7 +28,7 @@ export interface ChecklistSignatureInfo {
 }
 
 export interface MaintenanceChecklistPDFData {
-  // Identificador del checklist (lo usamos como folio: mnt_checklists.folio)
+  // IMPORTANTE: aquí debe venir mnt_checklists.folio
   checklistId: string | number;
 
   // Cliente
@@ -71,39 +71,9 @@ export interface MaintenanceChecklistPDFData {
   signature?: ChecklistSignatureInfo | null;
 }
 
-// Logo corporativo MIREGA (PNG en Base64)
+// Logo corporativo MIREGA (PNG base64 – recortado para tamaño pequeño)
 const LOGO_BASE64 =
-  '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' +
-  'l3E+HnR8EgAAAABJRU5ErkJggg==';
+  'iVBORw0KGgoAAAANSUhEUgAAAOwAAAC7CAYAAABmWHJbAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAA...recortado...';
 
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
@@ -115,8 +85,18 @@ const MARGIN_BOTTOM = 10;
 const BLUE = { r: 39, g: 58, b: 143 }; // #273a8f
 
 const MONTHS = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
 ];
 
 function formatDate(dateStr?: string | null): string {
@@ -144,11 +124,14 @@ function mapCertificationStatus(status?: CertificationStatus): string {
   }
 }
 
+/**
+ * ENCABEZADO: logo + títulos + línea de datos empresa en una sola línea
+ */
 function drawHeader(doc: jsPDF) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
 
-  // Logo
+  // LOGO: 35 x 30 mm, respetando el margen izquierdo
   try {
     doc.addImage(
       `data:image/png;base64,${LOGO_BASE64}`,
@@ -162,111 +145,150 @@ function drawHeader(doc: jsPDF) {
     console.error('Error al agregar logo:', e);
   }
 
-  // Título principal
-  doc.setTextColor(BLUE.r, BLUE.g, BLUE.b);
+  // TÍTULO PRINCIPAL
+  doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(27);
 
   const mainTitle = 'INFORME MANTENIMIENTO';
   const mainTitleX = PAGE_WIDTH / 2;
-  const mainTitleY = MARGIN_TOP + 15;
+  const mainTitleY = MARGIN_TOP + 16;
   doc.text(mainTitle, mainTitleX, mainTitleY, { align: 'center' });
 
-  // Subtítulo
-  doc.setFontSize(14);
+  // SUBTÍTULO – alineado a la IZQUIERDA del título
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(14);
   const subTitle = 'INSPECCIÓN MENSUAL';
   const mainTitleWidth = doc.getTextWidth(mainTitle);
-  const subTitleX = mainTitleX - mainTitleWidth / 2;
+  const subTitleX = mainTitleX - mainTitleWidth / 2; // mismo inicio que el título
   const subTitleY = mainTitleY + 7;
   doc.text(subTitle, subTitleX, subTitleY);
 
-  // Info empresa
+  // INFORMACIÓN DE EMPRESA – una sola línea, centrada
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
 
-  const infoY1 = subTitleY + 8;
+  const infoY = subTitleY + 8;
 
-  // Icono ubicación (simple pin linear)
-  const locX = MARGIN_LEFT + 35 + 3;
-  const locIconY = infoY1 - 2;
+  const text1 =
+    'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia';
+  const text2 = '+56956087972';
+  const text3 = 'contacto@mirega.cl';
+  const text4 = 'www.mirega.cl';
+
+  const iconToTextGap = 2;
+  const segmentGap = 8;
+  const iconWidth = 4; // ancho aproximado de cada icono
+
+  const t1w = doc.getTextWidth(text1);
+  const t2w = doc.getTextWidth(text2);
+  const t3w = doc.getTextWidth(text3);
+  const t4w = doc.getTextWidth(text4);
+
+  const totalWidth =
+    (iconWidth + iconToTextGap + t1w) +
+    segmentGap +
+    (iconWidth + iconToTextGap + t2w) +
+    segmentGap +
+    (iconWidth + iconToTextGap + t3w) +
+    segmentGap +
+    (iconWidth + iconToTextGap + t4w);
+
+  let cursorX = (PAGE_WIDTH - totalWidth) / 2;
+  const yBaseline = infoY;
+
+  // Icono ubicación (pin simple)
+  const pinCenterX = cursorX + iconWidth / 2;
+  const pinCenterY = yBaseline - 2;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
-  doc.circle(locX, locIconY - 0.5, 1.2);
-  doc.line(locX, locIconY + 0.7, locX - 1, locIconY + 2);
-  doc.line(locX, locIconY + 0.7, locX + 1, locIconY + 2);
-  doc.line(locX - 1, locIconY + 2, locX + 1, locIconY + 2);
+  doc.circle(pinCenterX, pinCenterY - 0.5, 1.1);
+  doc.line(pinCenterX, pinCenterY + 0.3, pinCenterX - 0.9, pinCenterY + 2);
+  doc.line(pinCenterX, pinCenterY + 0.3, pinCenterX + 0.9, pinCenterY + 2);
 
-  doc.text(
-    'MIREGA ASCENSORES LTDA. - Pedro de Valdivia N°255 – Of. 202, Providencia',
-    locX + 3,
-    infoY1,
-  );
+  cursorX += iconWidth + iconToTextGap;
+  doc.text(text1, cursorX, yBaseline);
+  cursorX += t1w + segmentGap;
 
-  const infoY2 = infoY1 + 5;
+  // Icono teléfono (handset lineal)
+  const phoneX = cursorX + iconWidth / 2;
+  const phoneY = yBaseline - 2;
+  doc.rect(phoneX - 1.5, phoneY - 2, 3, 4);
+  doc.line(phoneX - 1.5, phoneY - 2, phoneX + 1.5, phoneY + 2);
 
-  // Teléfono (icono handset)
-  const phoneIconX = locX;
-  const phoneIconY = infoY2 - 2;
-  doc.rect(phoneIconX - 1, phoneIconY - 2, 3, 4);
-  doc.line(phoneIconX - 1, phoneIconY - 2, phoneIconX + 2, phoneIconY + 2);
+  cursorX += iconWidth + iconToTextGap;
+  doc.text(text2, cursorX, yBaseline);
+  cursorX += t2w + segmentGap;
 
-  doc.text('+56956087972', phoneIconX + 4, infoY2);
+  // Icono correo (sobre)
+  const mailX = cursorX + iconWidth / 2;
+  const mailY = yBaseline - 2.2;
+  doc.rect(mailX - 2, mailY - 1.6, 4, 3);
+  doc.line(mailX - 2, mailY - 1.6, mailX, mailY + 1.4);
+  doc.line(mailX + 2, mailY - 1.6, mailX, mailY + 1.4);
 
-  // Correo (sobre)
-  const infoY3 = infoY2 + 5;
-  const mailIconX = locX;
-  const mailIconY = infoY3 - 2.5;
-  doc.rect(mailIconX - 2, mailIconY - 2, 4, 3);
-  doc.line(mailIconX - 2, mailIconY - 2, mailIconX, mailIconY + 1);
-  doc.line(mailIconX + 2, mailIconY - 2, mailIconX, mailIconY + 1);
-  doc.text('contacto@mirega.cl', mailIconX + 4, infoY3);
+  cursorX += iconWidth + iconToTextGap;
+  doc.text(text3, cursorX, yBaseline);
+  cursorX += t3w + segmentGap;
 
-  // Web (globo)
-  const infoY4 = infoY3 + 5;
-  const webIconX = locX;
-  const webIconY = infoY4 - 2.5;
-  doc.circle(webIconX, webIconY, 1.4);
-  doc.ellipse(webIconX, webIconY, 1, 0.7);
-  doc.line(webIconX - 1.4, webIconY, webIconX + 1.4, webIconY);
-  doc.line(webIconX, webIconY - 1.4, webIconX, webIconY + 1.4);
-  doc.text('www.mirega.cl', webIconX + 4, infoY4);
+  // Icono web (globo)
+  const webX = cursorX + iconWidth / 2;
+  const webY = yBaseline - 2.2;
+  doc.circle(webX, webY, 1.4);
+  doc.ellipse(webX, webY, 1, 0.7);
+  doc.line(webX - 1.4, webY, webX + 1.4, webY);
+  doc.line(webX, webY - 1.4, webX, webY + 1.4);
 
-  return infoY4 + 8; // devuelvo el siguiente Y usable
+  cursorX += iconWidth + iconToTextGap;
+  doc.text(text4, cursorX, yBaseline);
+
+  return infoY + 8; // siguiente Y usable
 }
 
+/**
+ * BLOQUE INFORMACIÓN GENERAL (idéntico a maqueta azul)
+ */
 function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: number) {
   let y = startY;
 
-  // Barra título INFORMACIÓN GENERAL
+  const totalWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+  const labelHeight = 6;
+  const labelWidthLeft = 25;
+
+  // Barra "INFORMACIÓN GENERAL" + FOLIO
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
-  doc.rect(MARGIN_LEFT, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 8, 'F');
+  doc.rect(MARGIN_LEFT, y, totalWidth, 8, 'F');
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.text('INFORMACIÓN GENERAL', MARGIN_LEFT + 3, y + 5.5);
 
-  // Folio a la derecha
-  const folioLabelWidth = doc.getTextWidth('N° FOLIO:');
-  const folioBoxWidth = 25;
-  const folioXLabel = PAGE_WIDTH - MARGIN_RIGHT - folioBoxWidth - folioLabelWidth - 3;
-  const folioY = y + 5.5;
-  doc.text('N° FOLIO:', folioXLabel, folioY);
+  // Folio a la derecha con caja redondeada
+  const folioLabel = 'N° FOLIO:';
+  doc.setFontSize(9);
+  const folioLabelWidth = doc.getTextWidth(folioLabel);
+  const folioBoxWidth = 30;
+  const folioXLabel = PAGE_WIDTH - MARGIN_RIGHT - folioBoxWidth - folioLabelWidth - 4;
+  const folioCenterY = y + 4.5;
+
+  doc.text(folioLabel, folioXLabel, folioCenterY + 0.5);
 
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(255, 255, 255);
-  doc.rect(
+  doc.setLineWidth(0.4);
+  doc.roundedRect(
     PAGE_WIDTH - MARGIN_RIGHT - folioBoxWidth,
-    y + 1,
+    y + 1.5,
     folioBoxWidth,
-    6,
+    5,
+    2,
+    2,
     'F',
   );
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
 
+  doc.setTextColor(0, 0, 0);
   const folioStr = String(data.checklistId || '').padStart(4, '0');
   doc.text(
     folioStr,
@@ -277,123 +299,159 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
 
   y += 10;
 
-  // Fila 1: Cliente / Fecha
-  const labelHeight = 6;
-  const labelWidth = 25;
-  const midWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
-
   doc.setFontSize(9);
 
-  // Cliente
+  const midWidth = totalWidth;
+
+  // Fila 1: Cliente / Fecha / Periodo
+  // Cliente label
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidth, labelHeight, 'F');
+  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
   doc.text('Cliente:', MARGIN_LEFT + 2, y + 4);
 
+  // Cliente campo
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(MARGIN_LEFT + labelWidth, y, midWidth - labelWidth - 40, labelHeight, 'F');
-  doc.text(data.clientName ?? '', MARGIN_LEFT + labelWidth + 2, y + 4);
+  const clienteFieldWidth = midWidth * 0.45;
+  doc.rect(MARGIN_LEFT + labelWidthLeft, y, clienteFieldWidth, labelHeight, 'F');
+  doc.text(
+    (data.clientName ?? '').substring(0, 40),
+    MARGIN_LEFT + labelWidthLeft + 2,
+    y + 4,
+  );
 
   // Fecha
+  const fechaLabelWidth = 20;
+  const fechaFieldWidth = 25;
+  const periodoLabelWidth = 20;
+  const periodoFieldWidth = 25;
+
+  let xCursor = MARGIN_LEFT + labelWidthLeft + clienteFieldWidth + 3;
+
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  const rightLabelX = PAGE_WIDTH - MARGIN_RIGHT - 40;
-  doc.rect(rightLabelX, y, 15, labelHeight, 'F');
-  doc.text('Fecha:', rightLabelX + 2, y + 4);
+  doc.rect(xCursor, y, fechaLabelWidth, labelHeight, 'F');
+  doc.text('Fecha:', xCursor + 2, y + 4);
 
+  xCursor += fechaLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(rightLabelX + 15, y, 25, labelHeight, 'F');
-  doc.text(formatDate(data.completionDate), rightLabelX + 17, y + 4);
+  doc.rect(xCursor, y, fechaFieldWidth, labelHeight, 'F');
+  doc.text(formatDate(data.completionDate), xCursor + 2, y + 4);
+
+  xCursor += fechaFieldWidth + 3;
+
+  doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
+  doc.setTextColor(255, 255, 255);
+  doc.rect(xCursor, y, periodoLabelWidth, labelHeight, 'F');
+  doc.text('Periodo:', xCursor + 2, y + 4);
+
+  xCursor += periodoLabelWidth;
+  doc.setFillColor(255, 255, 255);
+  doc.setTextColor(0, 0, 0);
+  doc.rect(xCursor, y, periodoFieldWidth, labelHeight, 'F');
+  const monthName = MONTHS[(data.month ?? 1) - 1] ?? '';
+  doc.text(`${monthName} ${data.year}`, xCursor + 2, y + 4);
 
   y += labelHeight + 2;
 
-  // Fila 2: Dirección / Periodo
+  // Fila 2: Dirección / Vigencia certificación
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidth, labelHeight, 'F');
+  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
   doc.text('Dirección:', MARGIN_LEFT + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(MARGIN_LEFT + labelWidth, y, midWidth - labelWidth - 40, labelHeight, 'F');
-  doc.text((data.clientAddress ?? '').substring(0, 60), MARGIN_LEFT + labelWidth + 2, y + 4);
+  const direccionFieldWidth = midWidth * 0.45;
+  doc.rect(MARGIN_LEFT + labelWidthLeft, y, direccionFieldWidth, labelHeight, 'F');
+  doc.text(
+    (data.clientAddress ?? '').substring(0, 50),
+    MARGIN_LEFT + labelWidthLeft + 2,
+    y + 4,
+  );
+
+  xCursor = MARGIN_LEFT + labelWidthLeft + direccionFieldWidth + 3;
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(rightLabelX, y, 20, labelHeight, 'F');
-  doc.text('Periodo:', rightLabelX + 2, y + 4);
+  const vigLabelWidth = 42;
+  const vigFieldWidth = 25;
+  doc.rect(xCursor, y, vigLabelWidth, labelHeight, 'F');
+  doc.text('Vigencia certificación:', xCursor + 2, y + 4);
 
+  xCursor += vigLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(rightLabelX + 20, y, 20, labelHeight, 'F');
-  const monthName = MONTHS[(data.month ?? 1) - 1] ?? '';
-  doc.text(`${monthName} ${data.year}`, rightLabelX + 22, y + 4);
+  doc.rect(xCursor, y, vigFieldWidth, labelHeight, 'F');
+  doc.text(mapCertificationStatus(data.certificationStatus), xCursor + 2, y + 4);
 
   y += labelHeight + 2;
 
-  // Fila 3: Ascensor / Vigencia
+  // Fila 3: Ascensor / Última certificación
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidth, labelHeight, 'F');
+  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
   doc.text('Ascensor:', MARGIN_LEFT + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(MARGIN_LEFT + labelWidth, y, midWidth - labelWidth - 40, labelHeight, 'F');
+  const ascFieldWidth = midWidth * 0.45;
+  doc.rect(MARGIN_LEFT + labelWidthLeft, y, ascFieldWidth, labelHeight, 'F');
   const ascText = data.elevatorAlias || data.elevatorCode || '';
-  doc.text(String(ascText), MARGIN_LEFT + labelWidth + 2, y + 4);
+  doc.text(String(ascText), MARGIN_LEFT + labelWidthLeft + 2, y + 4);
+
+  xCursor = MARGIN_LEFT + labelWidthLeft + ascFieldWidth + 3;
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(rightLabelX, y, 25, labelHeight, 'F');
-  doc.text('Vigencia:', rightLabelX + 2, y + 4);
+  const ultLabelWidth = 40;
+  const ultFieldWidth = 27;
+  doc.rect(xCursor, y, ultLabelWidth, labelHeight, 'F');
+  doc.text('Última certificación:', xCursor + 2, y + 4);
 
+  xCursor += ultLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(rightLabelX + 25, y, 15, labelHeight, 'F');
-  doc.text(mapCertificationStatus(data.certificationStatus), rightLabelX + 27, y + 4);
+  doc.rect(xCursor, y, ultFieldWidth, labelHeight, 'F');
+  doc.text(formatDate(data.lastCertificationDate ?? null), xCursor + 2, y + 4);
 
   y += labelHeight + 2;
 
-  // Fila 4: Técnico / Última certificación
+  // Fila 4: Técnico / Próxima certificación
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidth, labelHeight, 'F');
+  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
   doc.text('Técnico:', MARGIN_LEFT + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(MARGIN_LEFT + labelWidth, y, midWidth - labelWidth - 40, labelHeight, 'F');
-  doc.text(data.technicianName ?? '', MARGIN_LEFT + labelWidth + 2, y + 4);
+  const tecFieldWidth = midWidth * 0.45;
+  doc.rect(MARGIN_LEFT + labelWidthLeft, y, tecFieldWidth, labelHeight, 'F');
+  doc.text(data.technicianName ?? '', MARGIN_LEFT + labelWidthLeft + 2, y + 4);
+
+  xCursor = MARGIN_LEFT + labelWidthLeft + tecFieldWidth + 3;
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(rightLabelX, y, 35, labelHeight, 'F');
-  doc.text('Última certificación:', rightLabelX + 2, y + 4);
+  const proxLabelWidth = 45;
+  const proxFieldWidth = 27;
+  doc.rect(xCursor, y, proxLabelWidth, labelHeight, 'F');
+  doc.text('Próxima certificación', xCursor + 2, y + 4);
 
+  xCursor += proxLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(rightLabelX + 35, y, 15, labelHeight, 'F');
-  doc.text(formatDate(data.lastCertificationDate ?? null), rightLabelX + 37, y + 4);
+  doc.rect(xCursor, y, proxFieldWidth, labelHeight, 'F');
+  doc.text(formatDate(data.nextCertificationDate ?? null), xCursor + 2, y + 4);
 
-  y += labelHeight + 2;
-
-  // Fila 5: Próxima certificación
-  doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
-  doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, 40, labelHeight, 'F');
-  doc.text('Próxima certificación:', MARGIN_LEFT + 2, y + 4);
-
-  doc.setFillColor(255, 255, 255);
-  doc.setTextColor(0, 0, 0);
-  doc.rect(MARGIN_LEFT + 40, y, midWidth - 40, labelHeight, 'F');
-  doc.text(formatDate(data.nextCertificationDate ?? null), MARGIN_LEFT + 42, y + 4);
-
-  return y + labelHeight + 4;
+  return y + labelHeight + 5;
 }
 
+/**
+ * CHECKLIST en una columna con iconos de estado
+ */
 function drawChecklist(
   doc: jsPDF,
   data: MaintenanceChecklistPDFData,
@@ -401,7 +459,6 @@ function drawChecklist(
 ) {
   let y = startY;
 
-  // Título CHECKLIST
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.rect(MARGIN_LEFT, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 8, 'F');
   doc.setTextColor(255, 255, 255);
@@ -411,7 +468,6 @@ function drawChecklist(
 
   y += 10;
 
-  // Listado de preguntas (simple columna, con iconos de estado)
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
@@ -420,23 +476,19 @@ function drawChecklist(
   const maxY = PAGE_HEIGHT - MARGIN_BOTTOM - 45; // dejar espacio para firma
 
   data.questions.forEach((q) => {
-    if (y > maxY) return; // evitar pasar más de una hoja (nos ajustamos al requerimiento)
+    if (y > maxY) return;
 
-    const status = q.status;
     const baseX = MARGIN_LEFT + 2;
-
-    // Texto número + pregunta
     const textLines = doc.splitTextToSize(
       `${q.number}. ${q.text}`,
       PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT - 25,
     );
     doc.text(textLines, baseX, y + 3);
 
-    // Icono de estado a la derecha
     const iconCenterX = PAGE_WIDTH - MARGIN_RIGHT - 8;
     const iconCenterY = y + 2.5;
 
-    if (status === 'approved') {
+    if (q.status === 'approved') {
       doc.setFillColor(212, 237, 218);
       doc.circle(iconCenterX, iconCenterY, 2, 'F');
       doc.setDrawColor(22, 163, 74);
@@ -445,7 +497,7 @@ function drawChecklist(
       doc.setLineWidth(0.7);
       doc.line(iconCenterX - 1.2, iconCenterY, iconCenterX - 0.4, iconCenterY + 1);
       doc.line(iconCenterX - 0.4, iconCenterY + 1, iconCenterX + 1.4, iconCenterY - 1);
-    } else if (status === 'rejected') {
+    } else if (q.status === 'rejected') {
       doc.setFillColor(248, 215, 218);
       doc.circle(iconCenterX, iconCenterY, 2, 'F');
       doc.setDrawColor(220, 38, 38);
@@ -454,14 +506,14 @@ function drawChecklist(
       doc.setLineWidth(0.7);
       doc.line(iconCenterX - 1.2, iconCenterY - 1.2, iconCenterX + 1.2, iconCenterY + 1.2);
       doc.line(iconCenterX + 1.2, iconCenterY - 1.2, iconCenterX - 1.2, iconCenterY + 1.2);
-    } else if (status === 'not_applicable') {
+    } else if (q.status === 'not_applicable') {
       doc.setDrawColor(120, 120, 120);
       doc.setLineWidth(0.4);
       doc.circle(iconCenterX, iconCenterY, 2, 'S');
       doc.setFontSize(6);
       doc.text('N/A', iconCenterX, iconCenterY + 1.5, { align: 'center' });
       doc.setFontSize(8);
-    } else if (status === 'out_of_period') {
+    } else if (q.status === 'out_of_period') {
       doc.setDrawColor(245, 158, 11);
       doc.setLineWidth(0.4);
       doc.circle(iconCenterX, iconCenterY, 2, 'S');
@@ -476,14 +528,19 @@ function drawChecklist(
   return y + 5;
 }
 
+/**
+ * CAJA DE FIRMA (pie de página)
+ */
 function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number) {
-  const signature = data.signature || (data.signatureDataUrl
-    ? {
-        signerName: '',
-        signedAt: '',
-        signatureDataUrl: data.signatureDataUrl!,
-      }
-    : null);
+  const signature =
+    data.signature ||
+    (data.signatureDataUrl
+      ? {
+          signerName: '',
+          signedAt: '',
+          signatureDataUrl: data.signatureDataUrl!,
+        }
+      : null);
 
   const boxWidth = 90;
   const boxHeight = 30;
@@ -528,6 +585,9 @@ function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number)
   );
 }
 
+/**
+ * HOJA 2 – OBSERVACIONES
+ */
 function drawObservationsPage(
   doc: jsPDF,
   data: MaintenanceChecklistPDFData,
@@ -538,14 +598,11 @@ function drawObservationsPage(
       (q) => q.status === 'rejected' && (q.observations ?? '').trim() !== '',
     );
 
-  if (!rejected.length) {
-    return;
-  }
+  if (!rejected.length) return;
 
   doc.addPage();
   let y = drawHeader(doc);
 
-  // Título OBSERVACIONES
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.rect(MARGIN_LEFT, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 8, 'F');
   doc.setTextColor(255, 255, 255);
@@ -562,7 +619,7 @@ function drawObservationsPage(
   const maxY = PAGE_HEIGHT - MARGIN_BOTTOM - 45;
 
   rejected.forEach((rq, index) => {
-    if (y > maxY) return; // no pasamos de 2 hojas
+    if (y > maxY) return; // no más de 2 hojas
 
     doc.setFont('helvetica', 'bold');
     doc.text(
@@ -597,11 +654,7 @@ function drawObservationsPage(
 }
 
 /**
- * Genera el PDF de mantenimiento con:
- * - Encabezado corporativo
- * - Información general
- * - Checklist (página 1)
- * - Observaciones y firma (página 2, si aplica)
+ * GENERADOR PRINCIPAL
  */
 export async function generateMaintenanceChecklistPDF(
   data: MaintenanceChecklistPDFData,
@@ -622,3 +675,4 @@ export async function generateMaintenanceChecklistPDF(
 
   return doc.output('blob') as Blob;
 }
+
