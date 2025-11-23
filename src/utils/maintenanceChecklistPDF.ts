@@ -1,4 +1,4 @@
-import { generateMaintenancePDF } from '../pdfGenerator';
+import { generateMaintenancePDF } from './pdfGenerator';
 
 export type CertificationStatus =
   | 'sin_info'
@@ -56,10 +56,10 @@ export interface MaintenanceChecklistPDFData {
   technicianName: string;
   technicianEmail?: string | null;
 
-  // Estado resumen de certificación (por si en el futuro lo mostramos en el PDF)
+  // Estado resumen de certificación
   certificationStatus?: CertificationStatus;
 
-  // Resumen de observaciones (no imprescindible para el diseño actual)
+  // Resumen de observaciones
   observationSummary?: string;
 
   // Preguntas del checklist
@@ -81,9 +81,10 @@ export async function generateMaintenanceChecklistPDF(
   data: MaintenanceChecklistPDFData,
 ): Promise<Blob> {
   const folioNumber = (() => {
-    const raw = typeof data.checklistId === 'number'
-      ? data.checklistId
-      : parseInt(String(data.checklistId), 10);
+    const raw =
+      typeof data.checklistId === 'number'
+        ? data.checklistId
+        : parseInt(String(data.checklistId), 10);
 
     return Number.isNaN(raw) ? 0 : raw;
   })();
@@ -135,4 +136,3 @@ export async function generateMaintenanceChecklistPDF(
 
   return generateMaintenancePDF(checklistPayload);
 }
-
