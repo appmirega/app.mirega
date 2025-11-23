@@ -71,10 +71,6 @@ export interface MaintenanceChecklistPDFData {
   signature?: ChecklistSignatureInfo | null;
 }
 
-// Logo corporativo MIREGA (PNG base64 – recortado para tamaño pequeño)
-const LOGO_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAOwAAAC7CAYAAABmWHJbAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAA...recortado...';
-
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
 const MARGIN_LEFT = 5;
@@ -99,10 +95,10 @@ const MONTHS = [
   'Diciembre',
 ];
 
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return 'N/A';
+function formatDate(dateStr?: string | null, fallback: string = 'No registrado'): string {
+  if (!dateStr) return fallback;
   const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return 'N/A';
+  if (Number.isNaN(d.getTime())) return fallback;
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
@@ -124,25 +120,37 @@ function mapCertificationStatus(status?: CertificationStatus): string {
   }
 }
 
+// Carga el logo desde /public/logo_color.png
+async function loadLogoImage(): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = '/logo_color.png';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+  });
+}
+
 /**
- * ENCABEZADO: logo + títulos + línea de datos empresa en una sola línea
+ * ENCABEZADO: logo + títulos + línea de datos empresa
  */
-function drawHeader(doc: jsPDF) {
+function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
 
-  // LOGO: 35 x 30 mm, respetando el margen izquierdo
-  try {
-    doc.addImage(
-      `data:image/png;base64,${LOGO_BASE64}`,
-      'PNG',
-      MARGIN_LEFT,
-      MARGIN_TOP,
-      35,
-      30,
-    );
-  } catch (e) {
-    console.error('Error al agregar logo:', e);
+  // LOGO: 35 x 30 mm, respetando margen izquierdo
+  if (logoImg) {
+    try {
+      doc.addImage(
+        logoImg,
+        'PNG',
+        MARGIN_LEFT,
+        MARGIN_TOP,
+        35,
+        30,
+      );
+    } catch (e) {
+      console.error('Error al agregar logo:', e);
+    }
   }
 
   // TÍTULO PRINCIPAL
@@ -198,11 +206,12 @@ function drawHeader(doc: jsPDF) {
   let cursorX = (PAGE_WIDTH - totalWidth) / 2;
   const yBaseline = infoY;
 
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+
   // Icono ubicación (pin simple)
   const pinCenterX = cursorX + iconWidth / 2;
   const pinCenterY = yBaseline - 2;
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
   doc.circle(pinCenterX, pinCenterY - 0.5, 1.1);
   doc.line(pinCenterX, pinCenterY + 0.3, pinCenterX - 0.9, pinCenterY + 2);
   doc.line(pinCenterX, pinCenterY + 0.3, pinCenterX + 0.9, pinCenterY + 2);
@@ -304,13 +313,12 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   const midWidth = totalWidth;
 
   // Fila 1: Cliente / Fecha / Periodo
-  // Cliente label
+  // Cliente
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
   doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
   doc.text('Cliente:', MARGIN_LEFT + 2, y + 4);
 
-  // Cliente campo
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
   const clienteFieldWidth = midWidth * 0.45;
@@ -338,7 +346,7 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
   doc.rect(xCursor, y, fechaFieldWidth, labelHeight, 'F');
-  doc.text(formatDate(data.completionDate), xCursor + 2, y + 4);
+  doc.text(formatDate(data.completionDate, 'No registrado'), xCursor + 2, y + 4);
 
   xCursor += fechaFieldWidth + 3;
 
@@ -399,8 +407,15 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setTextColor(0, 0, 0);
   const ascFieldWidth = midWidth * 0.45;
   doc.rect(MARGIN_LEFT + labelWidthLeft, y, ascFieldWidth, labelHeight, 'F');
-  const ascText = data.elevatorAlias || data.elevatorCode || '';
-  doc.text(String(ascText), MARGIN_LEFT + labelWidthLeft + 2, y + 4);
+
+  // Texto de ascensor: intentamos "Ascensor N" si el alias es numérico
+  let ascText = '';
+  if (data.elevatorAlias && /^\d+$/.test(data.elevatorAlias.trim())) {
+    ascText = `Ascensor ${data.elevatorAlias.trim()}`;
+  } else {
+    ascText = data.elevatorAlias || data.elevatorCode || '';
+  }
+  doc.text(String(ascText).substring(0, 40), MARGIN_LEFT + labelWidthLeft + 2, y + 4);
 
   xCursor = MARGIN_LEFT + labelWidthLeft + ascFieldWidth + 3;
 
@@ -415,7 +430,12 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
   doc.rect(xCursor, y, ultFieldWidth, labelHeight, 'F');
-  doc.text(formatDate(data.lastCertificationDate ?? null), xCursor + 2, y + 4);
+
+  const lastCertText =
+    data.certificationNotLegible || !data.lastCertificationDate
+      ? 'No es legible'
+      : formatDate(data.lastCertificationDate, 'No es legible');
+  doc.text(lastCertText, xCursor + 2, y + 4);
 
   y += labelHeight + 2;
 
@@ -429,7 +449,7 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setTextColor(0, 0, 0);
   const tecFieldWidth = midWidth * 0.45;
   doc.rect(MARGIN_LEFT + labelWidthLeft, y, tecFieldWidth, labelHeight, 'F');
-  doc.text(data.technicianName ?? '', MARGIN_LEFT + labelWidthLeft + 2, y + 4);
+  doc.text((data.technicianName ?? '').substring(0, 40), MARGIN_LEFT + labelWidthLeft + 2, y + 4);
 
   xCursor = MARGIN_LEFT + labelWidthLeft + tecFieldWidth + 3;
 
@@ -444,7 +464,12 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
   doc.rect(xCursor, y, proxFieldWidth, labelHeight, 'F');
-  doc.text(formatDate(data.nextCertificationDate ?? null), xCursor + 2, y + 4);
+
+  const nextCertText =
+    data.certificationNotLegible || !data.nextCertificationDate
+      ? 'No es legible'
+      : formatDate(data.nextCertificationDate, 'No es legible');
+  doc.text(nextCertText, xCursor + 2, y + 4);
 
   return y + labelHeight + 5;
 }
@@ -473,7 +498,7 @@ function drawChecklist(
   doc.setTextColor(0, 0, 0);
 
   const lineHeight = 4;
-  const maxY = PAGE_HEIGHT - MARGIN_BOTTOM - 45; // dejar espacio para firma
+  const maxY = PAGE_HEIGHT - MARGIN_BOTTOM - 45; // espacio para firma
 
   data.questions.forEach((q) => {
     if (y > maxY) return;
@@ -489,6 +514,7 @@ function drawChecklist(
     const iconCenterY = y + 2.5;
 
     if (q.status === 'approved') {
+      // círculo con check (verde)
       doc.setFillColor(212, 237, 218);
       doc.circle(iconCenterX, iconCenterY, 2, 'F');
       doc.setDrawColor(22, 163, 74);
@@ -498,6 +524,7 @@ function drawChecklist(
       doc.line(iconCenterX - 1.2, iconCenterY, iconCenterX - 0.4, iconCenterY + 1);
       doc.line(iconCenterX - 0.4, iconCenterY + 1, iconCenterX + 1.4, iconCenterY - 1);
     } else if (q.status === 'rejected') {
+      // círculo con X (rojo)
       doc.setFillColor(248, 215, 218);
       doc.circle(iconCenterX, iconCenterY, 2, 'F');
       doc.setDrawColor(220, 38, 38);
@@ -507,6 +534,7 @@ function drawChecklist(
       doc.line(iconCenterX - 1.2, iconCenterY - 1.2, iconCenterX + 1.2, iconCenterY + 1.2);
       doc.line(iconCenterX + 1.2, iconCenterY - 1.2, iconCenterX - 1.2, iconCenterY + 1.2);
     } else if (q.status === 'not_applicable') {
+      // círculo gris N/A
       doc.setDrawColor(120, 120, 120);
       doc.setLineWidth(0.4);
       doc.circle(iconCenterX, iconCenterY, 2, 'S');
@@ -514,6 +542,7 @@ function drawChecklist(
       doc.text('N/A', iconCenterX, iconCenterY + 1.5, { align: 'center' });
       doc.setFontSize(8);
     } else if (q.status === 'out_of_period') {
+      // círculo naranja P (fuera de periodo)
       doc.setDrawColor(245, 158, 11);
       doc.setLineWidth(0.4);
       doc.circle(iconCenterX, iconCenterY, 2, 'S');
@@ -591,6 +620,7 @@ function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number)
 function drawObservationsPage(
   doc: jsPDF,
   data: MaintenanceChecklistPDFData,
+  logoImg: HTMLImageElement | null,
 ) {
   const rejected =
     data.rejectedQuestions ??
@@ -601,7 +631,7 @@ function drawObservationsPage(
   if (!rejected.length) return;
 
   doc.addPage();
-  let y = drawHeader(doc);
+  let y = drawHeader(doc, logoImg);
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.rect(MARGIN_LEFT, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 8, 'F');
@@ -664,14 +694,16 @@ export async function generateMaintenanceChecklistPDF(
     format: 'a4',
   });
 
+  const logoImg = await loadLogoImage();
+
   // HOJA 1
-  let y = drawHeader(doc);
+  let y = drawHeader(doc, logoImg);
   y = drawInfoGeneral(doc, data, y + 2);
   y = drawChecklist(doc, data, y + 4);
   drawSignature(doc, data, PAGE_HEIGHT - MARGIN_BOTTOM - 40);
 
   // HOJA 2 (solo si hay observaciones)
-  drawObservationsPage(doc, data);
+  drawObservationsPage(doc, data, logoImg);
 
   return doc.output('blob') as Blob;
 }
