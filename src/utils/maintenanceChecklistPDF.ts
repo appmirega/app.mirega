@@ -120,7 +120,30 @@ function mapCertificationStatus(status?: CertificationStatus): string {
   }
 }
 
-// Carga el logo desde /public/logo_color.png
+// Intenta convertir alias a "Ascensor 1/2/3" cuando el alias es letra o número
+function formatElevatorLabel(alias?: string | null, code?: string | null): string {
+  if (!alias && !code) return '';
+  const raw = (alias || code || '').trim();
+
+  // Si ya viene algo como "Ascensor 1", lo respetamos
+  if (/^ascensor\s+\d+/i.test(raw)) return raw;
+
+  // Si es solo números → Ascensor N
+  if (/^\d+$/.test(raw)) {
+    return `Ascensor ${raw}`;
+  }
+
+  // Si es una letra A, B, C... → Ascensor 1, 2, 3
+  if (/^[A-Za-z]$/.test(raw)) {
+    const n = raw.toUpperCase().charCodeAt(0) - 64; // A=65 → 1
+    if (n > 0) return `Ascensor ${n}`;
+  }
+
+  // Si no calza con nada, devolvemos el texto tal cual
+  return raw;
+}
+
+// Carga el logo desde /logo_color.png
 async function loadLogoImage(): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -134,9 +157,6 @@ async function loadLogoImage(): Promise<HTMLImageElement | null> {
  * ENCABEZADO: logo + títulos + línea de datos empresa
  */
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-
   // LOGO: 35 x 30 mm, respetando margen izquierdo
   if (logoImg) {
     try {
@@ -172,42 +192,85 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
   const subTitleY = mainTitleY + 7;
   doc.text(subTitle, subTitleX, subTitleY);
 
-  // INFORMACIÓN DE EMPRESA – una sola línea, centrada
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(0, 0, 0);
+  // INFORMACIÓN DE EMPRESA – una sola línea, centrada dentro de márgenes
+  const maxContentWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+
+  let fontSize = 9;
+  let totalWidth = 0;
+
+  const computeWidths = () => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    const text1 =
+      'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia';
+    const text2 = '+56956087972';
+    const text3 = 'contacto@mirega.cl';
+    const text4 = 'www.mirega.cl';
+
+    const iconToTextGap = 2;
+    const segmentGap = 8;
+    const iconWidth = 4;
+
+    const t1w = doc.getTextWidth(text1);
+    const t2w = doc.getTextWidth(text2);
+    const t3w = doc.getTextWidth(text3);
+    const t4w = doc.getTextWidth(text4);
+
+    totalWidth =
+      (iconWidth + iconToTextGap + t1w) +
+      segmentGap +
+      (iconWidth + iconToTextGap + t2w) +
+      segmentGap +
+      (iconWidth + iconToTextGap + t3w) +
+      segmentGap +
+      (iconWidth + iconToTextGap + t4w);
+
+    return {
+      text1,
+      text2,
+      text3,
+      text4,
+      iconToTextGap,
+      segmentGap,
+      iconWidth,
+      t1w,
+      t2w,
+      t3w,
+      t4w,
+    };
+  };
+
+  // Intento 1: tamaño 9, si se pasa reducimos a 8
+  let metrics = computeWidths();
+  if (totalWidth > maxContentWidth) {
+    fontSize = 8;
+    metrics = computeWidths();
+  }
 
   const infoY = subTitleY + 8;
-
-  const text1 =
-    'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia';
-  const text2 = '+56956087972';
-  const text3 = 'contacto@mirega.cl';
-  const text4 = 'www.mirega.cl';
-
-  const iconToTextGap = 2;
-  const segmentGap = 8;
-  const iconWidth = 4; // ancho aproximado de cada icono
-
-  const t1w = doc.getTextWidth(text1);
-  const t2w = doc.getTextWidth(text2);
-  const t3w = doc.getTextWidth(text3);
-  const t4w = doc.getTextWidth(text4);
-
-  const totalWidth =
-    (iconWidth + iconToTextGap + t1w) +
-    segmentGap +
-    (iconWidth + iconToTextGap + t2w) +
-    segmentGap +
-    (iconWidth + iconToTextGap + t3w) +
-    segmentGap +
-    (iconWidth + iconToTextGap + t4w);
-
+  // centrado, pero nunca menos que el margen izquierdo
   let cursorX = (PAGE_WIDTH - totalWidth) / 2;
-  const yBaseline = infoY;
+  if (cursorX < MARGIN_LEFT) cursorX = MARGIN_LEFT;
 
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
+
+  const yBaseline = infoY;
+
+  // Desestructuramos métricas
+  const {
+    text1,
+    text2,
+    text3,
+    text4,
+    iconToTextGap,
+    segmentGap,
+    iconWidth,
+    t1w,
+    t2w,
+    t3w,
+    t4w,
+  } = metrics;
 
   // Icono ubicación (pin simple)
   const pinCenterX = cursorX + iconWidth / 2;
@@ -256,14 +319,13 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
 }
 
 /**
- * BLOQUE INFORMACIÓN GENERAL (idéntico a maqueta azul)
+ * BLOQUE INFORMACIÓN GENERAL (ajustado a maqueta)
  */
 function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: number) {
   let y = startY;
 
   const totalWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
   const labelHeight = 6;
-  const labelWidthLeft = 25;
 
   // Barra "INFORMACIÓN GENERAL" + FOLIO
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
@@ -310,166 +372,151 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
 
   doc.setFontSize(9);
 
-  const midWidth = totalWidth;
+  // Diseño: 60% ancho para lado izquierdo, 40% para lado derecho
+  const leftLabelWidth = 25;
+  const leftGroupWidth = totalWidth * 0.6;
+  const leftFieldWidth = leftGroupWidth - leftLabelWidth;
 
-  // Fila 1: Cliente / Fecha / Periodo
-  // Cliente
+  const rightLabelWidth = 35;
+  const rightFieldWidth = totalWidth - leftGroupWidth - rightLabelWidth - 6; // 6 mm separación
+
+  const xLeftLabel = MARGIN_LEFT;
+  const xLeftField = xLeftLabel + leftLabelWidth;
+  const xRightLabel = MARGIN_LEFT + leftGroupWidth + 4;
+  const xRightField = xRightLabel + rightLabelWidth;
+
+  // --- Fila 1: Cliente / Fecha / Periodo ---
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
-  doc.text('Cliente:', MARGIN_LEFT + 2, y + 4);
+  doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
+  doc.text('Cliente:', xLeftLabel + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  const clienteFieldWidth = midWidth * 0.45;
-  doc.rect(MARGIN_LEFT + labelWidthLeft, y, clienteFieldWidth, labelHeight, 'F');
+  doc.rect(xLeftField, y, leftFieldWidth, labelHeight, 'F');
   doc.text(
-    (data.clientName ?? '').substring(0, 40),
-    MARGIN_LEFT + labelWidthLeft + 2,
+    (data.clientName ?? '').substring(0, 45),
+    xLeftField + 2,
     y + 4,
   );
 
   // Fecha
-  const fechaLabelWidth = 20;
-  const fechaFieldWidth = 25;
+  doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
+  doc.setTextColor(255, 255, 255);
+  doc.rect(xRightLabel, y, rightLabelWidth, labelHeight, 'F');
+  doc.text('Fecha:', xRightLabel + 2, y + 4);
+
+  doc.setFillColor(255, 255, 255);
+  doc.setTextColor(0, 0, 0);
+  const halfRightField = (rightFieldWidth - 2) / 2; // dividimos derecha en 2: Fecha / Periodo
+  doc.rect(xRightField, y, halfRightField, labelHeight, 'F');
+  doc.text(formatDate(data.completionDate, 'No registrado'), xRightField + 2, y + 4);
+
+  // Periodo
+  const xPeriodoLabel = xRightField + halfRightField + 2;
   const periodoLabelWidth = 20;
-  const periodoFieldWidth = 25;
-
-  let xCursor = MARGIN_LEFT + labelWidthLeft + clienteFieldWidth + 3;
-
-  doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
-  doc.setTextColor(255, 255, 255);
-  doc.rect(xCursor, y, fechaLabelWidth, labelHeight, 'F');
-  doc.text('Fecha:', xCursor + 2, y + 4);
-
-  xCursor += fechaLabelWidth;
-  doc.setFillColor(255, 255, 255);
-  doc.setTextColor(0, 0, 0);
-  doc.rect(xCursor, y, fechaFieldWidth, labelHeight, 'F');
-  doc.text(formatDate(data.completionDate, 'No registrado'), xCursor + 2, y + 4);
-
-  xCursor += fechaFieldWidth + 3;
+  const xPeriodoField = xPeriodoLabel + periodoLabelWidth;
+  const periodoFieldWidth = rightFieldWidth - halfRightField - 2 - periodoLabelWidth;
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(xCursor, y, periodoLabelWidth, labelHeight, 'F');
-  doc.text('Periodo:', xCursor + 2, y + 4);
+  doc.rect(xPeriodoLabel, y, periodoLabelWidth, labelHeight, 'F');
+  doc.text('Periodo:', xPeriodoLabel + 2, y + 4);
 
-  xCursor += periodoLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(xCursor, y, periodoFieldWidth, labelHeight, 'F');
+  doc.rect(xPeriodoField, y, periodoFieldWidth, labelHeight, 'F');
   const monthName = MONTHS[(data.month ?? 1) - 1] ?? '';
-  doc.text(`${monthName} ${data.year}`, xCursor + 2, y + 4);
+  doc.text(`${monthName} ${data.year}`, xPeriodoField + 2, y + 4);
 
   y += labelHeight + 2;
 
-  // Fila 2: Dirección / Vigencia certificación
+  // --- Fila 2: Dirección / Vigencia certificación ---
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
-  doc.text('Dirección:', MARGIN_LEFT + 2, y + 4);
+  doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
+  doc.text('Dirección:', xLeftLabel + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  const direccionFieldWidth = midWidth * 0.45;
-  doc.rect(MARGIN_LEFT + labelWidthLeft, y, direccionFieldWidth, labelHeight, 'F');
+  doc.rect(xLeftField, y, leftFieldWidth, labelHeight, 'F');
   doc.text(
-    (data.clientAddress ?? '').substring(0, 50),
-    MARGIN_LEFT + labelWidthLeft + 2,
+    (data.clientAddress ?? '').substring(0, 60),
+    xLeftField + 2,
     y + 4,
   );
 
-  xCursor = MARGIN_LEFT + labelWidthLeft + direccionFieldWidth + 3;
-
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  const vigLabelWidth = 42;
-  const vigFieldWidth = 25;
-  doc.rect(xCursor, y, vigLabelWidth, labelHeight, 'F');
-  doc.text('Vigencia certificación:', xCursor + 2, y + 4);
+  doc.rect(xRightLabel, y, rightLabelWidth, labelHeight, 'F');
+  doc.text('Vigencia certificación:', xRightLabel + 2, y + 4);
 
-  xCursor += vigLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(xCursor, y, vigFieldWidth, labelHeight, 'F');
-  doc.text(mapCertificationStatus(data.certificationStatus), xCursor + 2, y + 4);
+  doc.rect(xRightField, y, rightFieldWidth, labelHeight, 'F');
+  doc.text(mapCertificationStatus(data.certificationStatus), xRightField + 2, y + 4);
 
   y += labelHeight + 2;
 
-  // Fila 3: Ascensor / Última certificación
+  // --- Fila 3: Ascensor / Última certificación ---
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
-  doc.text('Ascensor:', MARGIN_LEFT + 2, y + 4);
+  doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
+  doc.text('Ascensor:', xLeftLabel + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  const ascFieldWidth = midWidth * 0.45;
-  doc.rect(MARGIN_LEFT + labelWidthLeft, y, ascFieldWidth, labelHeight, 'F');
-
-  // Texto de ascensor: intentamos "Ascensor N" si el alias es numérico
-  let ascText = '';
-  if (data.elevatorAlias && /^\d+$/.test(data.elevatorAlias.trim())) {
-    ascText = `Ascensor ${data.elevatorAlias.trim()}`;
-  } else {
-    ascText = data.elevatorAlias || data.elevatorCode || '';
-  }
-  doc.text(String(ascText).substring(0, 40), MARGIN_LEFT + labelWidthLeft + 2, y + 4);
-
-  xCursor = MARGIN_LEFT + labelWidthLeft + ascFieldWidth + 3;
+  doc.rect(xLeftField, y, leftFieldWidth, labelHeight, 'F');
+  const ascText = formatElevatorLabel(
+    data.elevatorAlias || data.elevatorCode || '',
+    data.elevatorCode || '',
+  );
+  doc.text(String(ascText).substring(0, 45), xLeftField + 2, y + 4);
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  const ultLabelWidth = 40;
-  const ultFieldWidth = 27;
-  doc.rect(xCursor, y, ultLabelWidth, labelHeight, 'F');
-  doc.text('Última certificación:', xCursor + 2, y + 4);
+  doc.rect(xRightLabel, y, rightLabelWidth, labelHeight, 'F');
+  doc.text('Última certificación:', xRightLabel + 2, y + 4);
 
-  xCursor += ultLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(xCursor, y, ultFieldWidth, labelHeight, 'F');
-
+  doc.rect(xRightField, y, rightFieldWidth, labelHeight, 'F');
   const lastCertText =
     data.certificationNotLegible || !data.lastCertificationDate
       ? 'No es legible'
       : formatDate(data.lastCertificationDate, 'No es legible');
-  doc.text(lastCertText, xCursor + 2, y + 4);
+  doc.text(lastCertText, xRightField + 2, y + 4);
 
   y += labelHeight + 2;
 
-  // Fila 4: Técnico / Próxima certificación
+  // --- Fila 4: Técnico / Próxima certificación ---
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(MARGIN_LEFT, y, labelWidthLeft, labelHeight, 'F');
-  doc.text('Técnico:', MARGIN_LEFT + 2, y + 4);
+  doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
+  doc.text('Técnico:', xLeftLabel + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  const tecFieldWidth = midWidth * 0.45;
-  doc.rect(MARGIN_LEFT + labelWidthLeft, y, tecFieldWidth, labelHeight, 'F');
-  doc.text((data.technicianName ?? '').substring(0, 40), MARGIN_LEFT + labelWidthLeft + 2, y + 4);
-
-  xCursor = MARGIN_LEFT + labelWidthLeft + tecFieldWidth + 3;
+  doc.rect(xLeftField, y, leftFieldWidth, labelHeight, 'F');
+  doc.text(
+    (data.technicianName ?? '').substring(0, 45),
+    xLeftField + 2,
+    y + 4,
+  );
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  const proxLabelWidth = 45;
-  const proxFieldWidth = 27;
-  doc.rect(xCursor, y, proxLabelWidth, labelHeight, 'F');
-  doc.text('Próxima certificación', xCursor + 2, y + 4);
+  doc.rect(xRightLabel, y, rightLabelWidth, labelHeight, 'F');
+  doc.text('Próxima certificación', xRightLabel + 2, y + 4);
 
-  xCursor += proxLabelWidth;
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(xCursor, y, proxFieldWidth, labelHeight, 'F');
-
+  doc.rect(xRightField, y, rightFieldWidth, labelHeight, 'F');
   const nextCertText =
     data.certificationNotLegible || !data.nextCertificationDate
       ? 'No es legible'
       : formatDate(data.nextCertificationDate, 'No es legible');
-  doc.text(nextCertText, xCursor + 2, y + 4);
+  doc.text(nextCertText, xRightField + 2, y + 4);
 
   return y + labelHeight + 5;
 }
