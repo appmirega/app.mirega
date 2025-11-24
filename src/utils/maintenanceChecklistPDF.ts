@@ -38,8 +38,9 @@ export interface MaintenanceChecklistPDFData {
   clientContactName?: string | null;
 
   // Ascensor
-  elevatorCode?: string | null;
-  elevatorAlias?: string | null;
+  elevatorCode?: string | null; // serial u otro identificador
+  elevatorAlias?: string | null; // nombre/torre
+  elevatorIndex?: number | null; // Ascensor #1, #2, etc.
   elevatorBrand?: string | null;
   elevatorModel?: string | null;
   elevatorIsHydraulic?: boolean;
@@ -71,6 +72,7 @@ export interface MaintenanceChecklistPDFData {
   signature?: ChecklistSignatureInfo | null;
 }
 
+// Hoja A4 en mm
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
 const MARGIN_LEFT = 5;
@@ -120,34 +122,43 @@ function mapCertificationStatus(status?: CertificationStatus): string {
   }
 }
 
-// Intenta convertir alias a "Ascensor 1/2/3" cuando el alias es letra o número
-function formatElevatorLabel(alias?: string | null, code?: string | null): string {
-  if (!alias && !code) return '';
-  const raw = (alias || code || '').trim();
+// ——— ASCENSOR: usamos SIEMPRE el número (#1, #2, #3…) si viene.
+function formatElevatorLabel(
+  index?: number | null,
+  alias?: string | null,
+  code?: string | null,
+): string {
+  if (index != null && !Number.isNaN(index)) {
+    return `Ascensor ${index}`;
+  }
 
-  // Si ya viene algo como "Ascensor 1", lo respetamos
+  const raw = (alias || code || '').trim();
+  if (!raw) return '';
+
+  // Si ya viene "Ascensor X" lo respetamos
   if (/^ascensor\s+\d+/i.test(raw)) return raw;
 
-  // Si es solo números → Ascensor N
-  if (/^\d+$/.test(raw)) {
-    return `Ascensor ${raw}`;
-  }
-
-  // Si es una letra A, B, C... → Ascensor 1, 2, 3
-  if (/^[A-Za-z]$/.test(raw)) {
-    const n = raw.toUpperCase().charCodeAt(0) - 64; // A=65 → 1
-    if (n > 0) return `Ascensor ${n}`;
-  }
-
-  // Si no calza con nada, devolvemos el texto tal cual
   return raw;
 }
 
-// Carga el logo desde /logo_color.png
-async function loadLogoImage(): Promise<HTMLImageElement | null> {
+// ------- CARGA DE IMÁGENES (logo + iconos línea de empresa) -------
+
+// 🧩 IMPORTANTE: coloca estos archivos en /public/icons/
+// - /logo_color.png         (logo que ya tienes en public)
+// - /icons/location.png     (icono ubicación)
+// - /icons/phone.png        (icono teléfono)
+// - /icons/mail.png         (icono correo)
+// - /icons/web.png          (icono web)
+const LOGO_PATH = '/logo_color.png';
+const LOCATION_ICON_PATH = '/icons/location.png';
+const PHONE_ICON_PATH = '/icons/phone.png';
+const MAIL_ICON_PATH = '/icons/mail.png';
+const WEB_ICON_PATH = '/icons/web.png';
+
+function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.src = '/logo_color.png';
+    img.src = src;
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
   });
@@ -155,9 +166,21 @@ async function loadLogoImage(): Promise<HTMLImageElement | null> {
 
 /**
  * ENCABEZADO: logo + títulos + línea de datos empresa
+ * Título y subtítulo alineados a la izquierda, como tu referencia.
  */
-function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
+function drawHeader(
+  doc: jsPDF,
+  logoImg: HTMLImageElement | null,
+  icons: {
+    location: HTMLImageElement | null;
+    phone: HTMLImageElement | null;
+    mail: HTMLImageElement | null;
+    web: HTMLImageElement | null;
+  },
+) {
   // LOGO: 35 x 30 mm, respetando margen izquierdo
+  const logoWidth = 35;
+  const logoHeight = 30;
   if (logoImg) {
     try {
       doc.addImage(
@@ -165,32 +188,31 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
         'PNG',
         MARGIN_LEFT,
         MARGIN_TOP,
-        35,
-        30,
+        logoWidth,
+        logoHeight,
       );
     } catch (e) {
       console.error('Error al agregar logo:', e);
     }
   }
 
-  // TÍTULO PRINCIPAL
+  // TÍTULO PRINCIPAL (alineado a la izquierda del bloque de texto)
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(27);
 
-  const mainTitle = 'INFORME MANTENIMIENTO';
-  const mainTitleX = PAGE_WIDTH / 2;
+  // Dejamos un “columna” de ~55–60mm para el logo.
+  const titleX = MARGIN_LEFT + 60;
   const mainTitleY = MARGIN_TOP + 16;
-  doc.text(mainTitle, mainTitleX, mainTitleY, { align: 'center' });
+  const mainTitle = 'INFORME MANTENIMIENTO';
+  doc.text(mainTitle, titleX, mainTitleY);
 
-  // SUBTÍTULO – alineado a la IZQUIERDA del título
+  // SUBTÍTULO – mismo X, debajo del título
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(14);
   const subTitle = 'INSPECCIÓN MENSUAL';
-  const mainTitleWidth = doc.getTextWidth(mainTitle);
-  const subTitleX = mainTitleX - mainTitleWidth / 2; // mismo inicio que el título
   const subTitleY = mainTitleY + 7;
-  doc.text(subTitle, subTitleX, subTitleY);
+  doc.text(subTitle, titleX, subTitleY);
 
   // INFORMACIÓN DE EMPRESA – una sola línea, centrada dentro de márgenes
   const maxContentWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
@@ -201,6 +223,7 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
   const computeWidths = () => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(fontSize);
+
     const text1 =
       'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia';
     const text2 = '+56956087972';
@@ -209,7 +232,7 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
 
     const iconToTextGap = 2;
     const segmentGap = 8;
-    const iconWidth = 4;
+    const iconWidth = 3.5; // ancho de los iconos en mm
 
     const t1w = doc.getTextWidth(text1);
     const t2w = doc.getTextWidth(text2);
@@ -240,7 +263,6 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
     };
   };
 
-  // Intento 1: tamaño 9, si se pasa reducimos a 8
   let metrics = computeWidths();
   if (totalWidth > maxContentWidth) {
     fontSize = 8;
@@ -248,16 +270,13 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
   }
 
   const infoY = subTitleY + 8;
-  // centrado, pero nunca menos que el margen izquierdo
   let cursorX = (PAGE_WIDTH - totalWidth) / 2;
   if (cursorX < MARGIN_LEFT) cursorX = MARGIN_LEFT;
 
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-
+  const iconHeight = 3; // para mantener iconos legibles y no gigantes
+  const yIcon = infoY - iconHeight + 1.2;
   const yBaseline = infoY;
 
-  // Desestructuramos métricas
   const {
     text1,
     text2,
@@ -272,46 +291,38 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
     t4w,
   } = metrics;
 
-  // Icono ubicación (pin simple)
-  const pinCenterX = cursorX + iconWidth / 2;
-  const pinCenterY = yBaseline - 2;
-  doc.circle(pinCenterX, pinCenterY - 0.5, 1.1);
-  doc.line(pinCenterX, pinCenterY + 0.3, pinCenterX - 0.9, pinCenterY + 2);
-  doc.line(pinCenterX, pinCenterY + 0.3, pinCenterX + 0.9, pinCenterY + 2);
+  // Función helper para pintar icono si existe
+  const drawIcon = (img: HTMLImageElement | null, x: number) => {
+    if (!img) return;
+    try {
+      doc.addImage(img, 'PNG', x, yIcon, iconWidth, iconHeight);
+    } catch (e) {
+      console.error('Error al agregar icono:', e);
+    }
+  };
 
+  doc.setTextColor(0, 0, 0);
+
+  // Ubicación
+  drawIcon(icons.location, cursorX, yIcon);
   cursorX += iconWidth + iconToTextGap;
   doc.text(text1, cursorX, yBaseline);
   cursorX += t1w + segmentGap;
 
-  // Icono teléfono (handset lineal)
-  const phoneX = cursorX + iconWidth / 2;
-  const phoneY = yBaseline - 2;
-  doc.rect(phoneX - 1.5, phoneY - 2, 3, 4);
-  doc.line(phoneX - 1.5, phoneY - 2, phoneX + 1.5, phoneY + 2);
-
+  // Teléfono
+  drawIcon(icons.phone, cursorX, yIcon);
   cursorX += iconWidth + iconToTextGap;
   doc.text(text2, cursorX, yBaseline);
   cursorX += t2w + segmentGap;
 
-  // Icono correo (sobre)
-  const mailX = cursorX + iconWidth / 2;
-  const mailY = yBaseline - 2.2;
-  doc.rect(mailX - 2, mailY - 1.6, 4, 3);
-  doc.line(mailX - 2, mailY - 1.6, mailX, mailY + 1.4);
-  doc.line(mailX + 2, mailY - 1.6, mailX, mailY + 1.4);
-
+  // Correo
+  drawIcon(icons.mail, cursorX, yIcon);
   cursorX += iconWidth + iconToTextGap;
   doc.text(text3, cursorX, yBaseline);
   cursorX += t3w + segmentGap;
 
-  // Icono web (globo)
-  const webX = cursorX + iconWidth / 2;
-  const webY = yBaseline - 2.2;
-  doc.circle(webX, webY, 1.4);
-  doc.ellipse(webX, webY, 1, 0.7);
-  doc.line(webX - 1.4, webY, webX + 1.4, webY);
-  doc.line(webX, webY - 1.4, webX, webY + 1.4);
-
+  // Web
+  drawIcon(icons.web, cursorX, yIcon);
   cursorX += iconWidth + iconToTextGap;
   doc.text(text4, cursorX, yBaseline);
 
@@ -319,7 +330,8 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null) {
 }
 
 /**
- * BLOQUE INFORMACIÓN GENERAL (ajustado a maqueta)
+ * BLOQUE INFORMACIÓN GENERAL
+ * Ajustado para mejorar espacios entre etiquetas y valores.
  */
 function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: number) {
   let y = startY;
@@ -327,7 +339,7 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   const totalWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
   const labelHeight = 6;
 
-  // Barra "INFORMACIÓN GENERAL" + FOLIO
+  // Barra "INFORMACIÓN GENERAL" + FOLIO (más compacta)
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.rect(MARGIN_LEFT, y, totalWidth, 8, 'F');
 
@@ -336,12 +348,13 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFontSize(10);
   doc.text('INFORMACIÓN GENERAL', MARGIN_LEFT + 3, y + 5.5);
 
-  // Folio a la derecha con caja redondeada
+  // Folio más pegado al borde derecho
   const folioLabel = 'N° FOLIO:';
   doc.setFontSize(9);
   const folioLabelWidth = doc.getTextWidth(folioLabel);
-  const folioBoxWidth = 30;
-  const folioXLabel = PAGE_WIDTH - MARGIN_RIGHT - folioBoxWidth - folioLabelWidth - 4;
+  const folioBoxWidth = 26;
+  const folioXLabel =
+    PAGE_WIDTH - MARGIN_RIGHT - folioBoxWidth - folioLabelWidth - 3;
   const folioCenterY = y + 4.5;
 
   doc.text(folioLabel, folioXLabel, folioCenterY + 0.5);
@@ -368,24 +381,27 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
     { align: 'center' },
   );
 
-  y += 10;
+  y += 9;
 
   doc.setFontSize(9);
 
-  // Diseño: 60% ancho para lado izquierdo, 40% para lado derecho
+  // Nueva proporción: 55% izquierda, 45% derecha
+  const leftGroupWidth = totalWidth * 0.55;
+  const rightGroupWidth = totalWidth - leftGroupWidth;
+
   const leftLabelWidth = 25;
-  const leftGroupWidth = totalWidth * 0.6;
-  const leftFieldWidth = leftGroupWidth - leftLabelWidth;
+  const leftFieldWidth = leftGroupWidth - leftLabelWidth - 2;
 
   const rightLabelWidth = 35;
-  const rightFieldWidth = totalWidth - leftGroupWidth - rightLabelWidth - 6; // 6 mm separación
+  const rightFieldWidth = rightGroupWidth - rightLabelWidth - 4;
 
   const xLeftLabel = MARGIN_LEFT;
-  const xLeftField = xLeftLabel + leftLabelWidth;
-  const xRightLabel = MARGIN_LEFT + leftGroupWidth + 4;
-  const xRightField = xRightLabel + rightLabelWidth;
+  const xLeftField = xLeftLabel + leftLabelWidth + 2;
+  const xRightLabel = MARGIN_LEFT + leftGroupWidth + 2;
+  const xRightField = xRightLabel + rightLabelWidth + 2;
 
-  // --- Fila 1: Cliente / Fecha / Periodo ---
+  // ------------- Fila 1: Cliente / Fecha + Periodo -----------------
+  // Cliente
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
   doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
@@ -403,35 +419,41 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   // Fecha
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(xRightLabel, y, rightLabelWidth, labelHeight, 'F');
+  doc.rect(xRightLabel, y, 18, labelHeight, 'F');
   doc.text('Fecha:', xRightLabel + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  const halfRightField = (rightFieldWidth - 2) / 2; // dividimos derecha en 2: Fecha / Periodo
-  doc.rect(xRightField, y, halfRightField, labelHeight, 'F');
-  doc.text(formatDate(data.completionDate, 'No registrado'), xRightField + 2, y + 4);
+  const fechaFieldWidth = 28;
+  doc.rect(xRightLabel + 18 + 2, y, fechaFieldWidth, labelHeight, 'F');
+  doc.text(
+    formatDate(data.completionDate, 'No registrado'),
+    xRightLabel + 18 + 4,
+    y + 4,
+  );
 
   // Periodo
-  const xPeriodoLabel = xRightField + halfRightField + 2;
-  const periodoLabelWidth = 20;
-  const xPeriodoField = xPeriodoLabel + periodoLabelWidth;
-  const periodoFieldWidth = rightFieldWidth - halfRightField - 2 - periodoLabelWidth;
+  const periodoLabelX = xRightLabel + 18 + 2 + fechaFieldWidth + 3;
+  const periodoFieldX = periodoLabelX + 24;
+  const periodoFieldWidth = Math.max(
+    20,
+    PAGE_WIDTH - MARGIN_RIGHT - periodoFieldX,
+  );
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
-  doc.rect(xPeriodoLabel, y, periodoLabelWidth, labelHeight, 'F');
-  doc.text('Periodo:', xPeriodoLabel + 2, y + 4);
+  doc.rect(periodoLabelX, y, 24, labelHeight, 'F');
+  doc.text('Periodo:', periodoLabelX + 2, y + 4);
 
   doc.setFillColor(255, 255, 255);
   doc.setTextColor(0, 0, 0);
-  doc.rect(xPeriodoField, y, periodoFieldWidth, labelHeight, 'F');
+  doc.rect(periodoFieldX, y, periodoFieldWidth, labelHeight, 'F');
   const monthName = MONTHS[(data.month ?? 1) - 1] ?? '';
-  doc.text(`${monthName} ${data.year}`, xPeriodoField + 2, y + 4);
+  doc.text(`${monthName} ${data.year}`, periodoFieldX + 2, y + 4);
 
-  y += labelHeight + 2;
+  y += labelHeight + 1;
 
-  // --- Fila 2: Dirección / Vigencia certificación ---
+  // ------------- Fila 2: Dirección / Vigencia certificación --------
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
   doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
@@ -456,9 +478,9 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.rect(xRightField, y, rightFieldWidth, labelHeight, 'F');
   doc.text(mapCertificationStatus(data.certificationStatus), xRightField + 2, y + 4);
 
-  y += labelHeight + 2;
+  y += labelHeight + 1;
 
-  // --- Fila 3: Ascensor / Última certificación ---
+  // ------------- Fila 3: Ascensor / Última cert. -------------------
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
   doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
@@ -468,8 +490,9 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setTextColor(0, 0, 0);
   doc.rect(xLeftField, y, leftFieldWidth, labelHeight, 'F');
   const ascText = formatElevatorLabel(
-    data.elevatorAlias || data.elevatorCode || '',
-    data.elevatorCode || '',
+    data.elevatorIndex,
+    data.elevatorAlias,
+    data.elevatorCode,
   );
   doc.text(String(ascText).substring(0, 45), xLeftField + 2, y + 4);
 
@@ -487,9 +510,9 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
       : formatDate(data.lastCertificationDate, 'No es legible');
   doc.text(lastCertText, xRightField + 2, y + 4);
 
-  y += labelHeight + 2;
+  y += labelHeight + 1;
 
-  // --- Fila 4: Técnico / Próxima certificación ---
+  // ------------- Fila 4: Técnico / Próxima cert. -------------------
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setTextColor(255, 255, 255);
   doc.rect(xLeftLabel, y, leftLabelWidth, labelHeight, 'F');
@@ -522,7 +545,7 @@ function drawInfoGeneral(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
 }
 
 /**
- * CHECKLIST en una columna con iconos de estado
+ * CHECKLIST – misma lógica que antes
  */
 function drawChecklist(
   doc: jsPDF,
@@ -561,7 +584,6 @@ function drawChecklist(
     const iconCenterY = y + 2.5;
 
     if (q.status === 'approved') {
-      // círculo con check (verde)
       doc.setFillColor(212, 237, 218);
       doc.circle(iconCenterX, iconCenterY, 2, 'F');
       doc.setDrawColor(22, 163, 74);
@@ -571,7 +593,6 @@ function drawChecklist(
       doc.line(iconCenterX - 1.2, iconCenterY, iconCenterX - 0.4, iconCenterY + 1);
       doc.line(iconCenterX - 0.4, iconCenterY + 1, iconCenterX + 1.4, iconCenterY - 1);
     } else if (q.status === 'rejected') {
-      // círculo con X (rojo)
       doc.setFillColor(248, 215, 218);
       doc.circle(iconCenterX, iconCenterY, 2, 'F');
       doc.setDrawColor(220, 38, 38);
@@ -581,7 +602,6 @@ function drawChecklist(
       doc.line(iconCenterX - 1.2, iconCenterY - 1.2, iconCenterX + 1.2, iconCenterY + 1.2);
       doc.line(iconCenterX + 1.2, iconCenterY - 1.2, iconCenterX - 1.2, iconCenterY + 1.2);
     } else if (q.status === 'not_applicable') {
-      // círculo gris N/A
       doc.setDrawColor(120, 120, 120);
       doc.setLineWidth(0.4);
       doc.circle(iconCenterX, iconCenterY, 2, 'S');
@@ -589,7 +609,6 @@ function drawChecklist(
       doc.text('N/A', iconCenterX, iconCenterY + 1.5, { align: 'center' });
       doc.setFontSize(8);
     } else if (q.status === 'out_of_period') {
-      // círculo naranja P (fuera de periodo)
       doc.setDrawColor(245, 158, 11);
       doc.setLineWidth(0.4);
       doc.circle(iconCenterX, iconCenterY, 2, 'S');
@@ -605,7 +624,7 @@ function drawChecklist(
 }
 
 /**
- * CAJA DE FIRMA (pie de página)
+ * CAJA DE FIRMA
  */
 function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number) {
   const signature =
@@ -668,6 +687,12 @@ function drawObservationsPage(
   doc: jsPDF,
   data: MaintenanceChecklistPDFData,
   logoImg: HTMLImageElement | null,
+  icons: {
+    location: HTMLImageElement | null;
+    phone: HTMLImageElement | null;
+    mail: HTMLImageElement | null;
+    web: HTMLImageElement | null;
+  },
 ) {
   const rejected =
     data.rejectedQuestions ??
@@ -678,7 +703,7 @@ function drawObservationsPage(
   if (!rejected.length) return;
 
   doc.addPage();
-  let y = drawHeader(doc, logoImg);
+  let y = drawHeader(doc, logoImg, icons);
 
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.rect(MARGIN_LEFT, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 8, 'F');
@@ -696,7 +721,7 @@ function drawObservationsPage(
   const maxY = PAGE_HEIGHT - MARGIN_BOTTOM - 45;
 
   rejected.forEach((rq, index) => {
-    if (y > maxY) return; // no más de 2 hojas
+    if (y > maxY) return;
 
     doc.setFont('helvetica', 'bold');
     doc.text(
@@ -741,17 +766,29 @@ export async function generateMaintenanceChecklistPDF(
     format: 'a4',
   });
 
-  const logoImg = await loadLogoImage();
+  const [logoImg, locIcon, phoneIcon, mailIcon, webIcon] = await Promise.all([
+    loadImage(LOGO_PATH),
+    loadImage(LOCATION_ICON_PATH),
+    loadImage(PHONE_ICON_PATH),
+    loadImage(MAIL_ICON_PATH),
+    loadImage(WEB_ICON_PATH),
+  ]);
+
+  const icons = {
+    location: locIcon,
+    phone: phoneIcon,
+    mail: mailIcon,
+    web: webIcon,
+  };
 
   // HOJA 1
-  let y = drawHeader(doc, logoImg);
+  let y = drawHeader(doc, logoImg, icons);
   y = drawInfoGeneral(doc, data, y + 2);
   y = drawChecklist(doc, data, y + 4);
   drawSignature(doc, data, PAGE_HEIGHT - MARGIN_BOTTOM - 40);
 
   // HOJA 2 (solo si hay observaciones)
-  drawObservationsPage(doc, data, logoImg);
+  drawObservationsPage(doc, data, logoImg, icons);
 
   return doc.output('blob') as Blob;
 }
-
