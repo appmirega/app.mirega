@@ -1,20 +1,13 @@
 // ======================================================
 // TechnicianMaintenanceChecklistView.tsx
-// Vista completa del técnico para ver historial,
-// descargar PDF, y gestionar firmas.
-// Código 100% actualizado para funcionar con
-// maintenanceChecklistPDF.ts y pdfGenerator.
+// Vista del técnico: historial, descarga de PDFs y firma
+// Integrado con maintenanceChecklistPDF.ts
 // ======================================================
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { generateMaintenanceChecklistPDF } from '../../utils/maintenanceChecklistPDF';
-
-import {
-  Check,
-  Download,
-  FileText,
-} from 'lucide-react';
+import { Download } from 'lucide-react';
 
 interface MaintenanceHistory {
   id: string;
@@ -31,21 +24,20 @@ export function TechnicianMaintenanceChecklistView() {
   const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   // =============================================
-  // 1) Cargar historial del técnico
+  // 1) Cargar historial de checklists
   // =============================================
   const loadHistory = async () => {
     setLoading(true);
-    const {
-      data,
-      error
-    } = await supabase
+
+    const { data, error } = await supabase
       .from('mnt_checklists')
       .select('id, client_id, elevator_id, month, year, completion_date')
       .order('completion_date', { ascending: false });
 
     if (!error && data) {
-      setHistory(data);
+      setHistory(data as MaintenanceHistory[]);
     }
+
     setLoading(false);
   };
 
@@ -54,16 +46,17 @@ export function TechnicianMaintenanceChecklistView() {
   }, []);
 
   // =============================================
-  // 2) Descargar PDF
+  // 2) Descargar PDF de un checklist
   // =============================================
   const handleDownloadPDF = async (record: MaintenanceHistory) => {
     try {
       setDownloadingPDF(true);
 
-      // --- 1) Información principal del checklist ---
+      // 1) Información principal del checklist
       const { data: checklistData, error: chkErr } = await supabase
         .from('mnt_checklists')
-        .select(`
+        .select(
+          `
           id,
           folio,
           month,
@@ -90,7 +83,8 @@ export function TechnicianMaintenanceChecklistView() {
             full_name,
             email
           )
-        `)
+        `,
+        )
         .eq('id', record.id)
         .maybeSingle();
 
@@ -102,22 +96,24 @@ export function TechnicianMaintenanceChecklistView() {
           ? `Ascensor ${checklistData.elevator.index_number}`
           : 'Ascensor';
 
-      // --- 2) Preguntas del checklist ---
+      // 2) Todas las preguntas del checklist
       const { data: questionsData, error: qErr } = await supabase
         .from('mnt_checklist_questions')
-        .select(`
+        .select(
+          `
           id,
           question_number,
           section,
           question_text,
           frequency,
           is_hydraulic_only
-        `)
+        `,
+        )
         .order('question_number');
 
       if (qErr) throw qErr;
 
-      // --- 3) Respuestas ---
+      // 3) Todas las respuestas de este checklist
       const { data: answersData, error: aErr } = await supabase
         .from('mnt_checklist_answers')
         .select('question_id, status, observations')
@@ -126,16 +122,24 @@ export function TechnicianMaintenanceChecklistView() {
       if (aErr) throw aErr;
 
       const answersMap = new Map<string, any>();
-      (answersData || []).forEach((a) => answersMap.set(a.question_id, a));
+      (answersData || []).forEach((a: any) => {
+        answersMap.set(a.question_id, a);
+      });
 
-      const currentMonth = checklistData.month;
+      const currentMonth = checklistData.month as number;
       const quarters = [3, 6, 9, 12];
       const semesters = [3, 9];
 
-      // --- 4) Construir preguntas para el PDF ---
-      const pdfQuestions = [];
+      // 4) Construir preguntas para el PDF
+      const pdfQuestions: {
+        number: number;
+        section: string;
+        text: string;
+        status: 'approved' | 'rejected' | 'not_applicable' | 'out_of_period';
+        observations?: string | null;
+      }[] = [];
 
-      for (const q of questionsData || []) {
+      (questionsData || []).forEach((q: any) => {
         const ans = answersMap.get(q.id);
 
         let inPeriod = false;
@@ -143,7 +147,8 @@ export function TechnicianMaintenanceChecklistView() {
         if (q.frequency === 'T') inPeriod = quarters.includes(currentMonth);
         if (q.frequency === 'S') inPeriod = semesters.includes(currentMonth);
 
-        let status: any = 'approved';
+        let status: 'approved' | 'rejected' | 'not_applicable' | 'out_of_period' =
+          'approved';
 
         if (q.is_hydraulic_only && !checklistData.elevator.is_hydraulic) {
           status = 'not_applicable';
@@ -158,11 +163,11 @@ export function TechnicianMaintenanceChecklistView() {
           section: q.section,
           text: q.question_text,
           status,
-          observations: ans?.observations || null,
+          observations: ans?.observations ?? null,
         });
-      }
+      });
 
-      // --- 5) Firma ---
+      // 5) Firma (última registrada)
       const { data: signature } = await supabase
         .from('mnt_checklist_signatures')
         .select('signer_name, signature_data, signed_at')
@@ -171,7 +176,7 @@ export function TechnicianMaintenanceChecklistView() {
         .limit(1)
         .maybeSingle();
 
-      // --- 6) Preparar data final del PDF ---
+      // 6) Preparar datos para el generador de PDF
       const pdfData = {
         checklistId: checklistData.folio || checklistData.id,
         clientName: checklistData.client.company_name,
@@ -202,10 +207,12 @@ export function TechnicianMaintenanceChecklistView() {
           : null,
       };
 
-      // --- 7) Generar PDF ---
+      // 7) Generar y descargar el PDF
       const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
 
-      const filename = `MANTENIMIENTO_${checklistData.client.company_name}_${elevatorNumber}_${checklistData.year}_${String(checklistData.month).padStart(2, '0')}.pdf`;
+      const filename = `MANTENIMIENTO_${checklistData.client.company_name}_${elevatorNumber}_${checklistData.year}_${String(
+        checklistData.month,
+      ).padStart(2, '0')}.pdf`;
 
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
@@ -222,7 +229,7 @@ export function TechnicianMaintenanceChecklistView() {
   };
 
   // =============================================
-  // Render principal
+  // Render
   // =============================================
   return (
     <div className="p-6">
@@ -241,7 +248,7 @@ export function TechnicianMaintenanceChecklistView() {
         {history.map((h) => (
           <div
             key={h.id}
-            className="p-4 bg-white border rounded flex justify-between"
+            className="p-4 bg-white border rounded flex justify-between items-center"
           >
             <div>
               <p className="font-bold">
@@ -253,7 +260,7 @@ export function TechnicianMaintenanceChecklistView() {
             <button
               disabled={downloadingPDF}
               onClick={() => handleDownloadPDF(h)}
-              className="px-4 py-2 bg-gray-800 text-white rounded flex items-center gap-2"
+              className="px-4 py-2 bg-gray-800 text-white rounded flex items-center gap-2 disabled:opacity-50"
             >
               <Download size={18} />
               PDF
