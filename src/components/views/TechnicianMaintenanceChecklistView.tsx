@@ -1,9 +1,21 @@
-const handleDownloadPDF = async (record: MaintenanceHistory) => {
-  try {
-    setDownloadingPDF(true);
+import { useEffect, useState } from 'react';
+import { supabase } from '../../../lib/supabase';
+import { MaintenanceHistory } from '../../types';
+import { generateMaintenanceChecklistPDF } from '../../../utils/maintenanceChecklistPDF';
 
-    // 1) Datos principales del checklist
-    const { data: checklistData, error: checklistError } = await supabase
+export const TechnicianMaintenanceChecklistView = () => {
+  const [history, setHistory] = useState<MaintenanceHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+
+  // ===============================
+  // CARGAR HISTORIAL
+  // ===============================
+
+  const loadHistory = async () => {
+    setLoading(true);
+
+    const { data, error } = await supabase
       .from('mnt_checklists')
       .select(
         `
@@ -11,227 +23,254 @@ const handleDownloadPDF = async (record: MaintenanceHistory) => {
         month,
         year,
         completion_date,
-        last_certification_date,
-        next_certification_date,
-        certification_not_legible,
-        client:clients(
-          id,
-          company_name,
-          address
-        ),
-        elevator:elevators(
-          location_name,
-          is_hydraulic
-        ),
-        profiles:profiles!mnt_checklists_technician_id_fkey(
-          full_name,
-          email
+        clients(company_name),
+        elevators(location_name)
+      `,
+      )
+      .order('completion_date', { ascending: false });
+
+    if (!error && data) {
+      const parsed = data.map((row: any) => ({
+        id: row.id,
+        month: row.month,
+        year: row.year,
+        completion_date: row.completion_date,
+        client_name: row.clients?.company_name ?? '',
+        elevator_alias: row.elevators?.location_name ?? '',
+      }));
+
+      setHistory(parsed);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  // ========================================================
+  //            DESCARGAR PDF — CORREGIDO
+  // ========================================================
+
+  const handleDownloadPDF = async (record: MaintenanceHistory) => {
+    try {
+      setDownloadingPDF(true);
+
+      // 1) Cargar checklist completo
+      const { data: checklistData, error: checklistError } = await supabase
+        .from('mnt_checklists')
+        .select(
+          `
+            id,
+            month,
+            year,
+            completion_date,
+            last_certification_date,
+            next_certification_date,
+            certification_not_legible,
+            client:clients(id,company_name,address),
+            elevator:elevators(location_name,is_hydraulic),
+            profiles:profiles!mnt_checklists_technician_id_fkey(full_name,email)
+          `,
         )
-      `,
-      )
-      .eq('id', record.id)
-      .maybeSingle();
+        .eq('id', record.id)
+        .maybeSingle();
 
-    if (checklistError) {
-      console.error('Error cargando checklist para PDF:', checklistError);
-      throw checklistError;
-    }
-    if (!checklistData) {
-      throw new Error('No se encontró información del checklist');
-    }
-
-    const currentMonth = checklistData.month as number;
-
-    // 2) Preguntas del checklist
-    const { data: questionsData, error: questionsError } = await supabase
-      .from('mnt_checklist_questions')
-      .select(
-        `
-        id,
-        question_number,
-        section,
-        question_text,
-        frequency,
-        is_hydraulic_only
-      `,
-      )
-      .order('question_number');
-
-    if (questionsError) {
-      console.error('Error cargando preguntas para PDF:', questionsError);
-      throw questionsError;
-    }
-
-    // 3) Respuestas de este checklist
-    const { data: answersData, error: ansError } = await supabase
-      .from('mnt_checklist_answers')
-      .select(
-        `
-        question_id,
-        status,
-        observations,
-        photo_1_url,
-        photo_2_url
-      `,
-      )
-      .eq('checklist_id', checklistData.id);
-
-    if (ansError) {
-      console.error('Error cargando respuestas para PDF:', ansError);
-      throw ansError;
-    }
-
-    const answersMap = new Map<
-      string,
-      {
-        question_id: string;
-        status: 'approved' | 'rejected' | 'pending';
-        observations: string | null;
-        photo_1_url: string | null;
-        photo_2_url: string | null;
-      }
-    >();
-
-    (answersData || []).forEach((a: any) => {
-      answersMap.set(a.question_id, a);
-    });
-
-    const quarters = [3, 6, 9, 12];
-    const semesters = [3, 9];
-
-    const pdfQuestions: {
-      number: number;
-      section: string;
-      text: string;
-      status: 'approved' | 'rejected' | 'not_applicable' | 'out_of_period';
-      observations?: string | null;
-    }[] = [];
-
-    const rejectedQuestions: typeof pdfQuestions = [];
-
-    (questionsData || []).forEach((q: any) => {
-      const answer = answersMap.get(q.id);
-
-      const isHydraulicOnly = !!q.is_hydraulic_only;
-      const frequency = q.frequency as 'M' | 'T' | 'S';
-
-      let inPeriod = false;
-      if (frequency === 'M') inPeriod = true;
-      if (frequency === 'T') inPeriod = quarters.includes(currentMonth);
-      if (frequency === 'S') inPeriod = semesters.includes(currentMonth);
-
-      let status: 'approved' | 'rejected' | 'not_applicable' | 'out_of_period';
-
-      // Preguntas solo hidráulicas: no aplican si el ascensor no es hidráulico
-      if (isHydraulicOnly && !checklistData.elevator?.is_hydraulic) {
-        status = 'not_applicable';
-      } else if (!inPeriod) {
-        status = 'out_of_period';
-      } else if (answer?.status === 'rejected') {
-        status = 'rejected';
-      } else if (answer?.status === 'approved') {
-        status = 'approved';
-      } else {
-        status = 'out_of_period';
+      if (checklistError || !checklistData) {
+        console.error('Error checklist', checklistError);
+        throw new Error('No se pudo cargar el checklist');
       }
 
-      const row = {
-        number: q.question_number as number,
-        section: q.section as string,
-        text: q.question_text as string,
-        status,
-        observations: answer?.observations ?? null,
-      };
+      const currentMonth = checklistData.month;
 
-      pdfQuestions.push(row);
-      if (status === 'rejected') {
-        rejectedQuestions.push(row);
+      // 2) Preguntas
+      const { data: questionsData } = await supabase
+        .from('mnt_checklist_questions')
+        .select(
+          `
+            id,
+            question_number,
+            section,
+            question_text,
+            frequency,
+            is_hydraulic_only
+          `,
+        )
+        .order('question_number');
+
+      // 3) Respuestas
+      const { data: answersData } = await supabase
+        .from('mnt_checklist_answers')
+        .select(
+          `
+            question_id,
+            status,
+            observations
+          `,
+        )
+        .eq('checklist_id', checklistData.id);
+
+      const answersMap = new Map();
+      (answersData || []).forEach((a: any) => {
+        answersMap.set(a.question_id, a);
+      });
+
+      const quarters = [3, 6, 9, 12];
+      const semesters = [3, 9];
+
+      const pdfQuestions: any[] = [];
+      const rejectedQuestions: any[] = [];
+
+      (questionsData || []).forEach((q: any) => {
+        const a = answersMap.get(q.id);
+        const isHydraulicOnly = !!q.is_hydraulic_only;
+        const freq = q.frequency;
+
+        let inPeriod = false;
+        if (freq === 'M') inPeriod = true;
+        if (freq === 'T') inPeriod = quarters.includes(currentMonth);
+        if (freq === 'S') inPeriod = semesters.includes(currentMonth);
+
+        let status: any = 'out_of_period';
+
+        if (isHydraulicOnly && !checklistData.elevator?.is_hydraulic) {
+          status = 'not_applicable';
+        } else if (!inPeriod) {
+          status = 'out_of_period';
+        } else if (a?.status === 'rejected') {
+          status = 'rejected';
+        } else if (a?.status === 'approved') {
+          status = 'approved';
+        }
+
+        const row = {
+          number: q.question_number,
+          section: q.section,
+          text: q.question_text,
+          status,
+          observations: a?.observations ?? null,
+        };
+
+        pdfQuestions.push(row);
+        if (status === 'rejected') rejectedQuestions.push(row);
+      });
+
+      const observationSummary =
+        rejectedQuestions.length === 0
+          ? 'Sin observaciones'
+          : `Presenta ${rejectedQuestions.length} observaciones.`;
+
+      // Firma
+      const { data: signatureRow } = await supabase
+        .from('mnt_checklist_signatures')
+        .select('*')
+        .eq('checklist_id', checklistData.id)
+        .order('signed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const signature =
+        signatureRow && signatureRow.signature_data
+          ? {
+              signerName: signatureRow.signer_name,
+              signedAt: signatureRow.signed_at,
+              signatureDataUrl: signatureRow.signature_data,
+            }
+          : null;
+
+      // Estado certificación
+      let certStatus = 'sin_info';
+
+      if (checklistData.certification_not_legible) {
+        certStatus = 'no_legible';
+      } else if (checklistData.next_certification_date) {
+        const next = new Date(checklistData.next_certification_date);
+        const today = new Date();
+        const diff =
+          (next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+
+        if (diff < 0) certStatus = 'vencida';
+        else if (diff <= 30) certStatus = 'por_vencer';
+        else certStatus = 'vigente';
       }
-    });
 
-    const totalRejected = rejectedQuestions.length;
-    const observationSummary =
-      totalRejected === 0
-        ? 'Sin observaciones'
-        : `Presenta ${totalRejected} observaciones.`;
+      // PDF FINAL
+      const pdfBlob = await generateMaintenanceChecklistPDF({
+        checklistId: checklistData.id,
+        clientName: checklistData.client.company_name,
+        clientCode: checklistData.client.id,
+        clientAddress: checklistData.client.address,
+        elevatorAlias: checklistData.elevator.location_name,
+        month: checklistData.month,
+        year: checklistData.year,
+        completionDate: checklistData.completion_date,
+        lastCertificationDate: checklistData.last_certification_date,
+        nextCertificationDate: checklistData.next_certification_date,
+        certificationNotLegible: checklistData.certification_not_legible,
+        technicianName: checklistData.profiles.full_name,
+        technicianEmail: checklistData.profiles.email,
+        certificationStatus: certStatus,
+        observationSummary,
+        questions: pdfQuestions,
+        rejectedQuestions,
+        signature,
+      });
 
-    // 4) Firma (última firma registrada para este checklist, si existe)
-    const { data: signatureRow, error: sigError } = await supabase
-      .from('mnt_checklist_signatures')
-      .select('checklist_id, signer_name, signature_data, signed_at')
-      .eq('checklist_id', checklistData.id)
-      .order('signed_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      // Descargar
+      const fileName = `MANTENIMIENTO_${checklistData.client.company_name}_${checklistData.elevator.location_name}_${checklistData.year}_${String(
+        checklistData.month,
+      ).padStart(2, '0')}.pdf`;
 
-    if (sigError) {
-      console.error('Error cargando firma para PDF:', sigError);
-      // no lanzamos error, el PDF igual puede generarse sin firma
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      alert('Error al generar el PDF');
+    } finally {
+      setDownloadingPDF(false);
     }
+  };
 
-    const signature =
-      signatureRow && signatureRow.signature_data
-        ? {
-            signerName: signatureRow.signer_name ?? '',
-            signatureDataUrl: signatureRow.signature_data ?? '',
-            signedAt: signatureRow.signed_at ?? '',
-          }
-        : null;
+  // ========================================================
+  //                 RENDER
+  // ========================================================
 
-    // 5) Estado de certificación
-    let certStatus: CertificationStatus = 'sin_info';
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-bold mb-4">Checklist de Mantenimiento</h2>
 
-    if (checklistData.certification_not_legible) {
-      certStatus = 'no_legible';
-    } else if (checklistData.next_certification_date) {
-      const nextDate = new Date(checklistData.next_certification_date);
-      const today = new Date();
-      const diffDays =
-        (nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-
-      if (diffDays < 0) certStatus = 'vencida';
-      else if (diffDays <= 30) certStatus = 'por_vencer';
-      else certStatus = 'vigente';
-    }
-
-    // 6) Construir los datos para el PDF (adaptador nuevo)
-    const pdfBlob = await generateMaintenanceChecklistPDF({
-      checklistId: checklistData.id,
-      clientName: checklistData.client.company_name,
-      clientCode: checklistData.client.id,
-      clientAddress: checklistData.client.address ?? '',
-      elevatorAlias: checklistData.elevator?.location_name ?? '',
-      month: checklistData.month,
-      year: checklistData.year,
-      completionDate: checklistData.completion_date ?? '',
-      lastCertificationDate: checklistData.last_certification_date ?? null,
-      nextCertificationDate: checklistData.next_certification_date ?? null,
-      certificationNotLegible: checklistData.certification_not_legible ?? false,
-      technicianName: checklistData.profiles.full_name,
-      technicianEmail: checklistData.profiles.email ?? '',
-      certificationStatus: certStatus,
-      observationSummary,
-      questions: pdfQuestions,
-      rejectedQuestions,
-      signatureDataUrl: signature?.signatureDataUrl,
-      signature: signature,
-    });
-
-    const filename = `MANTENIMIENTO_${checklistData.client.company_name || 'CLIENTE'}_${
-      checklistData.elevator?.location_name || 'ASCENSOR'
-    }_${checklistData.year}_${String(checklistData.month).padStart(2, '0')}.pdf`;
-
-    const url = URL.createObjectURL(pdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    console.error('Error al generar PDF:', err);
-    alert('Error al generar el PDF del mantenimiento');
-  } finally {
-    setDownloadingPDF(false);
-  }
+      {loading ? (
+        <p>Cargando...</p>
+      ) : (
+        <ul>
+          {history.map((h) => (
+            <li key={h.id} className="mb-4">
+              <div>
+                <strong>
+                  {h.client_name} — {h.elevator_alias}
+                </strong>
+              </div>
+              <div>
+                Fecha: {new Date(h.completion_date).toLocaleString()}
+              </div>
+              <button
+                onClick={() => handleDownloadPDF(h)}
+                disabled={downloadingPDF}
+                className="mt-2 px-3 py-1 bg-blue-600 text-white rounded"
+              >
+                PDF
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 };
+
 
