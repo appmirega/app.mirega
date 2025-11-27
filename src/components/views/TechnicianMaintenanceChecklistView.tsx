@@ -20,7 +20,8 @@ const handleDownloadPDF = async (record: MaintenanceHistory) => {
           address
         ),
         elevator:elevators(
-          location_name
+          location_name,
+          is_hydraulic
         ),
         profiles:profiles!mnt_checklists_technician_id_fkey(
           full_name,
@@ -121,8 +122,8 @@ const handleDownloadPDF = async (record: MaintenanceHistory) => {
 
       let status: 'approved' | 'rejected' | 'not_applicable' | 'out_of_period';
 
+      // Preguntas solo hidráulicas: no aplican si el ascensor no es hidráulico
       if (isHydraulicOnly && !checklistData.elevator?.is_hydraulic) {
-        // ⚠️ Por si acaso, si no existe is_hydraulic en este select, lo tratamos como no hidráulico
         status = 'not_applicable';
       } else if (!inPeriod) {
         status = 'out_of_period';
@@ -216,4 +217,21 @@ const handleDownloadPDF = async (record: MaintenanceHistory) => {
       signature: signature,
     });
 
-    const filename =
+    const filename = `MANTENIMIENTO_${checklistData.client.company_name || 'CLIENTE'}_${
+      checklistData.elevator?.location_name || 'ASCENSOR'
+    }_${checklistData.year}_${String(checklistData.month).padStart(2, '0')}.pdf`;
+
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Error al generar PDF:', err);
+    alert('Error al generar el PDF del mantenimiento');
+  } finally {
+    setDownloadingPDF(false);
+  }
+};
+
