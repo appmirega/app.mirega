@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { MaintenanceHistory } from '../../types';
-import { generateMaintenanceChecklistPDF } from '../../../utils/maintenanceChecklistPDF';
+import { generateMaintenanceChecklistPDF } from '../../utils/maintenanceChecklistPDF';
 
 export const TechnicianMaintenanceChecklistView = () => {
   const [history, setHistory] = useState<MaintenanceHistory[]>([]);
@@ -272,5 +272,3 @@ export const TechnicianMaintenanceChecklistView = () => {
     </div>
   );
 };
-
-
