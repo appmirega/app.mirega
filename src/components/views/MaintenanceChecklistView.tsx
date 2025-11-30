@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -12,6 +12,7 @@ import {
 import { QRScanner } from '../checklist/QRScanner';
 import { CertificationForm } from '../checklist/CertificationForm';
 import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
+import { ChecklistSignatureModal } from '../checklist/ChecklistSignatureModal';
 
 interface Client {
   id: string;
@@ -63,6 +64,8 @@ export function MaintenanceChecklistView() {
   >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [clientNameForSignature, setClientNameForSignature] = useState('');
 
   useEffect(() => {
     if (profile?.role === 'technician') {
@@ -271,27 +274,60 @@ export function MaintenanceChecklistView() {
   };
 
   const handleChecklistComplete = async () => {
-    if (!activeChecklist) return;
+    if (!activeChecklist || !selectedClient) return;
 
-    const confirmComplete = confirm(
-      '¿Estás seguro de completar este checklist? No podrás modificarlo después.',
+    // Primero verificar que todas las preguntas estén respondidas correctamente
+    const { data: answers, error: answersError } = await supabase
+      .from('mnt_checklist_answers')
+      .select('*')
+      .eq('checklist_id', activeChecklist.id);
+
+    if (answersError) {
+      alert('Error al verificar las respuestas');
+      return;
+    }
+
+    // Verificar que todas las rechazadas tengan observaciones y al menos 1 foto
+    const rejectedWithoutData = answers?.some(
+      (a: any) => a.status === 'rejected' && (!a.observations || !a.photo_1_url)
     );
 
-    if (!confirmComplete) return;
+    if (rejectedWithoutData) {
+      alert('Todas las preguntas rechazadas deben tener observaciones y al menos 1 foto');
+      return;
+    }
+
+    // Guardar el nombre del cliente para el modal de firma
+    setClientNameForSignature(selectedClient.business_name);
+    
+    // Mostrar modal de firma
+    setShowSignatureModal(true);
+  };
+
+  const handleSignatureConfirm = async (signerName: string, signatureDataURL: string) => {
+    if (!activeChecklist) return;
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Actualizar checklist con firma y completar
+      const { error: updateError } = await supabase
         .from('mnt_checklists')
         .update({
           status: 'completed',
           completion_date: new Date().toISOString(),
+          signature_data_url: signatureDataURL,
+          signer_name: signerName,
         })
         .eq('id', activeChecklist.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      alert('Checklist completado exitosamente');
+      // Cerrar modal de firma
+      setShowSignatureModal(false);
+
+      // TODO: Aquí generaremos y enviaremos el PDF por correo
+      alert('Checklist completado exitosamente. PDF será enviado por correo.');
+      
       resetToStart();
       loadInProgressChecklists();
     } catch (err: any) {
@@ -600,6 +636,17 @@ export function MaintenanceChecklistView() {
         <QRScanner
           onScanSuccess={handleQRScan}
           onClose={() => setShowQRScanner(false)}
+        />
+      )}
+
+      {showSignatureModal && activeChecklist && (
+        <ChecklistSignatureModal
+          open={showSignatureModal}
+          onClose={() => setShowSignatureModal(false)}
+          onConfirm={handleSignatureConfirm}
+          clientName={clientNameForSignature}
+          elevatorSummary={`${activeChecklist.elevator.brand} ${activeChecklist.elevator.model}`}
+          periodLabel={`${activeChecklist.month}/${activeChecklist.year}`}
         />
       )}
     </div>
