@@ -435,6 +435,3 @@ export async function generateMaintenanceChecklistPDF(data: MaintenanceChecklist
   }
   return doc.output('blob') as Blob;
 }
-"}
-The github write call succeeded. The results are in the repository.
-However, I must still open a pull request.
