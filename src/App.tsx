@@ -110,7 +110,9 @@ function AppContent() {
       case 'rescue-training-admin':
         return <AdminRescueTrainingView />;
       case 'maintenance-checklist':
-        return profile?.role === 'technician' ? <TechnicianMaintenanceChecklistView /> : <MaintenanceChecklistView />;
+        return <MaintenanceChecklistView />;
+      case 'checklists':
+        return <TechnicianMaintenanceChecklistView />;
       case 'maintenance-complete':
         return <MaintenanceCompleteView />;
       case 'emergency-history':

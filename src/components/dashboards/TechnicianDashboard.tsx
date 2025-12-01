@@ -24,6 +24,8 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
     completed: 0,
     pending: 0,
     emergencies: 0,
+    checklistsThisMonth: 0,
+    checklistsInProgress: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +38,10 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
   const loadTechnicianData = async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
+      const currentMonth = new Date().getMonth() + 1;
+      const currentYear = new Date().getFullYear();
 
+      // Cargar mantenimientos programados
       const { data: schedules, error } = await supabase
         .from('maintenance_schedules')
         .select(`
@@ -67,17 +72,36 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const completed = schedules?.filter(s => s.status === 'completed').length || 0;
       const pending = schedules?.filter(s => s.status === 'pending').length || 0;
 
+      // Cargar emergencias
       const { count: emergencyCount } = await supabase
         .from('emergency_visits')
         .select('id', { count: 'exact', head: true })
         .eq('assigned_technician_id', profile?.id)
         .in('status', ['assigned', 'in_progress']);
 
+      // Cargar checklists del mes actual
+      const { count: checklistsCount } = await supabase
+        .from('mnt_checklists')
+        .select('id', { count: 'exact', head: true })
+        .eq('technician_id', profile?.id)
+        .eq('month', currentMonth)
+        .eq('year', currentYear)
+        .eq('status', 'completed');
+
+      // Cargar checklists en progreso
+      const { count: inProgressCount } = await supabase
+        .from('mnt_checklists')
+        .select('id', { count: 'exact', head: true })
+        .eq('technician_id', profile?.id)
+        .eq('status', 'in_progress');
+
       setStats({
         scheduledToday: schedules?.length || 0,
         completed,
         pending,
         emergencies: emergencyCount || 0,
+        checklistsThisMonth: checklistsCount || 0,
+        checklistsInProgress: inProgressCount || 0,
       });
     } catch (error) {
       console.error('Error loading technician data:', error);
@@ -111,7 +135,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         <p className="text-slate-600 mt-1">Agenda del día y tareas asignadas</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="bg-blue-500 p-3 rounded-lg">
@@ -129,7 +153,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
             </div>
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.completed}</h3>
-          <p className="text-sm text-slate-600">Completados</p>
+          <p className="text-sm text-slate-600">Completados Hoy</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -139,7 +163,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
             </div>
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pending}</h3>
-          <p className="text-sm text-slate-600">Pendientes</p>
+          <p className="text-sm text-slate-600">Pendientes Hoy</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -150,6 +174,32 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergencies}</h3>
           <p className="text-sm text-slate-600">Emergencias Activas</p>
+        </div>
+
+        <div 
+          className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
+          onClick={() => onNavigate?.('checklists')}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+              <ClipboardList className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-1">{stats.checklistsThisMonth}</h3>
+          <p className="text-sm text-purple-100">Checklists este Mes</p>
+        </div>
+
+        <div 
+          className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
+          onClick={() => onNavigate?.('maintenance-checklist')}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+              <ClipboardList className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-1">{stats.checklistsInProgress}</h3>
+          <p className="text-sm text-amber-100">Checklists en Progreso</p>
         </div>
       </div>
 
