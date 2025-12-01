@@ -284,7 +284,7 @@ export function DynamicChecklistForm({
     return allAnswered;
   };
 
-  const handleCompleteClick = () => {
+  const handleCompleteClick = async () => {
     if (!canComplete()) {
       alert('Aún hay preguntas sin responder o sin observaciones/fotos donde corresponde.');
       return;
@@ -292,10 +292,24 @@ export function DynamicChecklistForm({
 
     if (typeof onComplete !== 'function') {
       console.error('onComplete no es una función válida');
+      alert('Error: La función onComplete no está disponible');
       return;
     }
 
-    onComplete();
+    try {
+      // Guardar antes de completar
+      setSaving(true);
+      await saveAnswers(false);
+      
+      // Llamar a onComplete que abrirá el modal de firma
+      console.log('Llamando a onComplete...');
+      onComplete();
+    } catch (error) {
+      console.error('Error al completar checklist:', error);
+      alert('Error al completar el checklist. Por favor intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
