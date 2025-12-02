@@ -285,11 +285,15 @@ export function DynamicChecklistForm({
   };
 
   const handleCompleteClick = async () => {
+    console.log('🔴 handleCompleteClick INICIADO');
+    console.log('canComplete():', canComplete());
+    
     if (!canComplete()) {
       alert('Aún hay preguntas sin responder o sin observaciones/fotos donde corresponde.');
       return;
     }
 
+    console.log('typeof onComplete:', typeof onComplete);
     if (typeof onComplete !== 'function') {
       console.error('onComplete no es una función válida');
       alert('Error: La función onComplete no está disponible');
@@ -297,17 +301,48 @@ export function DynamicChecklistForm({
     }
 
     try {
-      // Guardar antes de completar
       setSaving(true);
-      await saveAnswers(false);
+      console.log('Guardando respuestas...');
       
-      // Llamar a onComplete que abrirá el modal de firma
-      console.log('Llamando a onComplete...');
-      onComplete();
+      // Guardar respuestas directamente sin llamar a onSave
+      const answersToSave = Array.from(answers.values()).map((answer) => ({
+        checklist_id: checklistId,
+        question_id: answer.question_id,
+        status: answer.status,
+        observations: answer.observations,
+        photo_1_url: answer.photo_1_url,
+        photo_2_url: answer.photo_2_url,
+      }));
+
+      console.log('Guardando', answersToSave.length, 'respuestas...');
+
+      for (const answer of answersToSave) {
+        const { error } = await supabase
+          .from('mnt_checklist_answers')
+          .upsert(answer, {
+            onConflict: 'checklist_id,question_id',
+          });
+
+        if (error) {
+          console.log('❌ Error guardando respuesta:', error);
+          throw error;
+        }
+      }
+      
+      console.log('✅ Todas las respuestas guardadas');
+      console.log('🟢 Llamando a onComplete()...');
+      
+      // Llamar a onComplete para cerrar y volver a selección de ascensores
+      await onComplete();
+      
+      console.log('✅ onComplete() ejecutado, finalizando...');
+      
+      // Forzar re-render limpiando estado local
+      setSaving(false);
+      
     } catch (error) {
       console.error('Error al completar checklist:', error);
       alert('Error al completar el checklist. Por favor intenta de nuevo.');
-    } finally {
       setSaving(false);
     }
   };

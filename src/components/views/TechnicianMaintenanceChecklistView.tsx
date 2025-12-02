@@ -1,27 +1,310 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { 
+  ClipboardList, 
+  QrCode, 
+  Search, 
+  Building2, 
+  ChevronRight,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Plus,
+  History,
+  ArrowLeft,
+  Download,
+  Eye,
+  Share2
+} from 'lucide-react';
+import { QRScanner } from '../checklist/QRScanner';
+import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
+import { ChecklistSignatureModal } from '../checklist/ChecklistSignatureModal';
 import { generateMaintenanceChecklistPDF } from '../../utils/maintenanceChecklistPDF';
 
-interface MaintenanceHistory {
+interface Client {
   id: string;
-  month: number;
-  year: number;
-  completion_date: string | null;
-  client_name: string;
-  building_internal_name: string;
-  elevator_alias: string;
-  elevator_number: number | string | null;
-  folio: number | string | null;
+  company_name: string;
+  building_name: string;
+  internal_alias: string;
+  address: string;
 }
 
-export const TechnicianMaintenanceChecklistView = () => {
-  const [history, setHistory] = useState<MaintenanceHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [downloadingPDF, setDownloadingPDF] = useState(false);
+interface Elevator {
+  id: string;
+  elevator_number: number;
+  location_name: string;
+  elevator_type: 'hydraulic' | 'electromechanical';
+  status: 'active' | 'inactive' | 'under_maintenance';
+  capacity_kg: number;
+}
 
+interface ChecklistProgress {
+  elevator_id: string;
+  checklist_id: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+type ViewMode = 'main' | 'client-selection' | 'elevator-selection' | 'checklist-form' | 'history' | 'in-progress';
+
+export const TechnicianMaintenanceChecklistView = () => {
+  const { profile } = useAuth();
+  const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Cliente y ascensores seleccionados
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [elevators, setElevators] = useState<Elevator[]>([]);
+  const [selectedElevator, setSelectedElevator] = useState<Elevator | null>(null);
+  
+  // Checklist actual
+  const [currentChecklistId, setCurrentChecklistId] = useState<string | null>(null);
+  const [checklistProgress, setChecklistProgress] = useState<Map<string, ChecklistProgress>>(new Map());
+  
+  // Periodo seleccionado
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  // Firma
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  
+  // Historial
+  const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyFilterYear, setHistoryFilterYear] = useState<number | 'all'>('all');
+  const [historyFilterMonth, setHistoryFilterMonth] = useState<number | 'all'>('all');
+  const [historyFilterStatus, setHistoryFilterStatus] = useState<'all' | 'completed' | 'pending'>('all');
+  const [historyFilterElevator, setHistoryFilterElevator] = useState<string>(''); // N° de ascensor
+
+  // Checklists en progreso
+  const [inProgressChecklists, setInProgressChecklists] = useState<any[]>([]);
+  const [loadingInProgress, setLoadingInProgress] = useState(false);
+
+  // Cargar clientes
+  const loadClients = async () => {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, company_name, building_name, internal_alias, address')
+      .eq('is_active', true)
+      .order('internal_alias');
+    
+    if (!error && data) {
+      setClients(data);
+    }
+  };
+
+  // Cargar ascensores del cliente
+  const loadElevators = async (clientId: string) => {
+    const { data, error } = await supabase
+      .from('elevators')
+      .select('id, elevator_number, location_name, elevator_type, status, capacity_kg')
+      .eq('client_id', clientId)
+      .eq('status', 'active')
+      .order('elevator_number');
+    
+    if (!error && data) {
+      setElevators(data);
+    }
+  };
+
+  // Buscar cliente por código QR
+  const handleQRScan = async (qrCode: string) => {
+    setShowQRScanner(false);
+    
+    // Extraer código del cliente del QR
+    const clientCode = qrCode.split('/').pop() || qrCode;
+    
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, company_name, building_name, internal_alias, address')
+      .eq('client_code', clientCode)
+      .single();
+    
+    if (!error && data) {
+      setSelectedClient(data);
+      await loadElevators(data.id);
+      setViewMode('elevator-selection');
+    } else {
+      alert('No se encontró el cliente con ese código QR');
+    }
+  };
+
+  // Seleccionar cliente manualmente
+  const handleSelectClient = async (client: Client) => {
+    setSelectedClient(client);
+    await loadElevators(client.id);
+    setViewMode('elevator-selection');
+  };
+
+  // Iniciar checklist para un ascensor
+  const handleStartChecklist = async (elevator: Elevator) => {
+    if (!selectedClient) return;
+    
+    // Verificar si ya existe un checklist para este ascensor en este periodo
+    const { data: existing } = await supabase
+      .from('mnt_checklists')
+      .select('id, status')
+      .eq('client_id', selectedClient.id)
+      .eq('elevator_id', elevator.id)
+      .eq('month', selectedMonth)
+      .eq('year', selectedYear)
+      .maybeSingle();
+    
+    if (existing) {
+      if (existing.status === 'completed') {
+        alert(
+          `Ya existe un mantenimiento completado para el Ascensor ${elevator.elevator_number} en ${
+            new Date(selectedYear, selectedMonth - 1).toLocaleString('es-CL', { month: 'long' })
+          } ${selectedYear}.\n\nNo se pueden realizar mantenimientos duplicados en el mismo periodo.`
+        );
+        return;
+      }
+      // Si está en progreso, continuar con ese
+      setCurrentChecklistId(existing.id);
+    } else {
+      // Crear nuevo checklist
+      const { data: newChecklist, error } = await supabase
+        .from('mnt_checklists')
+        .insert({
+          client_id: selectedClient.id,
+          elevator_id: elevator.id,
+          technician_id: profile?.id,
+          month: selectedMonth,
+          year: selectedYear,
+          status: 'in_progress',
+        })
+        .select('id')
+        .single();
+      
+      if (error) {
+        alert('Error al crear el checklist');
+        console.error(error);
+        return;
+      }
+      
+      setCurrentChecklistId(newChecklist.id);
+    }
+    
+    setSelectedElevator(elevator);
+    setViewMode('checklist-form');
+  };
+
+  // Completar checklist individual
+  const handleChecklistComplete = async () => {
+    console.log('🔵 handleChecklistComplete INICIADO');
+    console.log('currentChecklistId:', currentChecklistId);
+    console.log('viewMode antes:', viewMode);
+    
+    if (!currentChecklistId) {
+      console.log('❌ No hay currentChecklistId, abortando');
+      return;
+    }
+    
+    try {
+      console.log('Actualizando checklist en Supabase...');
+      // Marcar como completado
+      const { error } = await supabase
+        .from('mnt_checklists')
+        .update({ 
+          status: 'completed',
+          completion_date: new Date().toISOString()
+        })
+        .eq('id', currentChecklistId);
+      
+      if (error) {
+        console.log('❌ Error en Supabase:', error);
+        throw error;
+      }
+      
+      console.log('✅ Checklist actualizado en Supabase');
+      
+      // Actualizar progreso
+      if (selectedElevator) {
+        console.log('Actualizando progreso del ascensor:', selectedElevator.id);
+        const newProgress = new Map(checklistProgress);
+        newProgress.set(selectedElevator.id, {
+          elevator_id: selectedElevator.id,
+          checklist_id: currentChecklistId,
+          status: 'completed'
+        });
+        setChecklistProgress(newProgress);
+      }
+      
+      console.log('🟢 Cambiando viewMode a elevator-selection...');
+      // Volver a selección de ascensores
+      setViewMode('elevator-selection');
+      
+      // NO limpiar currentChecklistId y selectedElevator aquí porque causa problemas de renderizado
+      // React no actualiza el estado inmediatamente y el componente sigue mostrando el form
+      
+      // Limpiar después de un pequeño delay para que React procese el cambio de viewMode primero
+      setTimeout(() => {
+        setCurrentChecklistId(null);
+        setSelectedElevator(null);
+        console.log('Estado limpiado después del cambio de vista');
+      }, 100);
+      
+      console.log('viewMode después:', 'elevator-selection');
+      alert('✓ Checklist completado exitosamente. Puedes continuar con el siguiente ascensor o finalizar y firmar.');
+    } catch (error) {
+      console.error('❌ Error al completar checklist:', error);
+      alert('Error al completar el checklist. Por favor intenta de nuevo.');
+    }
+  };
+
+  // Auto-guardado del checklist
+  const handleChecklistSave = () => {
+    console.log('Checklist auto-guardado');
+  };
+
+  // Abrir modal de firma cuando todos los ascensores estén completos
+  const handleFinishAllChecklists = () => {
+    const completedCount = Array.from(checklistProgress.values())
+      .filter(p => p.status === 'completed').length;
+    
+    if (completedCount === 0) {
+      alert('Debes completar al menos un checklist antes de firmar');
+      return;
+    }
+    
+    setShowSignatureModal(true);
+  };
+
+  // Guardar firma y generar PDFs
+  const handleSignatureConfirm = async (signerName: string, signatureDataURL: string) => {
+    if (!selectedClient) return;
+    
+    const completedChecklists = Array.from(checklistProgress.values())
+      .filter(p => p.status === 'completed');
+    
+    // Actualizar todos los checklists completados con la firma
+    for (const progress of completedChecklists) {
+      await supabase
+        .from('mnt_checklists')
+        .update({
+          signer_name: signerName,
+          signature_url: signatureDataURL,
+          signed_at: new Date().toISOString()
+        })
+        .eq('id', progress.checklist_id);
+    }
+    
+    setShowSignatureModal(false);
+    alert(`Se firmaron ${completedChecklists.length} checklist(s) exitosamente`);
+    
+    // Resetear y volver al inicio
+    setChecklistProgress(new Map());
+    setSelectedClient(null);
+    setElevators([]);
+    setViewMode('main');
+  };
+
+  // Cargar historial
   const loadHistory = async () => {
-    setLoading(true);
-    // Traer folio, cliente (company_name + building_name interno), elevator (location_name + elevator_number)
+    setLoadingHistory(true);
     const { data, error } = await supabase
       .from('mnt_checklists')
       .select(`
@@ -30,492 +313,754 @@ export const TechnicianMaintenanceChecklistView = () => {
         year,
         completion_date,
         folio,
-        clients(company_name, building_name),
+        status,
+        clients(company_name, building_name, internal_alias),
         elevators(location_name, elevator_number)
       `)
+      .or(`technician_id.eq.${profile?.id},status.eq.completed`)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
       .order('completion_date', { ascending: false });
 
     if (!error && data) {
-      const parsed = data.map((row: any) => ({
-        id: row.id,
-        month: row.month,
-        year: row.year,
-        completion_date: row.completion_date,
-        client_name: row.clients?.company_name ?? '',
-        building_internal_name: row.clients?.building_name ?? '',
-        elevator_alias: row.elevators?.location_name ?? '',
-        elevator_number: row.elevators?.elevator_number ?? row.elevators?.internal_code ?? null,
-        folio: row.folio ?? null,
-      }));
-      setHistory(parsed);
+      setHistory(data);
     }
-    setLoading(false);
+    setLoadingHistory(false);
   };
 
-  useEffect(() => { loadHistory(); }, []);
-
-  // Agrupar por building_internal_name y mes-año
-  const grouped = history.reduce((acc:any, h) => {
-    const building = (h.building_internal_name || h.client_name || 'Sin nombre').trim();
-    const monthName = new Date(h.completion_date || `${h.year}-${String(h.month).padStart(2,'0')}-01`).toLocaleString('es-CL', { month: 'long' });
-    acc[building] = acc[building] || {};
-    const key = `${monthName} ${h.year}`;
-    acc[building][key] = acc[building][key] || [];
-    acc[building][key].push(h);
-    return acc;
-  }, {});
-
-  const handleDownloadPDF = async (record: MaintenanceHistory) => {
-    setDownloadingPDF(true);
-    try {
-      // Obtener todos los datos necesarios para el PDF
-      const { data: checklistData, error: checklistError } = await supabase
-        .from('mnt_checklists')
-        .select(`
-          id,
-          folio,
-          month,
-          year,
-          completion_date,
-          elevator_id,
-          technician_id,
-          last_certification_date,
-          next_certification_date,
-          certification_not_legible,
-          certification_status,
-          observation_summary,
-          signature_data_url,
-          clients (
-            id,
-            company_name,
-            business_name,
-            address,
-            contact_name,
-            building_name
-          ),
-          elevators (
-            id,
-            internal_code,
-            location_name,
-            elevator_number,
-            is_hydraulic
-          ),
-          users!mnt_checklists_technician_id_fkey (
-            id,
-            full_name,
-            email
-          )
-        `)
-        .eq('id', record.id)
-        .single();
-
-      if (checklistError) throw checklistError;
-
-      // Obtener las respuestas del checklist
-      const { data: answersData, error: answersError } = await supabase
-        .from('mnt_checklist_answers')
-        .select(`
-          question_id,
-          status,
-          observations,
-          mnt_checklist_questions (
-            question_number,
-            section,
-            question_text
-          )
-        `)
-        .eq('checklist_id', record.id);
-
-      if (answersError) throw answersError;
-
-      // Preparar datos para el PDF
-      const questions = (answersData || []).map((answer: any) => ({
-        number: answer.mnt_checklist_questions?.question_number || 0,
-        section: answer.mnt_checklist_questions?.section || '',
-        text: answer.mnt_checklist_questions?.question_text || '',
-        status: answer.status,
-        observations: answer.observations,
-      }));
-
-      const pdfData = {
-        checklistId: checklistData.id,
-        folioNumber: checklistData.folio,
-        clientName: checklistData.clients?.company_name || checklistData.clients?.business_name || '',
-        clientAddress: checklistData.clients?.address,
-        clientContactName: checklistData.clients?.contact_name,
-        elevatorCode: checklistData.elevators?.internal_code,
-        elevatorAlias: checklistData.elevators?.location_name,
-        elevatorIndex: checklistData.elevators?.elevator_number,
-        month: checklistData.month,
-        year: checklistData.year,
-        completionDate: checklistData.completion_date,
-        lastCertificationDate: checklistData.last_certification_date,
-        nextCertificationDate: checklistData.next_certification_date,
-        certificationNotLegible: checklistData.certification_not_legible,
-        certificationStatus: checklistData.certification_status,
-        technicianName: checklistData.users?.full_name || '',
-        technicianEmail: checklistData.users?.email,
-        observationSummary: checklistData.observation_summary,
-        questions: questions,
-        signatureDataUrl: checklistData.signature_data_url,
-      };
-
-      // Generar PDF
-      const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
-
-      // Descargar
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Checklist_${pdfData.folioNumber || record.id}_${pdfData.clientName}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      alert('Error al generar el PDF');
-    } finally {
-      setDownloadingPDF(false);
-    }
+  const handleViewHistory = () => {
+    loadHistory();
+    setViewMode('history');
   };
 
-  const handleViewPDF = async (record: MaintenanceHistory) => {
-    setDownloadingPDF(true);
-    try {
-      // Obtener todos los datos necesarios para el PDF (mismo código que handleDownloadPDF)
-      const { data: checklistData, error: checklistError } = await supabase
-        .from('mnt_checklists')
-        .select(`
-          id,
-          folio,
-          month,
-          year,
-          completion_date,
-          elevator_id,
-          technician_id,
-          last_certification_date,
-          next_certification_date,
-          certification_not_legible,
-          certification_status,
-          observation_summary,
-          signature_data_url,
-          clients (
-            id,
-            company_name,
-            business_name,
-            address,
-            contact_name,
-            building_name
-          ),
-          elevators (
-            id,
-            internal_code,
-            location_name,
-            elevator_number,
-            is_hydraulic
-          ),
-          users!mnt_checklists_technician_id_fkey (
-            id,
-            full_name,
-            email
-          )
-        `)
-        .eq('id', record.id)
-        .single();
+  // Cargar checklists en progreso
+  const loadInProgressChecklists = async () => {
+    setLoadingInProgress(true);
+    const { data, error } = await supabase
+      .from('mnt_checklists')
+      .select(`
+        id,
+        month,
+        year,
+        created_at,
+        folio,
+        status,
+        clients(id, company_name, building_name, internal_alias),
+        elevators(id, location_name, elevator_number, elevator_type)
+      `)
+      .eq('technician_id', profile?.id)
+      .in('status', ['pending', 'in_progress'])
+      .order('created_at', { ascending: false });
 
-      if (checklistError) throw checklistError;
-
-      const { data: answersData, error: answersError } = await supabase
-        .from('mnt_checklist_answers')
-        .select(`
-          question_id,
-          status,
-          observations,
-          mnt_checklist_questions (
-            question_number,
-            section,
-            question_text
-          )
-        `)
-        .eq('checklist_id', record.id);
-
-      if (answersError) throw answersError;
-
-      const questions = (answersData || []).map((answer: any) => ({
-        number: answer.mnt_checklist_questions?.question_number || 0,
-        section: answer.mnt_checklist_questions?.section || '',
-        text: answer.mnt_checklist_questions?.question_text || '',
-        status: answer.status,
-        observations: answer.observations,
-      }));
-
-      const pdfData = {
-        checklistId: checklistData.id,
-        folioNumber: checklistData.folio,
-        clientName: checklistData.clients?.company_name || checklistData.clients?.business_name || '',
-        clientAddress: checklistData.clients?.address,
-        clientContactName: checklistData.clients?.contact_name,
-        elevatorCode: checklistData.elevators?.internal_code,
-        elevatorAlias: checklistData.elevators?.location_name,
-        elevatorIndex: checklistData.elevators?.elevator_number,
-        month: checklistData.month,
-        year: checklistData.year,
-        completionDate: checklistData.completion_date,
-        lastCertificationDate: checklistData.last_certification_date,
-        nextCertificationDate: checklistData.next_certification_date,
-        certificationNotLegible: checklistData.certification_not_legible,
-        certificationStatus: checklistData.certification_status,
-        technicianName: checklistData.users?.full_name || '',
-        technicianEmail: checklistData.users?.email,
-        observationSummary: checklistData.observation_summary,
-        questions: questions,
-        signatureDataUrl: checklistData.signature_data_url,
-      };
-
-      // Generar PDF y abrir en nueva pestaña
-      const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
-      const url = URL.createObjectURL(pdfBlob);
-      window.open(url, '_blank');
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      alert('Error al generar el PDF');
-    } finally {
-      setDownloadingPDF(false);
+    if (!error && data) {
+      setInProgressChecklists(data);
     }
+    setLoadingInProgress(false);
   };
 
-  const handleSharePDF = async (record: MaintenanceHistory) => {
-    setDownloadingPDF(true);
-    try {
-      // Obtener datos y generar PDF (mismo código)
-      const { data: checklistData, error: checklistError } = await supabase
-        .from('mnt_checklists')
-        .select(`
-          id,
-          folio,
-          month,
-          year,
-          completion_date,
-          elevator_id,
-          technician_id,
-          last_certification_date,
-          next_certification_date,
-          certification_not_legible,
-          certification_status,
-          observation_summary,
-          signature_data_url,
-          clients (
-            id,
-            company_name,
-            business_name,
-            address,
-            contact_name,
-            building_name
-          ),
-          elevators (
-            id,
-            internal_code,
-            location_name,
-            elevator_number,
-            is_hydraulic
-          ),
-          users!mnt_checklists_technician_id_fkey (
-            id,
-            full_name,
-            email
-          )
-        `)
-        .eq('id', record.id)
-        .single();
-
-      if (checklistError) throw checklistError;
-
-      const { data: answersData, error: answersError } = await supabase
-        .from('mnt_checklist_answers')
-        .select(`
-          question_id,
-          status,
-          observations,
-          mnt_checklist_questions (
-            question_number,
-            section,
-            question_text
-          )
-        `)
-        .eq('checklist_id', record.id);
-
-      if (answersError) throw answersError;
-
-      const questions = (answersData || []).map((answer: any) => ({
-        number: answer.mnt_checklist_questions?.question_number || 0,
-        section: answer.mnt_checklist_questions?.section || '',
-        text: answer.mnt_checklist_questions?.question_text || '',
-        status: answer.status,
-        observations: answer.observations,
-      }));
-
-      const pdfData = {
-        checklistId: checklistData.id,
-        folioNumber: checklistData.folio,
-        clientName: checklistData.clients?.company_name || checklistData.clients?.business_name || '',
-        clientAddress: checklistData.clients?.address,
-        clientContactName: checklistData.clients?.contact_name,
-        elevatorCode: checklistData.elevators?.internal_code,
-        elevatorAlias: checklistData.elevators?.location_name,
-        elevatorIndex: checklistData.elevators?.elevator_number,
-        month: checklistData.month,
-        year: checklistData.year,
-        completionDate: checklistData.completion_date,
-        lastCertificationDate: checklistData.last_certification_date,
-        nextCertificationDate: checklistData.next_certification_date,
-        certificationNotLegible: checklistData.certification_not_legible,
-        certificationStatus: checklistData.certification_status,
-        technicianName: checklistData.users?.full_name || '',
-        technicianEmail: checklistData.users?.email,
-        observationSummary: checklistData.observation_summary,
-        questions: questions,
-        signatureDataUrl: checklistData.signature_data_url,
-      };
-
-      const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
-      const fileName = `Checklist_${pdfData.folioNumber || record.id}_${pdfData.clientName}.pdf`;
-
-      // Usar Web Share API si está disponible
-      if (navigator.share && navigator.canShare) {
-        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-        
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Checklist de Mantenimiento',
-            text: `Checklist de ${pdfData.clientName}`,
-          });
-          return;
-        }
-      }
-
-      // Fallback: descargar
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      link.click();
-      URL.revokeObjectURL(url);
-      alert('PDF descargado. Compártelo desde tu gestor de archivos.');
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Error compartiendo PDF:', error);
-        alert('Error al compartir el PDF');
-      }
-    } finally {
-      setDownloadingPDF(false);
-    }
+  const handleViewInProgress = () => {
+    loadInProgressChecklists();
+    setViewMode('in-progress');
   };
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Checklist de Mantenimiento</h2>
-        <p className="text-sm text-slate-600 mt-1">Historial de checklists completados</p>
-      </div>
+  const handleResumeChecklist = (checklist: any) => {
+    setSelectedClient(checklist.clients);
+    setSelectedElevator(checklist.elevators);
+    setCurrentChecklistId(checklist.id);
+    setSelectedMonth(checklist.month);
+    setSelectedYear(checklist.year);
+    setViewMode('checklist-form');
+  };
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-        </div>
-      ) : Object.keys(grouped).length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
-          <p className="text-slate-600">No hay checklists completados</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Object.keys(grouped).map((building) => (
-            <div key={building} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-                <h3 className="font-semibold text-lg text-white">{building}</h3>
+  const handleBackToMain = () => {
+    setViewMode('main');
+    setSelectedClient(null);
+    setElevators([]);
+    setChecklistProgress(new Map());
+  };
+
+  // Clientes filtrados por búsqueda
+  const filteredClients = clients.filter(c => 
+    c.internal_alias?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.building_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  useEffect(() => {
+    if (viewMode === 'client-selection') {
+      loadClients();
+    }
+  }, [viewMode]);
+
+  // ============= VISTAS =============
+
+  // Vista principal
+  if (viewMode === 'main') {
+    const completedCount = Array.from(checklistProgress.values())
+      .filter(p => p.status === 'completed').length;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-4 bg-blue-100 rounded-xl">
+                <ClipboardList className="w-8 h-8 text-blue-600" />
               </div>
-              
-              <div className="divide-y divide-slate-100">
-                {Object.keys(grouped[building]).map((period) => (
-                  <div key={building + period} className="p-6">
-                    <h4 className="font-medium text-slate-900 mb-4 capitalize">{period}</h4>
-                    <div className="space-y-3">
-                      {grouped[building][period].map((h: MaintenanceHistory) => (
-                        <div 
-                          key={h.id} 
-                          className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                              </svg>
-                            </div>
-                            <div>
-                              <p className="font-medium text-slate-900">
-                                Ascensor {h.elevator_number ?? h.elevator_alias ?? 'N/A'}
-                              </p>
-                              {h.folio && (
-                                <p className="text-sm text-slate-600">Folio: {h.folio}</p>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => handleViewPDF(h)} 
-                              disabled={downloadingPDF}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                              Ver
-                            </button>
-                            
-                            <button 
-                              onClick={() => handleDownloadPDF(h)} 
-                              disabled={downloadingPDF}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              PDF
-                            </button>
-                            
-                            <button 
-                              onClick={() => handleSharePDF(h)} 
-                              disabled={downloadingPDF}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 rounded-lg text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                              </svg>
-                              Compartir
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Checklist de Mantenimiento</h1>
+                <p className="text-slate-600">Registra mantenimientos preventivos</p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {downloadingPDF && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-              <p className="text-slate-900 font-medium">Generando PDF...</p>
+            {selectedClient && completedCount > 0 && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-semibold text-green-900">
+                  Mantenimiento en progreso: {selectedClient.internal_alias || selectedClient.building_name}
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  {completedCount} ascensor(es) completado(s)
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <button
+                onClick={() => setShowQRScanner(true)}
+                className="w-full flex items-center justify-between p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <QrCode className="w-6 h-6" />
+                  <div className="text-left">
+                    <p className="font-semibold">Escanear Código QR</p>
+                    <p className="text-xs text-blue-100">Buscar cliente por QR</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition" />
+              </button>
+
+              <button
+                onClick={() => setViewMode('client-selection')}
+                className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 border-2 border-slate-200 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <Search className="w-6 h-6 text-slate-600" />
+                  <div className="text-left">
+                    <p className="font-semibold text-slate-900">Buscar Cliente Manualmente</p>
+                    <p className="text-xs text-slate-600">Seleccionar de la lista</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition" />
+              </button>
+
+              <button
+                onClick={handleViewInProgress}
+                className="w-full flex items-center justify-between p-4 bg-amber-50 hover:bg-amber-100 border-2 border-amber-200 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <Clock className="w-6 h-6 text-amber-600" />
+                  <div className="text-left">
+                    <p className="font-semibold text-slate-900">Checklists en Progreso</p>
+                    <p className="text-xs text-amber-700">Retomar checklists incompletos</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition" />
+              </button>
+
+              <button
+                onClick={handleViewHistory}
+                className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 border-2 border-slate-200 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <History className="w-6 h-6 text-slate-600" />
+                  <div className="text-left">
+                    <p className="font-semibold text-slate-900">Ver Historial</p>
+                    <p className="text-xs text-slate-600">Checklists completados</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition" />
+              </button>
+            </div>
+          </div>
+
+          {selectedClient && completedCount > 0 && (
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <button
+                onClick={() => setViewMode('elevator-selection')}
+                className="w-full mb-3 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+              >
+                Continuar con {selectedClient.internal_alias || selectedClient.building_name}
+              </button>
+              <button
+                onClick={handleFinishAllChecklists}
+                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold"
+              >
+                Firmar y Finalizar ({completedCount} completado{completedCount !== 1 ? 's' : ''})
+              </button>
+            </div>
+          )}
+        </div>
+
+        {showQRScanner && (
+          <QRScanner 
+            onScanSuccess={handleQRScan} 
+            onClose={() => setShowQRScanner(false)} 
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Vista de selección de cliente
+  if (viewMode === 'client-selection') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <button
+                onClick={handleBackToMain}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h2 className="text-xl font-bold text-slate-900">Seleccionar Cliente</h2>
+            </div>
+
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Buscar por nombre interno, razón social o edificio..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {filteredClients.map((client) => (
+                <button
+                  key={client.id}
+                  onClick={() => handleSelectClient(client)}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg text-left transition group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {client.internal_alias || client.building_name}
+                      </p>
+                      <p className="text-sm text-slate-600">{client.company_name}</p>
+                      <p className="text-xs text-slate-500 mt-1">{client.address}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition" />
+                  </div>
+                </button>
+              ))}
+
+              {filteredClients.length === 0 && (
+                <p className="text-center text-slate-500 py-8">No se encontraron clientes</p>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  // Vista de selección de ascensores
+  if (viewMode === 'elevator-selection' && selectedClient) {
+    const completedCount = Array.from(checklistProgress.values())
+      .filter(p => p.status === 'completed').length;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+            <div className="flex items-center gap-3 mb-6">
+              <button
+                onClick={handleBackToMain}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-slate-900">
+                  {selectedClient.internal_alias || selectedClient.building_name}
+                </h2>
+                <p className="text-sm text-slate-600">{selectedClient.company_name}</p>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <p className="text-sm font-semibold text-blue-900">Periodo del Mantenimiento</p>
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                    <option key={m} value={m}>
+                      {new Date(2025, m - 1).toLocaleString('es-CL', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="px-3 py-2 border border-blue-200 rounded-lg text-sm"
+                >
+                  {[2024, 2025, 2026].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-slate-700 mb-2">
+                Selecciona los ascensores para realizar el mantenimiento:
+              </p>
+              <p className="text-xs text-slate-500">
+                {completedCount > 0 
+                  ? `${completedCount} de ${elevators.length} completado(s)`
+                  : 'Ningún ascensor completado aún'}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {elevators.map((elevator) => {
+                const progress = checklistProgress.get(elevator.id);
+                const isCompleted = progress?.status === 'completed';
+
+                return (
+                  <button
+                    key={elevator.id}
+                    onClick={() => handleStartChecklist(elevator)}
+                    className={`w-full p-4 rounded-xl border-2 transition ${
+                      isCompleted
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          isCompleted ? 'bg-green-100' : 'bg-slate-100'
+                        }`}>
+                          {isCompleted ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <Clock className="w-5 h-5 text-slate-600" />
+                          )}
+                        </div>
+                        <div className="text-left">
+                          <p className="font-semibold text-slate-900">
+                            Ascensor {elevator.elevator_number}
+                          </p>
+                          <p className="text-xs text-slate-600">
+                            {elevator.location_name} • {elevator.capacity_kg} kg
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-400" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {completedCount > 0 && (
+              <button
+                onClick={handleFinishAllChecklists}
+                className="w-full mt-6 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Firmar y Finalizar Mantenimiento
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showSignatureModal && (
+          <ChecklistSignatureModal
+            open={showSignatureModal}
+            onClose={() => setShowSignatureModal(false)}
+            onConfirm={handleSignatureConfirm}
+            clientName={selectedClient.internal_alias || selectedClient.building_name}
+            elevatorSummary={`${completedCount} ascensor(es) completado(s)`}
+            periodLabel={`${new Date(selectedYear, selectedMonth - 1).toLocaleString('es-CL', { month: 'long' })} ${selectedYear}`}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Vista del formulario de checklist
+  if (viewMode === 'checklist-form' && currentChecklistId && selectedElevator && selectedClient) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                onClick={() => setViewMode('elevator-selection')}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {selectedClient.internal_alias || selectedClient.building_name} - Ascensor {selectedElevator.elevator_number}
+                </h2>
+                <p className="text-sm text-slate-600">
+                  {new Date(selectedYear, selectedMonth - 1).toLocaleString('es-CL', { month: 'long' })} {selectedYear}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DynamicChecklistForm
+            checklistId={currentChecklistId}
+            elevatorId={selectedElevator.id}
+            isHydraulic={selectedElevator.elevator_type === 'hydraulic'}
+            month={selectedMonth}
+            onComplete={handleChecklistComplete}
+            onSave={handleChecklistSave}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Vista de checklists en progreso
+  if (viewMode === 'in-progress') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+            <div className="flex items-center gap-3 mb-6">
+              <button
+                onClick={handleBackToMain}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-slate-900">Checklists en Progreso</h2>
+                <p className="text-sm text-slate-600">Retoma checklists incompletos</p>
+              </div>
+            </div>
+
+            {loadingInProgress ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : inProgressChecklists.length === 0 ? (
+              <div className="text-center py-12">
+                <Clock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">No hay checklists en progreso</p>
+                <p className="text-sm text-slate-500 mt-2">Todos tus checklists están completados</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {inProgressChecklists.map((checklist) => {
+                  const clientName = checklist.clients?.internal_alias || checklist.clients?.building_name || 'Sin nombre';
+                  const elevatorInfo = `Ascensor ${checklist.elevators?.elevator_number || '-'}`;
+                  const monthName = new Date(checklist.year, checklist.month - 1).toLocaleString('es-CL', { month: 'long' });
+                  const periodLabel = `${monthName} ${checklist.year}`;
+                  const createdDate = new Date(checklist.created_at).toLocaleDateString('es-CL');
+
+                  return (
+                    <button
+                      key={checklist.id}
+                      onClick={() => handleResumeChecklist(checklist)}
+                      className="w-full p-4 bg-white hover:bg-amber-50 border-2 border-amber-200 rounded-xl transition text-left group"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Building2 className="w-4 h-4 text-amber-600" />
+                            <p className="font-semibold text-slate-900">{clientName}</p>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-slate-600">
+                            <span>{elevatorInfo}</span>
+                            <span>•</span>
+                            <span>{periodLabel}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-2">
+                            Iniciado: {createdDate}
+                          </p>
+                          {checklist.folio && (
+                            <p className="text-xs text-amber-600 font-mono mt-1">
+                              Folio: {checklist.folio}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
+                            En progreso
+                          </span>
+                          <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition" />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Vista de historial
+  if (viewMode === 'history') {
+    // Verificar si hay al menos un filtro seleccionado (NO mostrar listado infinito)
+    const hasActiveFilter = 
+      historySearchQuery !== '' || 
+      historyFilterYear !== 'all' || 
+      historyFilterMonth !== 'all' || 
+      historyFilterStatus !== 'all' ||
+      historyFilterElevator !== '';
+
+    // Filtrar historial
+    const filteredHistory = history.filter(h => {
+      const clientName = h.clients?.internal_alias || h.clients?.building_name || h.clients?.company_name || '';
+      const matchesSearch = historySearchQuery === '' || 
+        clientName.toLowerCase().includes(historySearchQuery.toLowerCase());
+      const matchesYear = historyFilterYear === 'all' || h.year === historyFilterYear;
+      const matchesMonth = historyFilterMonth === 'all' || h.month === historyFilterMonth;
+      const matchesStatus = historyFilterStatus === 'all' || 
+        (historyFilterStatus === 'completed' && h.status === 'completed') ||
+        (historyFilterStatus === 'pending' && h.status !== 'completed');
+      const matchesElevator = historyFilterElevator === '' || 
+        String(h.elevators?.elevator_number) === historyFilterElevator;
+      
+      return matchesSearch && matchesYear && matchesMonth && matchesStatus && matchesElevator;
+    });
+
+    const groupedHistory = filteredHistory.reduce((acc: any, h: any) => {
+      const building = h.clients?.internal_alias || h.clients?.building_name || 'Sin nombre';
+      const monthName = new Date(h.completion_date || `${h.year}-${String(h.month).padStart(2,'0')}-01`)
+        .toLocaleString('es-CL', { month: 'long' });
+      const key = `${monthName} ${h.year}`;
+      
+      if (!acc[building]) acc[building] = {};
+      if (!acc[building][key]) acc[building][key] = [];
+      acc[building][key].push(h);
+      return acc;
+    }, {});
+
+    const totalCompleted = history.filter(h => h.status === 'completed').length;
+    const totalPending = history.filter(h => h.status !== 'completed').length;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+            <div className="flex items-center gap-3 mb-6">
+              <button
+                onClick={handleBackToMain}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-slate-900">Historial de Mantenimientos</h2>
+                <p className="text-sm text-slate-600">Todos los mantenimientos registrados</p>
+              </div>
+            </div>
+
+            {/* Estadísticas */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-700 mb-1">Completados</p>
+                <p className="text-3xl font-bold text-green-900">{totalCompleted}</p>
+              </div>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-700 mb-1">Pendientes</p>
+                <p className="text-3xl font-bold text-amber-900">{totalPending}</p>
+              </div>
+            </div>
+
+            {/* Filtros */}
+            <div className="space-y-3 mb-6 p-4 bg-slate-50 rounded-lg border-2 border-slate-200">
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-sm font-semibold text-slate-700">Filtros de búsqueda</p>
+                <span className="text-xs text-slate-500">(Selecciona al menos un filtro)</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Buscar Edificio</label>
+                  <input
+                    type="text"
+                    placeholder="Nombre edificio..."
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">N° Ascensor</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 1, 2, 3..."
+                    value={historyFilterElevator}
+                    onChange={(e) => setHistoryFilterElevator(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                  <select
+                    value={historyFilterStatus}
+                    onChange={(e) => setHistoryFilterStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="completed">Completados</option>
+                    <option value="pending">Pendientes</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Año</label>
+                  <select
+                    value={historyFilterYear}
+                    onChange={(e) => setHistoryFilterYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">Todos</option>
+                    {[2024, 2025, 2026].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mes</label>
+                  <select
+                    value={historyFilterMonth}
+                    onChange={(e) => setHistoryFilterMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">Todos</option>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>
+                        {new Date(2025, m - 1).toLocaleString('es-CL', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setHistorySearchQuery('');
+                      setHistoryFilterYear('all');
+                      setHistoryFilterMonth('all');
+                      setHistoryFilterStatus('all');
+                      setHistoryFilterElevator('');
+                    }}
+                    className="w-full px-3 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {loadingHistory ? (
+              <p className="text-center py-8 text-slate-500">Cargando...</p>
+            ) : !hasActiveFilter ? (
+              <div className="text-center py-12 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                <Search className="w-16 h-16 text-blue-300 mx-auto mb-4" />
+                <p className="text-blue-900 font-semibold mb-2">Selecciona al menos un filtro</p>
+                <p className="text-sm text-blue-700">
+                  Para evitar listados infinitos, debes seleccionar edificio, N° ascensor, año, mes o estado
+                </p>
+              </div>
+            ) : filteredHistory.length === 0 ? (
+              <div className="text-center py-12 bg-slate-50 border-2 border-slate-200 rounded-lg">
+                <History className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">No se encontraron mantenimientos</p>
+                <p className="text-sm text-slate-500 mt-2">Intenta ajustar los filtros</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.keys(groupedHistory).map((building) => (
+                  <div key={building} className="border-b border-slate-200 pb-4 last:border-0">
+                    <h3 className="font-semibold text-lg text-slate-900 mb-3">{building}</h3>
+                    {Object.keys(groupedHistory[building]).map((period) => (
+                      <div key={period} className="ml-4 mb-3">
+                        <h4 className="font-medium text-slate-700 mb-2">{period}</h4>
+                        <ul className="space-y-2">
+                          {groupedHistory[building][period].map((h: any) => (
+                            <li key={h.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition">
+                              <div className="flex items-center gap-2">
+                                {h.status === 'completed' ? (
+                                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <Clock className="w-4 h-4 text-amber-600" />
+                                )}
+                                <span className="text-sm font-medium text-slate-900">
+                                  Ascensor {h.elevators?.elevator_number ?? '?'}
+                                </span>
+                                {h.status !== 'completed' && (
+                                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                    Pendiente
+                                  </span>
+                                )}
+                              </div>
+                              {h.status === 'completed' && (
+                                <div className="flex gap-2">
+                                  <button 
+                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                                    title="Ver PDF"
+                                    onClick={() => alert('Función de visualización en desarrollo')}
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                                    title="Descargar PDF"
+                                    onClick={() => alert('Función de descarga en desarrollo')}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                                    title="Compartir"
+                                    onClick={() => alert('Función de compartir en desarrollo')}
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
