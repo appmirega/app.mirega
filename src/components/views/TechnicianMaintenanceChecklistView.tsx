@@ -67,6 +67,13 @@ export const TechnicianMaintenanceChecklistView = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   
+  // Fechas de certificación
+  const [lastCertificationDate, setLastCertificationDate] = useState('');
+  const [nextCertificationDate, setNextCertificationDate] = useState('');
+  const [certificationDatesNotReadable, setCertificationDatesNotReadable] = useState(false);
+  const [certificationStatus, setCertificationStatus] = useState<'vigente' | 'vencida' | null>(null);
+  const [showCertificationForm, setShowCertificationForm] = useState(false);
+  
   // Firma
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   
@@ -82,6 +89,16 @@ export const TechnicianMaintenanceChecklistView = () => {
   // Checklists en progreso
   const [inProgressChecklists, setInProgressChecklists] = useState<any[]>([]);
   const [loadingInProgress, setLoadingInProgress] = useState(false);
+
+  // Efecto para calcular estado de certificación
+  useEffect(() => {
+    if (nextCertificationDate && !certificationDatesNotReadable) {
+      const status = calculateCertificationStatus(nextCertificationDate);
+      setCertificationStatus(status);
+    } else {
+      setCertificationStatus(null);
+    }
+  }, [nextCertificationDate, certificationDatesNotReadable]);
 
   // Cargar clientes
   const loadClients = async () => {
@@ -189,7 +206,70 @@ export const TechnicianMaintenanceChecklistView = () => {
     }
     
     setSelectedElevator(elevator);
+    
+    // Mostrar formulario de certificación antes del checklist
+    setShowCertificationForm(true);
+    setLastCertificationDate('');
+    setNextCertificationDate('');
+    setCertificationDatesNotReadable(false);
+    setCertificationStatus(null);
     setViewMode('checklist-form');
+  };
+
+  // Calcular estado de certificación
+  const calculateCertificationStatus = (nextCertDate: string): 'vigente' | 'vencida' | null => {
+    if (!nextCertDate || certificationDatesNotReadable) return null;
+    
+    try {
+      // nextCertDate viene en formato mm/aaaa
+      const [month, year] = nextCertDate.split('/').map(Number);
+      const certDate = new Date(year, month - 1, 1);
+      const today = new Date();
+      
+      return certDate >= today ? 'vigente' : 'vencida';
+    } catch {
+      return null;
+    }
+  };
+
+  // Guardar fechas de certificación y continuar al checklist
+  const handleSaveCertificationDates = async () => {
+    if (!certificationDatesNotReadable) {
+      // Validar formato de fechas
+      const lastDateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+      const nextDateRegex = /^\d{2}\/\d{4}$/;
+      
+      if (!lastDateRegex.test(lastCertificationDate)) {
+        alert('Formato de "Última certificación" inválido. Use dd/mm/aaaa');
+        return;
+      }
+      
+      if (!nextDateRegex.test(nextCertificationDate)) {
+        alert('Formato de "Próxima certificación" inválido. Use mm/aaaa');
+        return;
+      }
+    }
+
+    try {
+      // Guardar en mnt_checklists
+      const { error } = await supabase
+        .from('mnt_checklists')
+        .update({
+          last_certification_date: certificationDatesNotReadable ? null : lastCertificationDate,
+          next_certification_date: certificationDatesNotReadable ? null : nextCertificationDate,
+          certification_dates_readable: !certificationDatesNotReadable,
+          certification_status: certificationDatesNotReadable ? null : certificationStatus
+        })
+        .eq('id', currentChecklistId);
+
+      if (error) throw error;
+
+      // Ocultar formulario de certificación y mostrar checklist
+      setShowCertificationForm(false);
+    } catch (error) {
+      console.error('Error guardando fechas de certificación:', error);
+      alert('Error al guardar fechas de certificación');
+    }
   };
 
   // Completar checklist individual
@@ -723,14 +803,80 @@ export const TechnicianMaintenanceChecklistView = () => {
             </div>
           </div>
 
-          <DynamicChecklistForm
-            checklistId={currentChecklistId}
-            elevatorId={selectedElevator.id}
-            isHydraulic={selectedElevator.elevator_type === 'hydraulic'}
-            month={selectedMonth}
-            onComplete={handleChecklistComplete}
-            onSave={handleChecklistSave}
-          />
+          {showCertificationForm ? (
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">📋 Datos de Certificación del Ascensor</h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="notReadable"
+                    checked={certificationDatesNotReadable}
+                    onChange={(e) => setCertificationDatesNotReadable(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <label htmlFor="notReadable" className="text-sm font-medium text-slate-700 cursor-pointer">
+                    Las fechas de certificación NO son legibles
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Última Certificación (dd/mm/aaaa)
+                  </label>
+                  <input
+                    type="text"
+                    value={lastCertificationDate}
+                    onChange={(e) => setLastCertificationDate(e.target.value)}
+                    disabled={certificationDatesNotReadable}
+                    placeholder="01/12/2024"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Próxima Certificación (mm/aaaa)
+                  </label>
+                  <input
+                    type="text"
+                    value={nextCertificationDate}
+                    onChange={(e) => setNextCertificationDate(e.target.value)}
+                    disabled={certificationDatesNotReadable}
+                    placeholder="12/2025"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                  />
+                </div>
+
+                {certificationStatus && (
+                  <div className={`p-3 rounded-lg text-center font-semibold ${
+                    certificationStatus === 'vigente' 
+                      ? 'bg-green-100 text-green-800 border border-green-300' 
+                      : 'bg-red-100 text-red-800 border border-red-300'
+                  }`}>
+                    Estado: {certificationStatus === 'vigente' ? '✓ VIGENTE' : '⚠ VENCIDA'}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSaveCertificationDates}
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Continuar al Checklist
+                </button>
+              </div>
+            </div>
+          ) : (
+            <DynamicChecklistForm
+              checklistId={currentChecklistId}
+              elevatorId={selectedElevator.id}
+              isHydraulic={selectedElevator.elevator_type === 'hydraulic'}
+              month={selectedMonth}
+              onComplete={handleChecklistComplete}
+              onSave={handleChecklistSave}
+            />
+          )}
         </div>
       </div>
     );
