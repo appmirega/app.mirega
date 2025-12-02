@@ -223,10 +223,13 @@ export const TechnicianMaintenanceChecklistView = () => {
     try {
       // nextCertDate viene en formato mm/aaaa
       const [month, year] = nextCertDate.split('/').map(Number);
-      const certDate = new Date(year, month - 1, 1);
+      
+      // La certificación es válida hasta el día 14 del mes indicado
+      // Del día 15 en adelante se considera vencida
+      const certExpirationDate = new Date(year, month - 1, 14, 23, 59, 59);
       const today = new Date();
       
-      return certDate >= today ? 'vigente' : 'vencida';
+      return today <= certExpirationDate ? 'vigente' : 'vencida';
     } catch {
       return null;
     }
@@ -849,7 +852,11 @@ export const TechnicianMaintenanceChecklistView = () => {
                   />
                 </div>
 
-                {certificationStatus && (
+                {certificationDatesNotReadable ? (
+                  <div className="p-3 rounded-lg text-center font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+                    Estado: Certificación no visible
+                  </div>
+                ) : certificationStatus && (
                   <div className={`p-3 rounded-lg text-center font-semibold ${
                     certificationStatus === 'vigente' 
                       ? 'bg-green-100 text-green-800 border border-green-300' 
