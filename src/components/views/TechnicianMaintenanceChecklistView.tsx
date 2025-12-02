@@ -205,11 +205,11 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     try {
       console.log('Actualizando checklist en Supabase...');
-      // Marcar como pendiente de firma (NO completado aún)
+      // Marcar como completado
       const { error } = await supabase
         .from('mnt_checklists')
         .update({ 
-          status: 'pending_signature',
+          status: 'completed',
           completion_date: new Date().toISOString()
         })
         .eq('id', currentChecklistId);
@@ -228,7 +228,7 @@ export const TechnicianMaintenanceChecklistView = () => {
         newProgress.set(selectedElevator.id, {
           elevator_id: selectedElevator.id,
           checklist_id: currentChecklistId,
-          status: 'pending_signature'
+          status: 'completed'
         });
         setChecklistProgress(newProgress);
       }
@@ -248,7 +248,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       }, 100);
       
       console.log('viewMode después:', 'elevator-selection');
-      alert('✓ Checklist guardado exitosamente. Puedes continuar con el siguiente ascensor o finalizar y firmar para generar los PDFs.');
+      alert('✓ Checklist completado exitosamente. Puedes continuar con el siguiente ascensor o finalizar y firmar.');
     } catch (error) {
       console.error('❌ Error al completar checklist:', error);
       alert('Error al completar el checklist. Por favor intenta de nuevo.');
@@ -263,7 +263,7 @@ export const TechnicianMaintenanceChecklistView = () => {
   // Abrir modal de firma cuando todos los ascensores estén completos
   const handleFinishAllChecklists = () => {
     const completedCount = Array.from(checklistProgress.values())
-      .filter(p => p.status === 'pending_signature').length;
+      .filter(p => p.status === 'completed').length;
     
     if (completedCount === 0) {
       alert('Debes completar al menos un checklist antes de firmar');
@@ -278,208 +278,54 @@ export const TechnicianMaintenanceChecklistView = () => {
     if (!selectedClient) return;
     
     const completedChecklists = Array.from(checklistProgress.values())
-      .filter(p => p.status === 'pending_signature');
+      .filter(p => p.status === 'completed');
     
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      // Para cada checklist completado: generar PDF, subirlo y guardar URL
-      for (const progress of completedChecklists) {
-        try {
-          // 1. Obtener datos completos del checklist
-          const { data: checklistData, error: checklistError } = await supabase
-            .from('mnt_checklists')
-            .select(`
-              id,
-              month,
-              year,
-              folio,
-              completion_date,
-              clients!inner(company_name, building_name, internal_alias, address),
-              elevators!inner(elevator_number, elevator_type),
-              mnt_checklist_answers!inner(
-                question_id,
-                status,
-                observations,
-                photo_1_url,
-                photo_2_url,
-                mnt_checklist_questions!inner(question_number, section, question_text, applies_to)
-              )
-            `)
-            .eq('id', progress.checklist_id)
-            .maybeSingle();
-          
-          if (checklistError || !checklistData) {
-            console.error('Error obteniendo datos del checklist:', checklistError);
-            errorCount++;
-            
-            // Guardar solo la firma sin PDF
-            await supabase
-              .from('mnt_checklists')
-              .update({
-                signer_name: signerName,
-                signature_url: signatureDataURL,
-                signed_at: new Date().toISOString(),
-                status: 'completed'
-              })
-              .eq('id', progress.checklist_id);
-            
-            continue;
-          }
-
-          // 2. Preparar datos para el PDF
-          const questions = (checklistData.mnt_checklist_answers || []).map((answer: any) => ({
-            number: answer.mnt_checklist_questions?.question_number || 0,
-            section: answer.mnt_checklist_questions?.section || '',
-            text: answer.mnt_checklist_questions?.question_text || '',
-            status: answer.status,
-            observations: answer.observations,
-            photos: [answer.photo_1_url, answer.photo_2_url].filter(Boolean)
-          }));
-
-          const pdfData = {
-            checklistId: checklistData.id,
-            folioNumber: checklistData.folio,
-            clientName: checklistData.clients?.internal_alias || checklistData.clients?.building_name || '',
-            clientAddress: checklistData.clients?.address,
-            elevatorNumber: checklistData.elevators?.elevator_number,
-            month: checklistData.month,
-            year: checklistData.year,
-            completionDate: checklistData.completion_date,
-            technicianName: profile?.full_name || '',
-            questions: questions.sort((a: any, b: any) => a.number - b.number),
-            signature: {
-              signerName,
-              signedAt: new Date().toISOString(),
-              signatureDataUrl: signatureDataURL
-            }
-          };
-
-          // 3. Generar PDF
-          const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
-          
-          // 4. Subir PDF a Supabase Storage
-          const fileName = `checklist_${checklistData.folio || checklistData.id}_${Date.now()}.pdf`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('maintenance-pdfs')
-            .upload(fileName, pdfBlob, {
-              contentType: 'application/pdf',
-              upsert: false
-            });
-
-          if (uploadError) {
-            console.error('Error subiendo PDF:', uploadError);
-            errorCount++;
-            
-            // Guardar solo la firma sin PDF
-            await supabase
-              .from('mnt_checklists')
-              .update({
-                signer_name: signerName,
-                signature_url: signatureDataURL,
-                signed_at: new Date().toISOString(),
-                status: 'completed'
-              })
-              .eq('id', progress.checklist_id);
-            
-            continue;
-          }
-
-          // 5. Obtener URL pública del PDF
-          const { data: publicUrlData } = supabase.storage
-            .from('maintenance-pdfs')
-            .getPublicUrl(fileName);
-
-          // 6. Actualizar checklist con firma y URL del PDF
-          await supabase
-            .from('mnt_checklists')
-            .update({
-              signer_name: signerName,
-              signature_url: signatureDataURL,
-              signed_at: new Date().toISOString(),
-              pdf_url: publicUrlData.publicUrl,
-              status: 'completed'
-            })
-            .eq('id', progress.checklist_id);
-          
-          successCount++;
-          
-        } catch (error) {
-          console.error('Error procesando checklist individual:', error);
-          errorCount++;
-          
-          // Intentar guardar al menos la firma
-          try {
-            await supabase
-              .from('mnt_checklists')
-              .update({
-                signer_name: signerName,
-                signature_url: signatureDataURL,
-                signed_at: new Date().toISOString(),
-                status: 'completed'
-              })
-              .eq('id', progress.checklist_id);
-          } catch (updateError) {
-            console.error('Error guardando firma:', updateError);
-          }
-        }
-      }
-      
-      setShowSignatureModal(false);
-      
-      if (successCount > 0 && errorCount === 0) {
-        alert(`✓ ${successCount} checklist(s) firmado(s) y PDF(s) generado(s) exitosamente`);
-      } else if (successCount > 0 && errorCount > 0) {
-        alert(`✓ ${successCount} checklist(s) con PDF\n⚠️ ${errorCount} checklist(s) firmados sin PDF (revisa la consola)`);
-      } else {
-        alert(`⚠️ Checklists firmados pero hubo problemas generando PDFs. Revisa la consola.`);
-      }
-      
-      // Resetear y volver al inicio
-      setChecklistProgress(new Map());
-      setSelectedClient(null);
-      setElevators([]);
-      setViewMode('main');
-      
-    } catch (error) {
-      console.error('Error en proceso de firma y generación de PDF:', error);
-      alert('Error al procesar firma. Por favor intenta de nuevo.');
+    // Actualizar todos los checklists completados con la firma
+    for (const progress of completedChecklists) {
+      await supabase
+        .from('mnt_checklists')
+        .update({
+          signer_name: signerName,
+          signature_url: signatureDataURL,
+          signed_at: new Date().toISOString()
+        })
+        .eq('id', progress.checklist_id);
     }
+    
+    setShowSignatureModal(false);
+    alert(`Se firmaron ${completedChecklists.length} checklist(s) exitosamente`);
+    
+    // Resetear y volver al inicio
+    setChecklistProgress(new Map());
+    setSelectedClient(null);
+    setElevators([]);
+    setViewMode('main');
   };
 
   // Cargar historial
   const loadHistory = async () => {
     setLoadingHistory(true);
-    try {
-      const { data, error } = await supabase
-        .from('mnt_checklists')
-        .select(`
-          id,
-          month,
-          year,
-          completion_date,
-          folio,
-          status,
-          pdf_url,
-          clients(company_name, building_name, internal_alias),
-          elevators(location_name, elevator_number)
-        `)
-        .not('completion_date', 'is', null)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false })
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('mnt_checklists')
+      .select(`
+        id,
+        month,
+        year,
+        completion_date,
+        folio,
+        status,
+        clients(company_name, building_name, internal_alias),
+        elevators(location_name, elevator_number)
+      `)
+      .or(`technician_id.eq.${profile?.id},status.eq.completed`)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .order('completion_date', { ascending: false });
 
-      if (!error && data) {
-        setHistory(data);
-      } else if (error) {
-        console.error('Error cargando historial:', error);
-      }
-    } catch (error) {
-      console.error('Error en loadHistory:', error);
-    } finally {
-      setLoadingHistory(false);
+    if (!error && data) {
+      setHistory(data);
     }
+    setLoadingHistory(false);
   };
 
   const handleViewHistory = () => {
@@ -531,65 +377,6 @@ export const TechnicianMaintenanceChecklistView = () => {
     setSelectedClient(null);
     setElevators([]);
     setChecklistProgress(new Map());
-  };
-
-  // Funciones para manejo de PDFs en historial
-  const handleViewPDF = (checklist: any) => {
-    if (!checklist.pdf_url) {
-      alert('Este checklist aún no tiene PDF generado');
-      return;
-    }
-    window.open(checklist.pdf_url, '_blank');
-  };
-
-  const handleDownloadPDF = async (checklist: any) => {
-    if (!checklist.pdf_url) {
-      alert('Este checklist aún no tiene PDF generado');
-      return;
-    }
-
-    try {
-      const response = await fetch(checklist.pdf_url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Mantenimiento_${checklist.folio || checklist.id}_${checklist.elevators?.elevator_number || ''}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Error descargando PDF:', error);
-      alert('Error al descargar el PDF');
-    }
-  };
-
-  const handleSharePDF = async (checklist: any) => {
-    if (!checklist.pdf_url) {
-      alert('Este checklist aún no tiene PDF generado');
-      return;
-    }
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Mantenimiento ${checklist.clients?.internal_alias || ''}`,
-          text: `Checklist de mantenimiento - Ascensor ${checklist.elevators?.elevator_number || ''}`,
-          url: checklist.pdf_url
-        });
-      } catch (error) {
-        console.error('Error compartiendo:', error);
-      }
-    } else {
-      // Fallback: copiar al portapapeles
-      try {
-        await navigator.clipboard.writeText(checklist.pdf_url);
-        alert('✓ Link del PDF copiado al portapapeles');
-      } catch (error) {
-        alert('No se pudo compartir. URL: ' + checklist.pdf_url);
-      }
-    }
   };
 
   // Clientes filtrados por búsqueda
@@ -1238,26 +1025,23 @@ export const TechnicianMaintenanceChecklistView = () => {
                               {h.status === 'completed' && (
                                 <div className="flex gap-2">
                                   <button 
-                                    className={`p-1.5 hover:bg-slate-200 rounded ${h.pdf_url ? 'text-blue-600' : 'text-slate-400 cursor-not-allowed'}`}
-                                    title={h.pdf_url ? "Ver PDF" : "PDF no generado"}
-                                    onClick={() => handleViewPDF(h)}
-                                    disabled={!h.pdf_url}
+                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                                    title="Ver PDF"
+                                    onClick={() => alert('Función de visualización en desarrollo')}
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   <button 
-                                    className={`p-1.5 hover:bg-slate-200 rounded ${h.pdf_url ? 'text-green-600' : 'text-slate-400 cursor-not-allowed'}`}
-                                    title={h.pdf_url ? "Descargar PDF" : "PDF no generado"}
-                                    onClick={() => handleDownloadPDF(h)}
-                                    disabled={!h.pdf_url}
+                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                                    title="Descargar PDF"
+                                    onClick={() => alert('Función de descarga en desarrollo')}
                                   >
                                     <Download className="w-4 h-4" />
                                   </button>
                                   <button 
-                                    className={`p-1.5 hover:bg-slate-200 rounded ${h.pdf_url ? 'text-amber-600' : 'text-slate-400 cursor-not-allowed'}`}
-                                    title={h.pdf_url ? "Compartir" : "PDF no generado"}
-                                    onClick={() => handleSharePDF(h)}
-                                    disabled={!h.pdf_url}
+                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                                    title="Compartir"
+                                    onClick={() => alert('Función de compartir en desarrollo')}
                                   >
                                     <Share2 className="w-4 h-4" />
                                   </button>
