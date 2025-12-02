@@ -296,16 +296,15 @@ export const TechnicianMaintenanceChecklistView = () => {
               year,
               folio,
               completion_date,
-              certification_status,
-              clients(company_name, building_name, internal_alias, address),
-              elevators(elevator_number, elevator_type, last_certification_date, next_certification_date),
-              mnt_checklist_answers(
+              clients!inner(company_name, building_name, internal_alias, address),
+              elevators!inner(elevator_number, elevator_type),
+              mnt_checklist_answers!inner(
                 question_id,
                 status,
                 observations,
                 photo_1_url,
                 photo_2_url,
-                mnt_checklist_questions(question_number, section, question_text, applies_to)
+                mnt_checklist_questions!inner(question_number, section, question_text, applies_to)
               )
             `)
             .eq('id', progress.checklist_id)
@@ -348,10 +347,7 @@ export const TechnicianMaintenanceChecklistView = () => {
             month: checklistData.month,
             year: checklistData.year,
             completionDate: checklistData.completion_date,
-            lastCertificationDate: checklistData.elevators?.last_certification_date,
-            nextCertificationDate: checklistData.elevators?.next_certification_date,
             technicianName: profile?.full_name || '',
-            certificationStatus: checklistData.certification_status,
             questions: questions.sort((a: any, b: any) => a.number - b.number),
             signature: {
               signerName,
