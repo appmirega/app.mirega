@@ -205,11 +205,11 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     try {
       console.log('Actualizando checklist en Supabase...');
-      // Marcar como completado
+      // Marcar como pendiente de firma (NO completado aún)
       const { error } = await supabase
         .from('mnt_checklists')
         .update({ 
-          status: 'completed',
+          status: 'pending_signature',
           completion_date: new Date().toISOString()
         })
         .eq('id', currentChecklistId);
@@ -228,7 +228,7 @@ export const TechnicianMaintenanceChecklistView = () => {
         newProgress.set(selectedElevator.id, {
           elevator_id: selectedElevator.id,
           checklist_id: currentChecklistId,
-          status: 'completed'
+          status: 'pending_signature'
         });
         setChecklistProgress(newProgress);
       }
@@ -248,7 +248,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       }, 100);
       
       console.log('viewMode después:', 'elevator-selection');
-      alert('✓ Checklist completado exitosamente. Puedes continuar con el siguiente ascensor o finalizar y firmar.');
+      alert('✓ Checklist guardado exitosamente. Puedes continuar con el siguiente ascensor o finalizar y firmar para generar los PDFs.');
     } catch (error) {
       console.error('❌ Error al completar checklist:', error);
       alert('Error al completar el checklist. Por favor intenta de nuevo.');
@@ -263,7 +263,7 @@ export const TechnicianMaintenanceChecklistView = () => {
   // Abrir modal de firma cuando todos los ascensores estén completos
   const handleFinishAllChecklists = () => {
     const completedCount = Array.from(checklistProgress.values())
-      .filter(p => p.status === 'completed').length;
+      .filter(p => p.status === 'pending_signature').length;
     
     if (completedCount === 0) {
       alert('Debes completar al menos un checklist antes de firmar');
@@ -278,7 +278,7 @@ export const TechnicianMaintenanceChecklistView = () => {
     if (!selectedClient) return;
     
     const completedChecklists = Array.from(checklistProgress.values())
-      .filter(p => p.status === 'completed');
+      .filter(p => p.status === 'pending_signature');
     
     let successCount = 0;
     let errorCount = 0;
