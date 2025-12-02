@@ -291,7 +291,12 @@ export const TechnicianMaintenanceChecklistView = () => {
           const { data: checklistData, error: checklistError } = await supabase
             .from('mnt_checklists')
             .select(`
-              *,
+              id,
+              month,
+              year,
+              folio,
+              completion_date,
+              certification_status,
               clients(company_name, building_name, internal_alias, address),
               elevators(elevator_number, elevator_type, last_certification_date, next_certification_date),
               mnt_checklist_answers(
