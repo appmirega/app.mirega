@@ -51,7 +51,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, path: 'dashboard', roles: ['developer', 'admin', 'technician', 'client'] },
   { label: 'Mi Perfil', icon: UserIcon, path: 'profile', roles: ['developer', 'admin', 'technician', 'client'] },
-  { label: 'Historial Checklists', icon: ClipboardList, path: 'maintenance-checklist', roles: ['developer', 'admin', 'technician'] },
+  { label: 'Mantenimientos', icon: ClipboardList, path: 'maintenance-checklist', roles: ['developer', 'admin', 'technician'] },
   { label: 'Certificaciones', icon: BadgeCheck, path: 'certifications', roles: ['developer', 'admin'] },
   { label: 'Estadísticas', icon: TrendingUp, path: 'statistics', roles: ['developer', 'admin'] },
   { label: 'Operaciones Masivas', icon: CalendarRange, path: 'bulk-operations', roles: ['developer', 'admin'] },
