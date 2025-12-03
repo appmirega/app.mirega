@@ -216,6 +216,121 @@ export const TechnicianMaintenanceChecklistView = () => {
     setViewMode('checklist-form');
   };
 
+  // Formatear fecha última certificación (dd/mm/aaaa)
+  const formatLastCertificationDate = (value: string): string => {
+    // Eliminar todo lo que no sea número
+    const numbers = value.replace(/\D/g, '');
+    
+    if (numbers.length === 0) return '';
+    if (numbers.length <= 2) {
+      // Solo día
+      const day = parseInt(numbers);
+      if (day > 31) return numbers.slice(0, 1);
+      return numbers;
+    }
+    if (numbers.length <= 4) {
+      // Día + mes
+      const day = parseInt(numbers.slice(0, 2));
+      const month = parseInt(numbers.slice(2));
+      
+      // Validar día
+      if (day > 31 || day === 0) return numbers.slice(0, 2);
+      
+      // Validar mes parcial
+      if (numbers.length === 4 && month > 12) return numbers.slice(0, 3);
+      
+      return numbers.slice(0, 2) + '/' + numbers.slice(2);
+    }
+    if (numbers.length <= 8) {
+      // Día + mes + año
+      const day = parseInt(numbers.slice(0, 2));
+      const month = parseInt(numbers.slice(2, 4));
+      const year = parseInt(numbers.slice(4));
+      
+      // Validar día según mes y año
+      if (month > 0 && month <= 12) {
+        const daysInMonth = new Date(year || 2000, month, 0).getDate();
+        if (day > daysInMonth || day === 0) {
+          return numbers.slice(0, 2) + '/' + numbers.slice(2, 4);
+        }
+      }
+      
+      return numbers.slice(0, 2) + '/' + numbers.slice(2, 4) + '/' + numbers.slice(4, 8);
+    }
+    
+    return numbers.slice(0, 2) + '/' + numbers.slice(2, 4) + '/' + numbers.slice(4, 8);
+  };
+
+  // Formatear próxima certificación (mm/aaaa)
+  const formatNextCertificationDate = (value: string): string => {
+    // Eliminar todo lo que no sea número
+    const numbers = value.replace(/\D/g, '');
+    
+    if (numbers.length === 0) return '';
+    if (numbers.length <= 2) {
+      // Solo mes
+      const month = parseInt(numbers);
+      if (month > 12) return numbers.slice(0, 1);
+      return numbers;
+    }
+    if (numbers.length <= 6) {
+      // Mes + año
+      const month = parseInt(numbers.slice(0, 2));
+      if (month > 12 || month === 0) return numbers.slice(0, 1);
+      
+      return numbers.slice(0, 2) + '/' + numbers.slice(2, 6);
+    }
+    
+    return numbers.slice(0, 2) + '/' + numbers.slice(2, 6);
+  };
+
+  // Validar fecha última certificación
+  const validateLastCertificationDate = (dateStr: string): boolean => {
+    const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    const match = dateStr.match(regex);
+    
+    if (!match) return false;
+    
+    const day = parseInt(match[1]);
+    const month = parseInt(match[2]);
+    const year = parseInt(match[3]);
+    
+    if (month < 1 || month > 12) return false;
+    if (year < 1900 || year > 2100) return false;
+    
+    const daysInMonth = new Date(year, month, 0).getDate();
+    if (day < 1 || day > daysInMonth) return false;
+    
+    return true;
+  };
+
+  // Validar próxima certificación
+  const validateNextCertificationDate = (dateStr: string): boolean => {
+    const regex = /^(\d{2})\/(\d{4})$/;
+    const match = dateStr.match(regex);
+    
+    if (!match) return false;
+    
+    const month = parseInt(match[1]);
+    const year = parseInt(match[2]);
+    
+    if (month < 1 || month > 12) return false;
+    if (year < 1900 || year > 2100) return false;
+    
+    return true;
+  };
+
+  // Handlers para inputs con formateo automático
+  const handleLastCertificationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatLastCertificationDate(e.target.value);
+    setLastCertificationDate(formatted);
+  };
+
+  const handleNextCertificationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatNextCertificationDate(e.target.value);
+    setNextCertificationDate(formatted);
+  };
+
   // Calcular estado de certificación
   const calculateCertificationStatus = (nextCertDate: string): 'vigente' | 'vencida' | null => {
     if (!nextCertDate || certificationDatesNotReadable) return null;
@@ -237,18 +352,20 @@ export const TechnicianMaintenanceChecklistView = () => {
 
   // Guardar fechas de certificación y continuar al checklist
   const handleSaveCertificationDates = async () => {
+    if (!currentChecklistId) {
+      alert('Error: No se ha creado el checklist');
+      return;
+    }
+
     if (!certificationDatesNotReadable) {
-      // Validar formato de fechas
-      const lastDateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
-      const nextDateRegex = /^\d{2}\/\d{4}$/;
-      
-      if (!lastDateRegex.test(lastCertificationDate)) {
-        alert('Formato de "Última certificación" inválido. Use dd/mm/aaaa');
+      // Validar fechas
+      if (!validateLastCertificationDate(lastCertificationDate)) {
+        alert('Fecha de "Última certificación" inválida. Verifique el formato dd/mm/aaaa y que la fecha sea válida.');
         return;
       }
       
-      if (!nextDateRegex.test(nextCertificationDate)) {
-        alert('Formato de "Próxima certificación" inválido. Use mm/aaaa');
+      if (!validateNextCertificationDate(nextCertificationDate)) {
+        alert('Fecha de "Próxima certificación" inválida. Verifique el formato mm/aaaa y que la fecha sea válida.');
         return;
       }
     }
@@ -831,9 +948,10 @@ export const TechnicianMaintenanceChecklistView = () => {
                   <input
                     type="text"
                     value={lastCertificationDate}
-                    onChange={(e) => setLastCertificationDate(e.target.value)}
+                    onChange={handleLastCertificationChange}
                     disabled={certificationDatesNotReadable}
                     placeholder="01/12/2024"
+                    maxLength={10}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
@@ -845,9 +963,10 @@ export const TechnicianMaintenanceChecklistView = () => {
                   <input
                     type="text"
                     value={nextCertificationDate}
-                    onChange={(e) => setNextCertificationDate(e.target.value)}
+                    onChange={handleNextCertificationChange}
                     disabled={certificationDatesNotReadable}
                     placeholder="12/2025"
+                    maxLength={7}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
