@@ -589,10 +589,9 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     // Obtener respuestas del checklist
     const { data: responses, error: responsesError } = await supabase
-      .from('checklist_responses')
-      .select('question_number, status, observations')
-      .eq('checklist_id', checklistId)
-      .order('question_number');
+      .from('mnt_checklist_answers')
+      .select('question_id, status, observations')
+      .eq('checklist_id', checklistId);
     
     if (responsesError) {
       console.error('Error obteniendo respuestas:', responsesError);
@@ -602,7 +601,7 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Obtener las preguntas del maestro
     const { data: questions, error: questionsError } = await supabase
       .from('mnt_questions')
-      .select('question_number, section, question_text')
+      .select('id, question_number, section, question_text')
       .order('question_number');
     
     if (questionsError) {
@@ -610,8 +609,8 @@ export const TechnicianMaintenanceChecklistView = () => {
       throw new Error(`No se pudieron obtener las preguntas: ${questionsError.message}`);
     }
     
-    // Crear mapa de preguntas por número
-    const questionMap = new Map(questions?.map(q => [q.question_number, q]) || []);
+    // Crear mapa de preguntas por ID
+    const questionMap = new Map(questions?.map(q => [q.id, q]) || []);
     
     // Preparar datos para el PDF
     const pdfData: MaintenanceChecklistPDFData = {
@@ -630,15 +629,15 @@ export const TechnicianMaintenanceChecklistView = () => {
         ? 'no_legible' 
         : (checklistData.certification_status === 'vigente' ? 'vigente' : 'vencida'),
       questions: (responses || []).map((r: any) => {
-        const question = questionMap.get(r.question_number);
+        const question = questionMap.get(r.question_id);
         return {
-          number: r.question_number,
+          number: question?.question_number || 0,
           section: question?.section || '',
           text: question?.question_text || '',
           status: r.status as any,
           observations: r.observations
         };
-      }),
+      }).sort((a, b) => a.number - b.number),
       signature: {
         signerName: signerName,
         signedAt: new Date().toISOString(),
