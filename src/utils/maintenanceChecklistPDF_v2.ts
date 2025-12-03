@@ -99,27 +99,27 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo
+  // Logo (más pequeño y sin sobreposición)
   if (logoImg) {
     try {
-      doc.addImage(logoImg, 'PNG', MARGIN, y, 35, 30);
+      doc.addImage(logoImg, 'PNG', MARGIN, y, 25, 20);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
-  // Título principal
+  // Título principal (más arriba para dar espacio)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(...hexToRgb(COLORS.black));
-  doc.text('INFORME MANTENIMIENTO', PAGE_WIDTH / 2, y + 12, { align: 'center' });
+  doc.text('INFORME MANTENIMIENTO', PAGE_WIDTH / 2, y + 10, { align: 'center' });
 
   // Subtítulo
   doc.setFontSize(14);
-  doc.text('INSPECCIÓN MENSUAL', PAGE_WIDTH / 2, y + 20, { align: 'center' });
+  doc.text('INSPECCIÓN MENSUAL', PAGE_WIDTH / 2, y + 18, { align: 'center' });
 
   // Información de contacto
-  y += 28;
+  y += 25;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   const contactInfo = 'MIREGA ASCENSORES LTDA. | Pedro de Valdivia N°255 – Of. 202, Providencia | +56956087972 | contacto@mirega.cl | www.mirega.cl';
@@ -164,15 +164,17 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
     doc.rect(x, yPos, labelWidth, fieldHeight, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text(label, x + 2, yPos + 4.5);
+    doc.text(label, x + 2, yPos + 4.8);
 
-    // Value (blanco)
+    // Value (blanco con borde)
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(...blueRgb);
+    doc.setLineWidth(0.3);
     doc.rect(x + labelWidth, yPos, fieldWidth, fieldHeight);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text(value, x + labelWidth + 2, yPos + 4.5);
+    doc.setFontSize(9);
+    doc.text(value, x + labelWidth + 3, yPos + 4.8);
   };
 
   // Fila 1: Cliente | Periodo
@@ -338,8 +340,8 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
 // FIRMA
 function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number) {
   const blueRgb = hexToRgb(COLORS.blue);
-  const boxW = 90;
-  const boxH = 30;
+  const boxW = 80;
+  const boxH = 25;
 
   // Título
   doc.setFillColor(...blueRgb);
@@ -355,10 +357,10 @@ function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number)
   doc.setLineWidth(0.5);
   doc.rect(MARGIN, y + 7, boxW, boxH);
 
-  // Imagen de firma
+  // Imagen de firma (más pequeña con más padding)
   if (data.signature?.signatureDataUrl) {
     try {
-      doc.addImage(data.signature.signatureDataUrl, 'PNG', MARGIN + 5, y + 9, boxW - 10, boxH - 10);
+      doc.addImage(data.signature.signatureDataUrl, 'PNG', MARGIN + 10, y + 10, boxW - 20, boxH - 8);
     } catch (e) {
       console.error('Error al cargar firma:', e);
     }
@@ -369,13 +371,13 @@ function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   const signerName = data.signature?.signerName?.toUpperCase() || 'SIN FIRMA REGISTRADA';
-  doc.text(signerName, MARGIN + boxW / 2, y + boxH + 11, { align: 'center' });
+  doc.text(signerName, MARGIN + boxW / 2, y + boxH + 10, { align: 'center' });
 
   // Fecha de firma
   if (data.signature?.signedAt) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.text(formatDate(data.signature.signedAt), MARGIN + boxW / 2, y + boxH + 15, { align: 'center' });
+    doc.text(formatDate(data.signature.signedAt), MARGIN + boxW / 2, y + boxH + 14, { align: 'center' });
   }
 }
 
