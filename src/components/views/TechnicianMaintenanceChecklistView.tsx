@@ -20,7 +20,7 @@ import {
 import { QRScanner } from '../checklist/QRScanner';
 import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
 import { ChecklistSignatureModal } from '../checklist/ChecklistSignatureModal';
-import { generateMaintenanceChecklistPDF } from '../../utils/maintenanceChecklistPDF';
+import { generateMaintenanceChecklistPDF, MaintenanceChecklistPDFData } from '../../utils/maintenanceChecklistPDF_v2';
 
 interface Client {
   id: string;
@@ -512,26 +512,161 @@ export const TechnicianMaintenanceChecklistView = () => {
     const completedChecklists = Array.from(checklistProgress.values())
       .filter(p => p.status === 'completed');
     
-    // Actualizar todos los checklists completados con la firma
-    for (const progress of completedChecklists) {
-      await supabase
-        .from('mnt_checklists')
-        .update({
-          signer_name: signerName,
-          signature_url: signatureDataURL,
-          signed_at: new Date().toISOString()
-        })
-        .eq('id', progress.checklist_id);
+    try {
+      // Paso 1: Actualizar todos los checklists completados con la firma
+      for (const progress of completedChecklists) {
+        await supabase
+          .from('mnt_checklists')
+          .update({
+            signer_name: signerName,
+            signature_url: signatureDataURL,
+            signed_at: new Date().toISOString()
+          })
+          .eq('id', progress.checklist_id);
+      }
+      
+      setShowSignatureModal(false);
+      
+      // Paso 2: Generar PDFs para cada checklist
+      alert(`Firma guardada. Generando ${completedChecklists.length} PDF(s)...`);
+      
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const progress of completedChecklists) {
+        try {
+          await generateAndUploadPDF(progress.checklist_id, signerName, signatureDataURL);
+          successCount++;
+        } catch (error) {
+          console.error(`Error generando PDF para checklist ${progress.checklist_id}:`, error);
+          errorCount++;
+        }
+      }
+      
+      if (errorCount > 0) {
+        alert(`Se firmaron ${completedChecklists.length} checklist(s). Se generaron ${successCount} PDF(s) correctamente. ${errorCount} fallaron.`);
+      } else {
+        alert(`✅ Se firmaron y generaron ${successCount} PDF(s) exitosamente.`);
+      }
+      
+      // Resetear y volver al inicio
+      setChecklistProgress(new Map());
+      setSelectedClient(null);
+      setElevators([]);
+      setViewMode('main');
+      
+    } catch (error) {
+      console.error('Error en el proceso de firma:', error);
+      alert('Error al procesar la firma. Por favor, intente nuevamente.');
+    }
+  };
+
+  // Generar y subir PDF a Supabase Storage
+  const generateAndUploadPDF = async (checklistId: string, signerName: string, signatureDataURL: string) => {
+    // Obtener datos completos del checklist
+    const { data: checklistData, error: checklistError } = await supabase
+      .from('mnt_checklists')
+      .select(`
+        id,
+        folio,
+        month,
+        year,
+        completion_date,
+        last_certification_date,
+        next_certification_date,
+        certification_dates_readable,
+        certification_status,
+        clients(company_name, building_name, internal_alias, address),
+        elevators(elevator_number, location_name),
+        profiles(full_name)
+      `)
+      .eq('id', checklistId)
+      .single();
+    
+    if (checklistError || !checklistData) {
+      throw new Error('No se pudo obtener los datos del checklist');
     }
     
-    setShowSignatureModal(false);
-    alert(`Se firmaron ${completedChecklists.length} checklist(s) exitosamente`);
+    // Obtener respuestas del checklist
+    const { data: responses, error: responsesError } = await supabase
+      .from('mnt_checklist_responses')
+      .select('question_number, status, observations, section, question_text')
+      .eq('checklist_id', checklistId)
+      .order('question_number');
     
-    // Resetear y volver al inicio
-    setChecklistProgress(new Map());
-    setSelectedClient(null);
-    setElevators([]);
-    setViewMode('main');
+    if (responsesError) {
+      throw new Error('No se pudieron obtener las respuestas del checklist');
+    }
+    
+    // Preparar datos para el PDF
+    const pdfData: MaintenanceChecklistPDFData = {
+      checklistId: checklistData.id,
+      folioNumber: checklistData.folio,
+      clientName: checklistData.clients?.company_name || checklistData.clients?.building_name || 'Cliente no especificado',
+      clientAddress: checklistData.clients?.address,
+      elevatorNumber: checklistData.elevators?.elevator_number,
+      month: checklistData.month,
+      year: checklistData.year,
+      completionDate: checklistData.completion_date,
+      lastCertificationDate: checklistData.last_certification_date,
+      nextCertificationDate: checklistData.next_certification_date,
+      technicianName: checklistData.profiles?.full_name || 'Técnico no especificado',
+      certificationStatus: checklistData.certification_dates_readable === false 
+        ? 'no_legible' 
+        : (checklistData.certification_status === 'vigente' ? 'vigente' : 'vencida'),
+      questions: (responses || []).map(r => ({
+        number: r.question_number,
+        section: r.section || '',
+        text: r.question_text || '',
+        status: r.status as any,
+        observations: r.observations
+      })),
+      signature: {
+        signerName: signerName,
+        signedAt: new Date().toISOString(),
+        signatureDataUrl: signatureDataURL
+      }
+    };
+    
+    // Generar PDF
+    const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
+    
+    // Nombre del archivo
+    const fileName = `mantenimiento_${checklistData.clients?.internal_alias || 'cliente'}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
+    const filePath = `${checklistData.clients?.internal_alias || 'general'}/${fileName}`;
+    
+    // Subir a Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('maintenance-pdfs')
+      .upload(filePath, pdfBlob, {
+        contentType: 'application/pdf',
+        upsert: false
+      });
+    
+    if (uploadError) {
+      throw new Error(`Error subiendo PDF: ${uploadError.message}`);
+    }
+    
+    // Obtener URL pública del PDF
+    const { data: urlData } = supabase.storage
+      .from('maintenance-pdfs')
+      .getPublicUrl(filePath);
+    
+    if (!urlData) {
+      throw new Error('No se pudo obtener la URL del PDF');
+    }
+    
+    // Guardar URL en la base de datos
+    const { error: updateError } = await supabase
+      .from('mnt_checklists')
+      .update({ pdf_url: urlData.publicUrl })
+      .eq('id', checklistId);
+    
+    if (updateError) {
+      throw new Error(`Error guardando URL del PDF: ${updateError.message}`);
+    }
+    
+    console.log(`✅ PDF generado y guardado: ${urlData.publicUrl}`);
   };
 
   // Cargar historial
