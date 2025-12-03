@@ -587,22 +587,31 @@ export const TechnicianMaintenanceChecklistView = () => {
       throw new Error('No se pudo obtener los datos del checklist');
     }
     
-    // Obtener respuestas del checklist con JOIN a las preguntas
+    // Obtener respuestas del checklist
     const { data: responses, error: responsesError } = await supabase
       .from('mnt_checklist_responses')
-      .select(`
-        question_number,
-        status,
-        observations,
-        mnt_questions!inner(section, question_text)
-      `)
+      .select('question_number, status, observations')
       .eq('checklist_id', checklistId)
       .order('question_number');
     
     if (responsesError) {
       console.error('Error obteniendo respuestas:', responsesError);
-      throw new Error('No se pudieron obtener las respuestas del checklist');
+      throw new Error(`No se pudieron obtener las respuestas del checklist: ${responsesError.message}`);
     }
+    
+    // Obtener las preguntas del maestro
+    const { data: questions, error: questionsError } = await supabase
+      .from('mnt_questions')
+      .select('question_number, section, question_text')
+      .order('question_number');
+    
+    if (questionsError) {
+      console.error('Error obteniendo preguntas:', questionsError);
+      throw new Error(`No se pudieron obtener las preguntas: ${questionsError.message}`);
+    }
+    
+    // Crear mapa de preguntas por número
+    const questionMap = new Map(questions?.map(q => [q.question_number, q]) || []);
     
     // Preparar datos para el PDF
     const pdfData: MaintenanceChecklistPDFData = {
@@ -620,13 +629,16 @@ export const TechnicianMaintenanceChecklistView = () => {
       certificationStatus: checklistData.certification_dates_readable === false 
         ? 'no_legible' 
         : (checklistData.certification_status === 'vigente' ? 'vigente' : 'vencida'),
-      questions: (responses || []).map((r: any) => ({
-        number: r.question_number,
-        section: r.mnt_questions?.section || '',
-        text: r.mnt_questions?.question_text || '',
-        status: r.status as any,
-        observations: r.observations
-      })),
+      questions: (responses || []).map((r: any) => {
+        const question = questionMap.get(r.question_number);
+        return {
+          number: r.question_number,
+          section: question?.section || '',
+          text: question?.question_text || '',
+          status: r.status as any,
+          observations: r.observations
+        };
+      }),
       signature: {
         signerName: signerName,
         signedAt: new Date().toISOString(),
