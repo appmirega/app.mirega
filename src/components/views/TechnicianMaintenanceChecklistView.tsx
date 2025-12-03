@@ -587,14 +587,20 @@ export const TechnicianMaintenanceChecklistView = () => {
       throw new Error('No se pudo obtener los datos del checklist');
     }
     
-    // Obtener respuestas del checklist
+    // Obtener respuestas del checklist con JOIN a las preguntas
     const { data: responses, error: responsesError } = await supabase
       .from('mnt_checklist_responses')
-      .select('question_number, status, observations, section, question_text')
+      .select(`
+        question_number,
+        status,
+        observations,
+        mnt_questions!inner(section, question_text)
+      `)
       .eq('checklist_id', checklistId)
       .order('question_number');
     
     if (responsesError) {
+      console.error('Error obteniendo respuestas:', responsesError);
       throw new Error('No se pudieron obtener las respuestas del checklist');
     }
     
@@ -614,10 +620,10 @@ export const TechnicianMaintenanceChecklistView = () => {
       certificationStatus: checklistData.certification_dates_readable === false 
         ? 'no_legible' 
         : (checklistData.certification_status === 'vigente' ? 'vigente' : 'vencida'),
-      questions: (responses || []).map(r => ({
+      questions: (responses || []).map((r: any) => ({
         number: r.question_number,
-        section: r.section || '',
-        text: r.question_text || '',
+        section: r.mnt_questions?.section || '',
+        text: r.mnt_questions?.question_text || '',
         status: r.status as any,
         observations: r.observations
       })),
@@ -737,6 +743,69 @@ export const TechnicianMaintenanceChecklistView = () => {
     setSelectedMonth(checklist.month);
     setSelectedYear(checklist.year);
     setViewMode('checklist-form');
+  };
+
+  // Ver PDF en nueva pestaña
+  const handleViewPDF = async (checklistId: string) => {
+    const { data, error } = await supabase
+      .from('mnt_checklists')
+      .select('pdf_url')
+      .eq('id', checklistId)
+      .single();
+    
+    if (error || !data?.pdf_url) {
+      alert('PDF no disponible. Puede que aún no se haya generado.');
+      return;
+    }
+    
+    window.open(data.pdf_url, '_blank');
+  };
+
+  // Descargar PDF
+  const handleDownloadPDF = async (checklistId: string) => {
+    const { data, error } = await supabase
+      .from('mnt_checklists')
+      .select('pdf_url, clients(internal_alias), elevators(elevator_number), month, year')
+      .eq('id', checklistId)
+      .single();
+    
+    if (error || !data?.pdf_url) {
+      alert('PDF no disponible. Puede que aún no se haya generado.');
+      return;
+    }
+    
+    // Descargar el PDF
+    const response = await fetch(data.pdf_url);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mantenimiento_${data.clients?.internal_alias}_asc${data.elevators?.elevator_number}_${data.month}-${data.year}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Compartir PDF (copiar enlace)
+  const handleSharePDF = async (checklistId: string) => {
+    const { data, error } = await supabase
+      .from('mnt_checklists')
+      .select('pdf_url')
+      .eq('id', checklistId)
+      .single();
+    
+    if (error || !data?.pdf_url) {
+      alert('PDF no disponible. Puede que aún no se haya generado.');
+      return;
+    }
+    
+    try {
+      await navigator.clipboard.writeText(data.pdf_url);
+      alert('✅ Enlace del PDF copiado al portapapeles');
+    } catch (err) {
+      alert('No se pudo copiar el enlace. URL: ' + data.pdf_url);
+    }
   };
 
   const handleBackToMain = () => {
@@ -1466,21 +1535,21 @@ export const TechnicianMaintenanceChecklistView = () => {
                                   <button 
                                     className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
                                     title="Ver PDF"
-                                    onClick={() => alert('Función de visualización en desarrollo')}
+                                    onClick={() => handleViewPDF(h.id)}
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   <button 
                                     className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
                                     title="Descargar PDF"
-                                    onClick={() => alert('Función de descarga en desarrollo')}
+                                    onClick={() => handleDownloadPDF(h.id)}
                                   >
                                     <Download className="w-4 h-4" />
                                   </button>
                                   <button 
                                     className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
                                     title="Compartir"
-                                    onClick={() => alert('Función de compartir en desarrollo')}
+                                    onClick={() => handleSharePDF(h.id)}
                                   >
                                     <Share2 className="w-4 h-4" />
                                   </button>
