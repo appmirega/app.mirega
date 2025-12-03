@@ -402,7 +402,25 @@ export const TechnicianMaintenanceChecklistView = () => {
       setShowCertificationForm(false);
     } catch (error: any) {
       console.error('Error guardando fechas de certificación:', error);
-      alert(`Error al guardar fechas de certificación: ${error?.message || JSON.stringify(error)}`);
+      
+      // Traducir errores comunes al español
+      let errorMessage = 'Error desconocido al guardar las fechas de certificación';
+      
+      if (error?.message) {
+        const msg = error.message.toLowerCase();
+        
+        if (msg.includes('invalid input syntax for type date')) {
+          errorMessage = 'Error: Las columnas de fecha están configuradas incorrectamente en la base de datos. Por favor, ejecute el SQL de corrección.';
+        } else if (msg.includes('column') && msg.includes('does not exist')) {
+          errorMessage = 'Error: Las columnas de certificación no existen en la base de datos. Por favor, ejecute la migración SQL.';
+        } else if (msg.includes('permission denied')) {
+          errorMessage = 'Error: No tiene permisos para actualizar estos datos.';
+        } else {
+          errorMessage = `Error: ${error.message}`;
+        }
+      }
+      
+      alert(errorMessage);
     }
   };
 
