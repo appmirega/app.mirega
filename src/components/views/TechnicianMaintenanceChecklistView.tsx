@@ -600,7 +600,7 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     // Obtener las preguntas del maestro
     const { data: questions, error: questionsError } = await supabase
-      .from('mnt_questions')
+      .from('mnt_checklist_questions')
       .select('id, question_number, section, question_text')
       .order('question_number');
     
