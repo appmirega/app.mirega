@@ -371,8 +371,16 @@ export const TechnicianMaintenanceChecklistView = () => {
     }
 
     try {
+      console.log('Guardando fechas de certificación:', {
+        currentChecklistId,
+        last_certification_date: certificationDatesNotReadable ? null : lastCertificationDate,
+        next_certification_date: certificationDatesNotReadable ? null : nextCertificationDate,
+        certification_dates_readable: !certificationDatesNotReadable,
+        certification_status: certificationDatesNotReadable ? null : certificationStatus
+      });
+
       // Guardar en mnt_checklists
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('mnt_checklists')
         .update({
           last_certification_date: certificationDatesNotReadable ? null : lastCertificationDate,
@@ -380,15 +388,21 @@ export const TechnicianMaintenanceChecklistView = () => {
           certification_dates_readable: !certificationDatesNotReadable,
           certification_status: certificationDatesNotReadable ? null : certificationStatus
         })
-        .eq('id', currentChecklistId);
+        .eq('id', currentChecklistId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error de Supabase:', error);
+        throw error;
+      }
+
+      console.log('Fechas guardadas exitosamente:', data);
 
       // Ocultar formulario de certificación y mostrar checklist
       setShowCertificationForm(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error guardando fechas de certificación:', error);
-      alert('Error al guardar fechas de certificación');
+      alert(`Error al guardar fechas de certificación: ${error?.message || JSON.stringify(error)}`);
     }
   };
 
