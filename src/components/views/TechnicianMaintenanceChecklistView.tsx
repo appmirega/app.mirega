@@ -589,7 +589,7 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     // Obtener respuestas del checklist
     const { data: responses, error: responsesError } = await supabase
-      .from('mnt_checklist_responses')
+      .from('checklist_responses')
       .select('question_number, status, observations')
       .eq('checklist_id', checklistId)
       .order('question_number');
