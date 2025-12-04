@@ -577,7 +577,7 @@ export const TechnicianMaintenanceChecklistView = () => {
         certification_dates_readable,
         certification_status,
         clients(company_name, building_name, internal_alias, address),
-        elevators(elevator_number, location_name),
+        elevators(elevator_number, location_name, elevator_type),
         profiles(full_name)
       `)
       .eq('id', checklistId)
@@ -598,10 +598,10 @@ export const TechnicianMaintenanceChecklistView = () => {
       throw new Error(`No se pudieron obtener las respuestas del checklist: ${responsesError.message}`);
     }
     
-    // Obtener las preguntas del maestro
+    // Obtener las preguntas del maestro con frecuencia y applies_to
     const { data: questions, error: questionsError } = await supabase
       .from('mnt_checklist_questions')
-      .select('id, question_number, section, question_text')
+      .select('id, question_number, section, question_text, frequency, applies_to')
       .order('question_number');
     
     if (questionsError) {
@@ -611,16 +611,40 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     // Crear mapa de preguntas por ID
     const questionMap = new Map(questions?.map(q => [q.id, q]) || []);
+    const responsesMap = new Map((responses || []).map((r: any) => [r.question_id, r]));
     
-    // Preparar datos para el PDF
-    const pdfData: MaintenanceChecklistPDFData = {
-      checklistId: checklistData.id,
-      folioNumber: checklistData.folio,
-      clientName: checklistData.clients?.company_name || checklistData.clients?.building_name || 'Cliente no especificado',
-      clientAddress: checklistData.clients?.address,
-      elevatorNumber: checklistData.elevators?.elevator_number,
-      month: checklistData.month,
-      year: checklistData.year,
+    // Determinar qué preguntas mostrar y con qué estado
+    const elevatorType = checklistData.elevators?.elevator_type || 'Electromecánico';
+    const currentMonth = checklistData.month;
+    
+    // Lógica de frecuencias (igual que DynamicChecklistForm)
+    const isQuarterlyMonth = (month: number) => [3, 6, 9, 12].includes(month);
+    const isSemesterMonth = (month: number) => [6, 12].includes(month);
+    
+    const allQuestions = (questions || []).map((q: any) => {
+      const response = responsesMap.get(q.id);
+      let finalStatus: string;
+      
+      // Determinar estado según reglas
+      if (q.applies_to === 'Hidráulico' && elevatorType === 'Electromecánico') {
+        finalStatus = 'not_applicable'; // Gris automático
+      } else if (q.frequency === 'T' && !isQuarterlyMonth(currentMonth)) {
+        finalStatus = 'out_of_period'; // Celeste automático
+      } else if (q.frequency === 'S' && !isSemesterMonth(currentMonth)) {
+        finalStatus = 'out_of_period'; // Celeste automático
+      } else {
+        // Usar respuesta del técnico (verde/rojo)
+        finalStatus = response?.status || 'approved';
+      }
+      
+      return {
+        number: q.question_number,
+        section: q.section,
+        text: q.question_text,
+        status: finalStatus,
+        observations: response?.observations || null
+      };
+    }).sort((a, b) => a.number - b.number);
       completionDate: checklistData.completion_date,
       lastCertificationDate: checklistData.last_certification_date,
       nextCertificationDate: checklistData.next_certification_date,
@@ -628,16 +652,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       certificationStatus: checklistData.certification_dates_readable === false 
         ? 'no_legible' 
         : (checklistData.certification_status === 'vigente' ? 'vigente' : 'vencida'),
-      questions: (responses || []).map((r: any) => {
-        const question = questionMap.get(r.question_id);
-        return {
-          number: question?.question_number || 0,
-          section: question?.section || '',
-          text: question?.question_text || '',
-          status: r.status as any,
-          observations: r.observations
-        };
-      }).sort((a, b) => a.number - b.number),
+      questions: allQuestions,
       signature: {
         signerName: signerName,
         signedAt: new Date().toISOString(),

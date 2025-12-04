@@ -194,40 +194,38 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   drawField('Técnico:', data.technicianName || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
   y += fieldHeight + 1.5;
 
-  // Fila 4: Última Certif./Próxima Certif. | Vigencia
-  // Lado izquierdo: 2 sub-campos (Última y Próxima)
-  const subLabelWidth = 30;
-  const subFieldWidth = (PAGE_WIDTH / 2 - MARGIN - 2 * subLabelWidth - 10) / 2;
+  // Fila 4: Última/Próxima (izquierda) | Vigencia (derecha)
+  const halfWidth = (PAGE_WIDTH / 2 - MARGIN - labelWidth - 8) / 2;
   
-  // Última Certificación
+  // Lado izquierdo - Última Certif.
   doc.setFillColor(...blueRgb);
   doc.setTextColor(255, 255, 255);
-  doc.rect(leftCol, y, subLabelWidth, fieldHeight, 'F');
+  doc.rect(leftCol, y, labelWidth, fieldHeight, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.text('Última Certif.:', leftCol + 1.5, y + 4.2);
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...blueRgb);
   doc.setLineWidth(0.3);
-  doc.rect(leftCol + subLabelWidth, y, subFieldWidth, fieldHeight);
+  doc.rect(leftCol + labelWidth, y, halfWidth, fieldHeight);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.lastCertificationDate || 'No legible', leftCol + subLabelWidth + 2, y + 4.2);
+  doc.text(data.lastCertificationDate || 'No legible', leftCol + labelWidth + 2, y + 4.2);
   
-  // Próxima Certificación
-  const proxX = leftCol + subLabelWidth + subFieldWidth + 2;
+  // Lado izquierdo - Próxima Certif.
+  const proxX = leftCol + labelWidth + halfWidth + 2;
   doc.setFillColor(...blueRgb);
   doc.setTextColor(255, 255, 255);
-  doc.rect(proxX, y, subLabelWidth, fieldHeight, 'F');
+  doc.rect(proxX, y, labelWidth, fieldHeight, 'F');
   doc.setFont('helvetica', 'bold');
   doc.text('Próxima Certif.:', proxX + 1.5, y + 4.2);
   doc.setFillColor(255, 255, 255);
-  doc.rect(proxX + subLabelWidth, y, subFieldWidth, fieldHeight);
+  doc.rect(proxX + labelWidth, y, halfWidth, fieldHeight);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.nextCertificationDate || 'No legible', proxX + subLabelWidth + 2, y + 4.2);
+  doc.text(data.nextCertificationDate || 'No legible', proxX + labelWidth + 2, y + 4.2);
   
-  // Vigencia (lado derecho)
+  // Lado derecho - Vigencia (igual ancho que filas superiores)
   drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
 
   return y + fieldHeight + 6;
@@ -246,28 +244,28 @@ function drawLegend(doc: jsPDF, y: number): number {
   
   let x = MARGIN + 42;
 
-  // Aprobado: ⚫
+  // Aprobado: ⚫ (espacio uniforme)
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   doc.text('Aprobado:', x, y);
   x += 20;
   doc.setFillColor(...greenRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  x += 6;
+  x += 4; // Espacio uniforme
 
   // Rechazado: ⚫
   doc.text('Rechazado:', x, y);
   x += 22;
   doc.setFillColor(...redRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  x += 6;
+  x += 4; // Espacio uniforme
 
   // No corresponde al periodo: ⚫
   doc.text('No corresponde al periodo:', x, y);
   x += 50;
   doc.setFillColor(...cyanRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  x += 6;
+  x += 4; // Espacio uniforme (antes era 6)
 
   // No aplica: ⚫
   doc.text('No aplica:', x, y);
@@ -291,7 +289,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
   doc.setTextColor(255, 255, 255);
   doc.text('CHECKLIST MANTENIMIENTO', MARGIN + 3, y + 5.5);
 
-  y += 10;
+  y += 12; // Más espacio después del título (antes 10)
 
   // Dividir en 25 + 25
   const leftQuestions = data.questions.slice(0, 25);
@@ -348,7 +346,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       }
       doc.circle(iconX, iconY, 1.5, 'F');
 
-      yCol += Math.max(3.2, lines.length * 2.8);
+      yCol += Math.max(3.2, lines.length * 2.6);
     });
 
     return yCol;
