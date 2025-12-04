@@ -148,23 +148,24 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
 
   y += 10;
 
-  // Configuración de campos
-  const fieldHeight = 7;
-  const labelWidth = 40;
+  // Configuración de campos (reducido a 4 filas)
+  const fieldHeight = 6;
+  const labelWidth = 35;
   const leftCol = MARGIN;
-  const rightCol = PAGE_WIDTH / 2 + 5;
+  const middleCol = PAGE_WIDTH / 3 + 2;
+  const rightCol = 2 * PAGE_WIDTH / 3 + 4;
 
   // Función para dibujar campo
-  const drawField = (label: string, value: string, x: number, yPos: number, wide = false) => {
-    const fieldWidth = wide ? PAGE_WIDTH - 2 * MARGIN - labelWidth - 2 : (PAGE_WIDTH / 2 - MARGIN - labelWidth - 7);
+  const drawField = (label: string, value: string, x: number, yPos: number, width?: number) => {
+    const fieldWidth = width || (PAGE_WIDTH / 3 - MARGIN - 6);
     
     // Label (azul)
     doc.setFillColor(...blueRgb);
     doc.setTextColor(255, 255, 255);
     doc.rect(x, yPos, labelWidth, fieldHeight, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text(label, x + 2, yPos + 4.8);
+    doc.setFontSize(8);
+    doc.text(label, x + 1.5, yPos + 4.2);
 
     // Value (blanco con borde)
     doc.setFillColor(255, 255, 255);
@@ -173,79 +174,81 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
     doc.rect(x + labelWidth, yPos, fieldWidth, fieldHeight);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(value, x + labelWidth + 3, yPos + 4.8);
+    doc.setFontSize(8);
+    doc.text(value, x + labelWidth + 2, yPos + 4.2);
   };
 
   // Fila 1: Cliente | Periodo
-  drawField('Cliente:', data.clientName || '', leftCol, y);
-  drawField('Periodo:', MONTHS[data.month - 1] || '', rightCol, y);
-  y += fieldHeight + 2;
+  drawField('Cliente:', data.clientName || '', leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  drawField('Periodo:', MONTHS[data.month - 1] || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  y += fieldHeight + 1.5;
 
-  // Fila 2: Dirección (ancho completo)
-  drawField('Dirección:', data.clientAddress || '', leftCol, y, true);
-  y += fieldHeight + 2;
-
-  // Fila 3: Ascensor | Fecha
+  // Fila 2: Dirección | Ascensor
+  drawField('Dirección:', data.clientAddress || '', leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
   const ascensorText = data.elevatorNumber ? `Ascensor ${data.elevatorNumber}` : 'No especificado';
-  drawField('N° de Ascensor:', ascensorText, leftCol, y);
-  drawField('Fecha:', formatDate(data.completionDate), rightCol, y);
-  y += fieldHeight + 2;
+  drawField('N° Ascensor:', ascensorText, PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  y += fieldHeight + 1.5;
 
-  // Fila 4: Técnico | Vigencia
-  drawField('Técnico:', data.technicianName || '', leftCol, y);
-  drawField('Vigencia Certif.:', getCertificationStatusText(data.certificationStatus), rightCol, y);
-  y += fieldHeight + 2;
+  // Fila 3: Fecha | Técnico
+  drawField('Fecha:', formatDate(data.completionDate), leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  drawField('Técnico:', data.technicianName || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  y += fieldHeight + 1.5;
 
-  // Fila 5: Última Certificación | Próxima Certificación
-  drawField('Última Certif.:', formatDate(data.lastCertificationDate, 'No legible'), leftCol, y);
-  drawField('Próxima Certif.:', formatDate(data.nextCertificationDate, 'No legible'), rightCol, y);
+  // Fila 4: Última Certif. | Próxima Certif. | Vigencia
+  const certWidth = (PAGE_WIDTH - 2 * MARGIN - 3 * labelWidth - 6) / 3;
+  drawField('Última Certif.:', formatDate(data.lastCertificationDate, 'No legible'), leftCol, y, certWidth);
+  drawField('Próxima Certif.:', formatDate(data.nextCertificationDate, 'No legible'), middleCol, y, certWidth);
+  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightCol, y, certWidth);
 
-  return y + fieldHeight + 8;
+  return y + fieldHeight + 6;
 }
 
 // LEYENDA DE ICONOGRAFÍA
 function drawLegend(doc: jsPDF, y: number): number {
-  const blueRgb = hexToRgb(COLORS.blue);
   const greenRgb = hexToRgb(COLORS.green);
   const redRgb = hexToRgb(COLORS.red);
+  const cyanRgb = [100, 180, 220]; // Celeste
+  const grayRgb = [180, 180, 180]; // Gris
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.text('Leyenda:', MARGIN, y);
   
-  const startX = MARGIN + 18;
-  let x = startX;
+  let x = MARGIN + 18;
 
-  // ✓ Aprobado
+  // Aprobado: ⚫
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text('Aprobado:', x, y);
+  x += 20;
   doc.setFillColor(...greenRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'normal');
-  doc.text('✓ Aprobado', x + 4, y);
-  x += 25;
+  x += 8;
 
-  // ✗ Rechazado
+  // Rechazado: ⚫
+  doc.text('Rechazado:', x, y);
+  x += 22;
   doc.setFillColor(...redRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  doc.text('✗ Rechazado', x + 4, y);
-  x += 28;
+  x += 8;
 
-  // - No corresponde al periodo
-  doc.setFillColor(200, 200, 200);
+  // No corresponde al periodo: ⚫
+  doc.text('No corresponde al periodo:', x, y);
+  x += 50;
+  doc.setFillColor(...cyanRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  doc.text('- No corresponde al periodo', x + 4, y);
-  x += 55;
+  x += 8;
 
-  // / No aplica al tipo de ascensor
-  doc.setFillColor(180, 180, 180);
+  // No aplica: ⚫
+  doc.text('No aplica:', x, y);
+  x += 18;
+  doc.setFillColor(...grayRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  doc.text('/ No aplica al tipo', x + 4, y);
 
-  return y + 6;
+  return y + 5;
 }
 
-// CHECKLIST EN DOS COLUMNAS
+// CHECKLIST EN DOS COLUMNAS (25 + 25)
 function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: number): number {
   let y = startY;
 
@@ -260,72 +263,62 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
 
   y += 10;
 
-  // Dividir preguntas en dos columnas equilibradas
-  const total = data.questions.length;
-  const half = Math.ceil(total / 2);
-  const leftQuestions = data.questions.slice(0, half);
-  const rightQuestions = data.questions.slice(half);
+  // Dividir en 25 + 25
+  const leftQuestions = data.questions.slice(0, 25);
+  const rightQuestions = data.questions.slice(25, 50);
 
-  const colWidth = (PAGE_WIDTH - 2 * MARGIN - 6) / 2;
+  const colWidth = (PAGE_WIDTH - 2 * MARGIN - 4) / 2;
   const leftX = MARGIN;
-  const rightX = MARGIN + colWidth + 6;
+  const rightX = MARGIN + colWidth + 4;
+
+  const greenRgb = hexToRgb(COLORS.green);
+  const redRgb = hexToRgb(COLORS.red);
+  const cyanRgb = [100, 180, 220]; // Celeste
+  const grayRgb = [180, 180, 180]; // Gris
 
   const drawColumn = (questions: MaintenanceChecklistQuestion[], x: number, startYCol: number) => {
     let yCol = startYCol;
-    const greenRgb = hexToRgb(COLORS.green);
-    const redRgb = hexToRgb(COLORS.red);
+    let lastSection = '';
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
 
     questions.forEach((q) => {
+      // Dibujar título de sección si cambia
+      if (q.section !== lastSection) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...blueRgb);
+        doc.text(q.section.toUpperCase(), x, yCol);
+        yCol += 3;
+        lastSection = q.section;
+      }
+
+      // Texto de pregunta
       const questionText = `${q.number}. ${q.text}`;
-      const textWidth = colWidth - 12;
+      const textWidth = colWidth - 8;
       const lines = doc.splitTextToSize(questionText, textWidth);
 
-      // Dibujar texto
-      doc.text(lines, x + 2, yCol + 3);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(0, 0, 0);
+      doc.text(lines, x, yCol);
 
-      // Dibujar icono de estado
-      const iconX = x + colWidth - 5;
-      const iconY = yCol + 2;
-
-      // Cuadrado de fondo
-      doc.setFillColor(240, 240, 240);
-      doc.rect(iconX - 3, iconY - 2, 6, 6, 'F');
+      // Círculo de estado
+      const iconX = x + colWidth - 3;
+      const iconY = yCol - 0.5;
 
       if (q.status === 'approved') {
         doc.setFillColor(...greenRgb);
-        doc.circle(iconX, iconY + 1, 2, 'F');
-        doc.setDrawColor(255, 255, 255);
-        doc.setLineWidth(0.5);
-        // Checkmark
-        doc.line(iconX - 1, iconY + 1, iconX - 0.3, iconY + 2);
-        doc.line(iconX - 0.3, iconY + 2, iconX + 1.2, iconY - 0.5);
       } else if (q.status === 'rejected') {
         doc.setFillColor(...redRgb);
-        doc.circle(iconX, iconY + 1, 2, 'F');
-        doc.setDrawColor(255, 255, 255);
-        doc.setLineWidth(0.5);
-        // X mark
-        doc.line(iconX - 1, iconY, iconX + 1, iconY + 2);
-        doc.line(iconX + 1, iconY, iconX - 1, iconY + 2);
       } else if (q.status === 'out_of_period') {
-        doc.setTextColor(120, 120, 120);
-        doc.setFontSize(10);
-        doc.text('-', iconX, iconY + 2, { align: 'center' });
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
+        doc.setFillColor(...cyanRgb);
       } else if (q.status === 'not_applicable') {
-        doc.setTextColor(120, 120, 120);
-        doc.setFontSize(10);
-        doc.text('/', iconX, iconY + 2, { align: 'center' });
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
+        doc.setFillColor(...grayRgb);
       }
+      doc.circle(iconX, iconY, 1.5, 'F');
 
-      yCol += Math.max(5, lines.length * 3.5 + 2);
+      yCol += Math.max(3, lines.length * 2.5);
     });
 
     return yCol;
@@ -334,7 +327,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
   const yLeft = drawColumn(leftQuestions, leftX, y);
   const yRight = drawColumn(rightQuestions, rightX, y);
 
-  return Math.max(yLeft, yRight) + 6;
+  return Math.max(yLeft, yRight) + 4;
 }
 
 // FIRMA
@@ -343,13 +336,14 @@ function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number)
   const boxW = 80;
   const boxH = 25;
 
-  // Título
+  // Título con nombre del firmante
   doc.setFillColor(...blueRgb);
   doc.rect(MARGIN, y, boxW, 6, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
-  doc.text('RECEPCIONADO POR:', MARGIN + 2, y + 4);
+  const signerName = data.signature?.signerName?.toUpperCase() || 'SIN FIRMA';
+  doc.text(`RECEPCIONADO POR: ${signerName}`, MARGIN + 2, y + 4);
 
   // Recuadro de firma
   doc.setFillColor(255, 255, 255);
@@ -357,27 +351,13 @@ function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number)
   doc.setLineWidth(0.5);
   doc.rect(MARGIN, y + 7, boxW, boxH);
 
-  // Imagen de firma (más pequeña con más padding)
+  // Imagen de firma
   if (data.signature?.signatureDataUrl) {
     try {
       doc.addImage(data.signature.signatureDataUrl, 'PNG', MARGIN + 10, y + 10, boxW - 20, boxH - 8);
     } catch (e) {
       console.error('Error al cargar firma:', e);
     }
-  }
-
-  // Nombre del firmante
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  const signerName = data.signature?.signerName?.toUpperCase() || 'SIN FIRMA REGISTRADA';
-  doc.text(signerName, MARGIN + boxW / 2, y + boxH + 10, { align: 'center' });
-
-  // Fecha de firma
-  if (data.signature?.signedAt) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.text(formatDate(data.signature.signedAt), MARGIN + boxW / 2, y + boxH + 14, { align: 'center' });
   }
 }
 
