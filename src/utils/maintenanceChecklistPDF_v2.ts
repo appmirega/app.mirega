@@ -194,11 +194,41 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   drawField('Técnico:', data.technicianName || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
   y += fieldHeight + 1.5;
 
-  // Fila 4: Última Certif. | Próxima Certif. | Vigencia
-  const certWidth = (PAGE_WIDTH - 2 * MARGIN - 3 * labelWidth - 6) / 3;
-  drawField('Última Certif.:', formatDate(data.lastCertificationDate, 'No legible'), leftCol, y, certWidth);
-  drawField('Próxima Certif.:', formatDate(data.nextCertificationDate, 'No legible'), middleCol, y, certWidth);
-  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightCol, y, certWidth);
+  // Fila 4: Última Certif./Próxima Certif. | Vigencia
+  // Lado izquierdo: 2 sub-campos (Última y Próxima)
+  const subLabelWidth = 30;
+  const subFieldWidth = (PAGE_WIDTH / 2 - MARGIN - 2 * subLabelWidth - 10) / 2;
+  
+  // Última Certificación
+  doc.setFillColor(...blueRgb);
+  doc.setTextColor(255, 255, 255);
+  doc.rect(leftCol, y, subLabelWidth, fieldHeight, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('Última Certif.:', leftCol + 1.5, y + 4.2);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...blueRgb);
+  doc.setLineWidth(0.3);
+  doc.rect(leftCol + subLabelWidth, y, subFieldWidth, fieldHeight);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.lastCertificationDate || 'No legible', leftCol + subLabelWidth + 2, y + 4.2);
+  
+  // Próxima Certificación
+  const proxX = leftCol + subLabelWidth + subFieldWidth + 2;
+  doc.setFillColor(...blueRgb);
+  doc.setTextColor(255, 255, 255);
+  doc.rect(proxX, y, subLabelWidth, fieldHeight, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.text('Próxima Certif.:', proxX + 1.5, y + 4.2);
+  doc.setFillColor(255, 255, 255);
+  doc.rect(proxX + subLabelWidth, y, subFieldWidth, fieldHeight);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.nextCertificationDate || 'No legible', proxX + subLabelWidth + 2, y + 4.2);
+  
+  // Vigencia (lado derecho)
+  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
 
   return y + fieldHeight + 6;
 }
@@ -212,9 +242,9 @@ function drawLegend(doc: jsPDF, y: number): number {
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('Leyenda:', MARGIN, y);
+  doc.text('Simbología del checklist:', MARGIN, y);
   
-  let x = MARGIN + 18;
+  let x = MARGIN + 42;
 
   // Aprobado: ⚫
   doc.setFont('helvetica', 'normal');
@@ -223,21 +253,21 @@ function drawLegend(doc: jsPDF, y: number): number {
   x += 20;
   doc.setFillColor(...greenRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  x += 8;
+  x += 6;
 
   // Rechazado: ⚫
   doc.text('Rechazado:', x, y);
   x += 22;
   doc.setFillColor(...redRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  x += 8;
+  x += 6;
 
   // No corresponde al periodo: ⚫
   doc.text('No corresponde al periodo:', x, y);
   x += 50;
   doc.setFillColor(...cyanRgb);
   doc.circle(x, y - 1.5, 2, 'F');
-  x += 8;
+  x += 6;
 
   // No aplica: ⚫
   doc.text('No aplica:', x, y);
@@ -286,10 +316,10 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       // Dibujar título de sección si cambia
       if (q.section !== lastSection) {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
+        doc.setFontSize(7.5);
         doc.setTextColor(...blueRgb);
         doc.text(q.section.toUpperCase(), x, yCol);
-        yCol += 3;
+        yCol += 3.5;
         lastSection = q.section;
       }
 
@@ -299,7 +329,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       const lines = doc.splitTextToSize(questionText, textWidth);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
+      doc.setFontSize(7.5);
       doc.setTextColor(0, 0, 0);
       doc.text(lines, x, yCol);
 
@@ -318,7 +348,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       }
       doc.circle(iconX, iconY, 1.5, 'F');
 
-      yCol += Math.max(3, lines.length * 2.5);
+      yCol += Math.max(3.2, lines.length * 2.8);
     });
 
     return yCol;
@@ -449,7 +479,7 @@ export async function generateMaintenanceChecklistPDF(data: MaintenanceChecklist
   y = drawChecklist(doc, data, y);
   
   // Firma al final de la primera página
-  drawSignature(doc, data, PAGE_HEIGHT - 50);
+  drawSignature(doc, data, PAGE_HEIGHT - 40);
 
   // Página de observaciones (si hay)
   drawObservationsPage(doc, data, logoImg);
