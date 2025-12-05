@@ -645,6 +645,16 @@ export const TechnicianMaintenanceChecklistView = () => {
         observations: response?.observations || null
       };
     }).sort((a, b) => a.number - b.number);
+    
+    // Preparar datos para el PDF con todas las preguntas
+    const pdfData: MaintenanceChecklistPDFData = {
+      checklistId: checklistData.id,
+      folioNumber: checklistData.folio,
+      clientName: checklistData.clients?.company_name || checklistData.clients?.building_name || 'Cliente no especificado',
+      clientAddress: checklistData.clients?.address,
+      elevatorNumber: checklistData.elevators?.elevator_number,
+      month: checklistData.month,
+      year: checklistData.year,
       completionDate: checklistData.completion_date,
       lastCertificationDate: checklistData.last_certification_date,
       nextCertificationDate: checklistData.next_certification_date,
