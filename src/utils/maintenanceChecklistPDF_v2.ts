@@ -197,7 +197,7 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   // Lado izquierdo completo
   const leftSectionWidth = (PAGE_WIDTH / 2) - MARGIN;
   const subLabelWidth = 28;
-  const subFieldWidth = (leftSectionWidth - 2 * subLabelWidth - 2) / 2;
+  const subFieldWidth = (leftSectionWidth - 2 * subLabelWidth) / 2; // Sin espacio entre campos
   
   // Lado izquierdo - Última Certif.
   doc.setFillColor(...blueRgb);
@@ -214,8 +214,8 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFont('helvetica', 'normal');
   doc.text(data.lastCertificationDate || 'No legible', leftCol + subLabelWidth + 2, y + 4.2);
   
-  // Lado izquierdo - Próxima Certif.
-  const proxX = leftCol + subLabelWidth + subFieldWidth + 2;
+  // Lado izquierdo - Próxima Certif. (pegado, sin espacio)
+  const proxX = leftCol + subLabelWidth + subFieldWidth; // Sin +2
   doc.setFillColor(...blueRgb);
   doc.setTextColor(255, 255, 255);
   doc.rect(proxX, y, subLabelWidth, fieldHeight, 'F');
@@ -247,62 +247,35 @@ function drawLegend(doc: jsPDF, y: number): number {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   let x = MARGIN + 42;
-  const iconSize = 3.5;
-  const spacing = 6;
+  const circleRadius = 2.5; // Círculos más grandes
+  const spacing = 8; // Más separación
 
-  // Aprobado: ✓ (checkmark verde)
+  // Aprobado: círculo verde
   doc.text('Aprobado:', x, y);
-  x += doc.getTextWidth('Aprobado:') + 2;
+  x += doc.getTextWidth('Aprobado:') + 3;
   doc.setFillColor(...greenRgb);
-  doc.roundedRect(x - 0.5, y - 3, iconSize, iconSize, 0.5, 0.5, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('✓', x + 0.8, y - 0.2);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(0, 0, 0);
-  x += iconSize + spacing;
+  doc.circle(x, y - 1.5, circleRadius, 'F');
+  x += circleRadius * 2 + spacing;
 
-  // Rechazado: ✕ (X rojo)
+  // Rechazado: círculo rojo
   doc.text('Rechazado:', x, y);
-  x += doc.getTextWidth('Rechazado:') + 2;
+  x += doc.getTextWidth('Rechazado:') + 3;
   doc.setFillColor(...redRgb);
-  doc.roundedRect(x - 0.5, y - 3, iconSize, iconSize, 0.5, 0.5, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('✕', x + 0.8, y - 0.2);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(0, 0, 0);
-  x += iconSize + spacing;
+  doc.circle(x, y - 1.5, circleRadius, 'F');
+  x += circleRadius * 2 + spacing;
 
-  // No corresponde al periodo: — (guión celeste)
+  // No corresponde al periodo: círculo celeste
   doc.text('No corresponde al periodo:', x, y);
-  x += doc.getTextWidth('No corresponde al periodo:') + 2;
+  x += doc.getTextWidth('No corresponde al periodo:') + 3;
   doc.setFillColor(...cyanRgb);
-  doc.roundedRect(x - 0.5, y - 3, iconSize, iconSize, 0.5, 0.5, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('—', x + 0.3, y - 0.2);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(0, 0, 0);
-  x += iconSize + spacing;
+  doc.circle(x, y - 1.5, circleRadius, 'F');
+  x += circleRadius * 2 + spacing;
 
-  // No aplica: / (barra gris)
+  // No aplica: círculo gris
   doc.text('No aplica:', x, y);
-  x += doc.getTextWidth('No aplica:') + 2;
+  x += doc.getTextWidth('No aplica:') + 3;
   doc.setFillColor(...grayRgb);
-  doc.roundedRect(x - 0.5, y - 3, iconSize, iconSize, 0.5, 0.5, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('/', x + 1, y - 0.2);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
+  doc.circle(x, y - 1.5, circleRadius, 'F');
 
   return y + 5;
 }
@@ -370,41 +343,22 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       doc.setTextColor(60, 60, 60);
       doc.text(lines, x + 1, yCol);
 
-      // Icono de estado (cuadrado con símbolo)
-      const iconX = x + colWidth - 4.5;
-      const iconY = yCol + (lines.length * 2.2) / 2 - 1.5;
-      const iconSize = 3;
+      // Círculo de estado (simple, limpio, más grande)
+      const iconX = x + colWidth - 4;
+      const iconY = yCol + (lines.length * 2.2) / 2 - 0.5;
+      const circleRadius = 2.5; // Círculos más grandes
 
-      // Dibujar cuadrado con borde redondeado
+      // Color según estado
       if (q.status === 'approved') {
         doc.setFillColor(...greenRgb);
-        doc.roundedRect(iconX, iconY, iconSize, iconSize, 0.3, 0.3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('✓', iconX + 0.6, iconY + 2.3);
       } else if (q.status === 'rejected') {
         doc.setFillColor(...redRgb);
-        doc.roundedRect(iconX, iconY, iconSize, iconSize, 0.3, 0.3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('✕', iconX + 0.6, iconY + 2.3);
       } else if (q.status === 'out_of_period') {
         doc.setFillColor(...cyanRgb);
-        doc.roundedRect(iconX, iconY, iconSize, iconSize, 0.3, 0.3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.text('—', iconX + 0.3, iconY + 2.3);
       } else if (q.status === 'not_applicable') {
         doc.setFillColor(...grayRgb);
-        doc.roundedRect(iconX, iconY, iconSize, iconSize, 0.3, 0.3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('/', iconX + 0.8, iconY + 2.3);
       }
+      doc.circle(iconX, iconY, circleRadius, 'F');
 
       yCol += Math.max(3, lines.length * 2.2 + 0.5); // Interlineado simple entre preguntas (antes 2.4)
     });
