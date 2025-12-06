@@ -621,13 +621,13 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     
     // Determinar qué preguntas mostrar y con qué estado
-    const elevatorType = checklistData.elevators?.elevator_type || 'Electromecánico';
+    const elevatorType = checklistData.elevators?.elevator_type || 'electromechanical';
     const currentMonth = checklistData.month;
     
     console.log('🏢 TIPO DE ASCENSOR:', {
       raw: checklistData.elevators?.elevator_type,
       final: elevatorType,
-      comparison: elevatorType === 'Electromecánico',
+      comparison: elevatorType === 'electromechanical',
       trimmed: elevatorType.trim(),
       length: elevatorType.length
     });
@@ -651,13 +651,13 @@ export const TechnicianMaintenanceChecklistView = () => {
           elevatorType: elevatorType,
           technicianStatus: technicianStatus,
           condition1: q.is_hydraulic_only,
-          condition2: elevatorType === 'Electromecánico',
-          bothTrue: q.is_hydraulic_only && elevatorType === 'Electromecánico'
+          condition2: elevatorType === 'electromechanical',
+          bothTrue: q.is_hydraulic_only && elevatorType === 'electromechanical'
         });
       }
       
       // Determinar estado según reglas (PRIORIDAD: reglas automáticas > respuesta técnico)
-      if (q.is_hydraulic_only && elevatorType === 'Electromecánico') {
+      if (q.is_hydraulic_only && elevatorType === 'electromechanical') {
         console.log(`✅ Pregunta ${q.question_number} marcada como NO APLICA (hidráulica en electromecánico)`);
         finalStatus = 'not_applicable'; // Gris automático - IGNORA respuesta del técnico
       } else if (q.frequency === 'T' && !isQuarterlyMonth(currentMonth)) {
