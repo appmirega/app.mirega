@@ -423,24 +423,6 @@ export function DynamicChecklistForm({
         </div>
       </div>
 
-<<<<<<< HEAD
-=======
-      {/* Auto-guardado indicador */}
-      <div className="flex justify-end items-center gap-3 text-xs">
-        {changeCount > 0 && (
-          <span className="flex items-center gap-1 text-amber-600">
-            <AlertCircle className="w-4 h-4" />
-            {changeCount} cambio{changeCount !== 1 ? 's' : ''} sin guardar
-          </span>
-        )}
-        {lastSaved && changeCount === 0 && (
-          <span className="text-green-600">
-            ✓ Guardado {formatDateTime(lastSaved)}
-          </span>
-        )}
-      </div>
-
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
       {/* Mensaje de validación si falta algo */}
       {!canComplete() && progress.answered > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
@@ -561,28 +543,17 @@ export function DynamicChecklistForm({
                                     photo1: answer?.photo_1_url || undefined,
                                     photo2: answer?.photo_2_url || undefined,
                                   }}
-                                  onPhotosChange={(photo1Url, photo2Url) =>
-                                    handlePhotosChange(question.id, photo1Url, photo2Url)
-                                  }
-                                />
-                                <p className="mt-2 text-xs text-red-700">
-                                  • Foto 1 es obligatoria cuando la respuesta es Rechazado. Foto 2 es opcional.
-                                </p>
-                              </div>
+                                onPhotosChange={(photo1Url, photo2Url) =>
+                                  handlePhotosChange(question.id, photo1Url, photo2Url)
+                                }
+                              />
+                              <p className="mt-2 text-xs text-red-700">
+                                • Foto 1 es obligatoria cuando la respuesta es Rechazado. Foto 2 es opcional.
+                              </p>
                             </div>
-                          )}
-=======
-                      <div className="flex flex-col gap-3">
-                        {/* Número + Pregunta en la misma línea */}
-                        <div className="flex items-start gap-2">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-xs font-semibold text-slate-700 flex-shrink-0 mt-0.5">
-                            {question.question_number}
-                          </span>
-                          <p className="font-medium text-slate-900 flex-1">{question.question_text}</p>
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
-                        </div>
-
-                        {/* Frecuencia debajo de la pregunta */}
+                          </div>
+                        )}
+                      </div>                        {/* Frecuencia debajo de la pregunta */}
                         <p className="text-xs text-slate-500 ml-8">
                           Frecuencia:{' '}
                           {question.frequency === 'M'
@@ -669,7 +640,6 @@ export function DynamicChecklistForm({
         ))}
       </div>
 
-<<<<<<< HEAD
       {/* Botón flotante para guardar y completar checklist */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl p-4 z-40">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-3">
@@ -684,32 +654,10 @@ export function DynamicChecklistForm({
             {saving ? 'Guardando...' : 'Guardar Progreso'}
           </button>
 
-=======
-      {/* Botones al final del checklist */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl p-4 z-40">
-        <div className="max-w-4xl mx-auto flex gap-3">
-          {/* Botón Guardar */}
-          <button
-            onClick={handleManualSave}
-            disabled={saving || changeCount === 0}
-            className={`flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
-                        shadow-lg transition transform ${
-                          !saving && changeCount > 0
-                            ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]'
-                            : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
-                        }`}
-          >
-            <Save className="w-6 h-6" />
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-
-          {/* Botón Completar */}
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
           <button
             onClick={handleCompleteClick}
             disabled={!canComplete() || saving}
             className={`flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
-<<<<<<< HEAD
                        text-white shadow-lg transition transform ${
                          canComplete() && !saving
                            ? 'bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98]'
@@ -724,19 +672,6 @@ export function DynamicChecklistForm({
 
       {/* Espaciador para evitar que el contenido quede oculto bajo la barra flotante */}
       <div className="h-24"></div>
-=======
-                        text-white shadow-lg transition transform ${
-                          canComplete() && !saving
-                            ? 'bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98]'
-                            : 'bg-slate-400 cursor-not-allowed opacity-60'
-                        }`}
-          >
-            <Check className="w-6 h-6" />
-            {saving ? 'Guardando...' : 'Completar Checklist'}
-          </button>
-        </div>
-      </div>
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
     </div>
   );
 }
