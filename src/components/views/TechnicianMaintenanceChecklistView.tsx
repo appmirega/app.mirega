@@ -598,10 +598,10 @@ export const TechnicianMaintenanceChecklistView = () => {
       throw new Error(`No se pudieron obtener las respuestas del checklist: ${responsesError.message}`);
     }
     
-    // Obtener las preguntas del maestro con frecuencia y applies_to
+    // Obtener las preguntas del maestro con frecuencia y is_hydraulic_only
     const { data: questions, error: questionsError } = await supabase
       .from('mnt_checklist_questions')
-      .select('id, question_number, section, question_text, frequency, applies_to')
+      .select('id, question_number, section, question_text, frequency, is_hydraulic_only')
       .order('question_number');
     
     if (questionsError) {
@@ -626,7 +626,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       let finalStatus: string;
       
       // Determinar estado según reglas
-      if (q.applies_to === 'Hidráulico' && elevatorType === 'Electromecánico') {
+      if (q.is_hydraulic_only && elevatorType === 'Electromecánico') {
         finalStatus = 'not_applicable'; // Gris automático
       } else if (q.frequency === 'T' && !isQuarterlyMonth(currentMonth)) {
         finalStatus = 'out_of_period'; // Celeste automático
