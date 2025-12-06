@@ -609,9 +609,16 @@ export const TechnicianMaintenanceChecklistView = () => {
       throw new Error(`No se pudieron obtener las preguntas: ${questionsError.message}`);
     }
     
+    console.log('📊 Total de preguntas obtenidas:', questions?.length);
+    console.log('📋 Preguntas hidráulicas encontradas:', questions?.filter(q => q.is_hydraulic_only).map(q => ({
+      num: q.question_number,
+      text: q.question_text.substring(0, 50) + '...'
+    })));
+    
     // Crear mapa de preguntas por ID
     const questionMap = new Map(questions?.map(q => [q.id, q]) || []);
     const responsesMap = new Map((responses || []).map((r: any) => [r.question_id, r]));
+    
     
     // Determinar qué preguntas mostrar y con qué estado
     const elevatorType = checklistData.elevators?.elevator_type || 'Electromecánico';
