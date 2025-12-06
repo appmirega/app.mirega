@@ -624,6 +624,14 @@ export const TechnicianMaintenanceChecklistView = () => {
     const elevatorType = checklistData.elevators?.elevator_type || 'Electromecánico';
     const currentMonth = checklistData.month;
     
+    console.log('🏢 TIPO DE ASCENSOR:', {
+      raw: checklistData.elevators?.elevator_type,
+      final: elevatorType,
+      comparison: elevatorType === 'Electromecánico',
+      trimmed: elevatorType.trim(),
+      length: elevatorType.length
+    });
+    
     // Lógica de frecuencias (igual que DynamicChecklistForm)
     const isQuarterlyMonth = (month: number) => [3, 6, 9, 12].includes(month);
     const isSemesterMonth = (month: number) => [6, 12].includes(month);
@@ -631,6 +639,18 @@ export const TechnicianMaintenanceChecklistView = () => {
     const allQuestions = (questions || []).map((q: any) => {
       const response = responsesMap.get(q.id);
       let finalStatus: string;
+      
+      // Debug para preguntas hidráulicas
+      if (q.question_number >= 18 && q.question_number <= 20) {
+        console.log(`🔍 Pregunta ${q.question_number}:`, {
+          is_hydraulic_only: q.is_hydraulic_only,
+          type: typeof q.is_hydraulic_only,
+          elevatorType: elevatorType,
+          condition1: q.is_hydraulic_only,
+          condition2: elevatorType === 'Electromecánico',
+          bothTrue: q.is_hydraulic_only && elevatorType === 'Electromecánico'
+        });
+      }
       
       // Determinar estado según reglas
       if (q.is_hydraulic_only && elevatorType === 'Electromecánico') {
