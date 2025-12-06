@@ -386,24 +386,24 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
 // FIRMA
 function drawSignature(doc: jsPDF, data: MaintenanceChecklistPDFData, y: number) {
   const blueRgb = hexToRgb(COLORS.blue);
-  const boxW = 80;
-  const boxH = 25;
+  const boxW = 65; // Reducido de 80 a 65
+  const boxH = 18; // Reducido de 25 a 18
   const centerX = (PAGE_WIDTH - boxW) / 2; // Centrar horizontalmente
 
   // Título con nombre del firmante
   doc.setFillColor(...blueRgb);
-  doc.rect(centerX, y, boxW, 6, 'F');
+  doc.rect(centerX, y, boxW, 5, 'F'); // Altura reducida de 6 a 5
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7); // Reducido de 8 a 7
   doc.setTextColor(255, 255, 255);
   const signerName = data.signature?.signerName?.toUpperCase() || 'SIN FIRMA';
-  doc.text(`RECEPCIONADO POR: ${signerName}`, centerX + 2, y + 4);
+  doc.text(`RECEPCIONADO POR: ${signerName}`, centerX + 2, y + 3.5);
 
   // Recuadro de firma
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...blueRgb);
   doc.setLineWidth(0.5);
-  doc.rect(centerX, y + 7, boxW, boxH);
+  doc.rect(centerX, y + 6, boxW, boxH); // Ajustado de y+7
 
   // Imagen de firma
   if (data.signature?.signatureDataUrl) {
@@ -502,8 +502,8 @@ export async function generateMaintenanceChecklistPDF(data: MaintenanceChecklist
   y = drawLegend(doc, y);
   y = drawChecklist(doc, data, y);
   
-  // Firma al final de la primera página
-  drawSignature(doc, data, PAGE_HEIGHT - 40);
+  // Firma al final de la primera página (más arriba para dar espacio)
+  drawSignature(doc, data, PAGE_HEIGHT - 32); // Cambiado de -40 a -32
 
   // Página de observaciones (si hay)
   drawObservationsPage(doc, data, logoImg);
