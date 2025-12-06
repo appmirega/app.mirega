@@ -627,6 +627,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       
       // Determinar estado según reglas
       if (q.is_hydraulic_only && elevatorType === 'Electromecánico') {
+        console.log(`✅ Pregunta ${q.question_number} marcada como NO APLICA (hidráulica en electromecánico)`);
         finalStatus = 'not_applicable'; // Gris automático
       } else if (q.frequency === 'T' && !isQuarterlyMonth(currentMonth)) {
         finalStatus = 'out_of_period'; // Celeste automático
@@ -635,6 +636,16 @@ export const TechnicianMaintenanceChecklistView = () => {
       } else {
         // Usar respuesta del técnico (verde/rojo)
         finalStatus = response?.status || 'approved';
+      }
+      
+      // Debug para verificar preguntas hidráulicas
+      if (q.question_number >= 18 && q.question_number <= 20) {
+        console.log(`Pregunta ${q.question_number}:`, {
+          text: q.question_text,
+          is_hydraulic_only: q.is_hydraulic_only,
+          elevatorType,
+          finalStatus
+        });
       }
       
       return {
