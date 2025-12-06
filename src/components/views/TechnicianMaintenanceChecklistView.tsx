@@ -640,29 +640,33 @@ export const TechnicianMaintenanceChecklistView = () => {
       const response = responsesMap.get(q.id);
       let finalStatus: string;
       
+      // IMPORTANTE: Primero obtener la respuesta del técnico
+      const technicianStatus = response?.status || 'approved';
+      
       // Debug para preguntas hidráulicas
       if (q.question_number >= 18 && q.question_number <= 20) {
         console.log(`🔍 Pregunta ${q.question_number}:`, {
           is_hydraulic_only: q.is_hydraulic_only,
           type: typeof q.is_hydraulic_only,
           elevatorType: elevatorType,
+          technicianStatus: technicianStatus,
           condition1: q.is_hydraulic_only,
           condition2: elevatorType === 'Electromecánico',
           bothTrue: q.is_hydraulic_only && elevatorType === 'Electromecánico'
         });
       }
       
-      // Determinar estado según reglas
+      // Determinar estado según reglas (PRIORIDAD: reglas automáticas > respuesta técnico)
       if (q.is_hydraulic_only && elevatorType === 'Electromecánico') {
         console.log(`✅ Pregunta ${q.question_number} marcada como NO APLICA (hidráulica en electromecánico)`);
-        finalStatus = 'not_applicable'; // Gris automático
+        finalStatus = 'not_applicable'; // Gris automático - IGNORA respuesta del técnico
       } else if (q.frequency === 'T' && !isQuarterlyMonth(currentMonth)) {
-        finalStatus = 'out_of_period'; // Celeste automático
+        finalStatus = 'out_of_period'; // Celeste automático - IGNORA respuesta del técnico
       } else if (q.frequency === 'S' && !isSemesterMonth(currentMonth)) {
-        finalStatus = 'out_of_period'; // Celeste automático
+        finalStatus = 'out_of_period'; // Celeste automático - IGNORA respuesta del técnico
       } else {
         // Usar respuesta del técnico (verde/rojo)
-        finalStatus = response?.status || 'approved';
+        finalStatus = technicianStatus;
       }
       
       // Debug para verificar preguntas hidráulicas
