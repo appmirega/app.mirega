@@ -15,7 +15,6 @@ import { EmergencyV2View } from './components/views/EmergencyV2View';
 import { WorkOrdersView } from './components/views/WorkOrdersView';
 import { RoutesView } from './components/views/RoutesView';
 import { QuotationsManagementView } from './components/views/QuotationsManagementView';
-import { MaintenanceChecklistView } from './components/views/MaintenanceChecklistView';
 import { QRCodesManagementView } from './components/views/QRCodesManagementView';
 import { QRGalleryView } from './components/views/QRGalleryView';
 import { CertificationsDashboard } from './components/views/CertificationsDashboard';
@@ -110,8 +109,6 @@ function AppContent() {
       case 'rescue-training-admin':
         return <AdminRescueTrainingView />;
       case 'maintenance-checklist':
-        return <MaintenanceChecklistView />;
-      case 'checklists':
         return <TechnicianMaintenanceChecklistView />;
       case 'maintenance-complete':
         return <MaintenanceCompleteView />;

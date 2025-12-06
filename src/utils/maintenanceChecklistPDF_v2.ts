@@ -152,11 +152,20 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   const fieldHeight = 6;
   const labelWidth = 35;
   const leftCol = MARGIN;
+<<<<<<< HEAD
   const rightCol = PAGE_WIDTH / 2; // Columna derecha empieza exactamente a la mitad
 
   // Función para dibujar campo
   const drawField = (label: string, value: string, x: number, yPos: number, width?: number) => {
     const fieldWidth = width || ((PAGE_WIDTH / 2) - MARGIN - labelWidth);
+=======
+  const middleCol = PAGE_WIDTH / 3 + 2;
+  const rightCol = 2 * PAGE_WIDTH / 3 + 4;
+
+  // Función para dibujar campo
+  const drawField = (label: string, value: string, x: number, yPos: number, width?: number) => {
+    const fieldWidth = width || (PAGE_WIDTH / 3 - MARGIN - 6);
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
     
     // Label (azul)
     doc.setFillColor(...blueRgb);
@@ -178,6 +187,7 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   };
 
   // Fila 1: Cliente | Periodo
+<<<<<<< HEAD
   drawField('Cliente:', data.clientName || '', leftCol, y);
   drawField('Periodo:', MONTHS[data.month - 1] || '', rightCol, y);
   y += fieldHeight + 1.5;
@@ -191,11 +201,30 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   // Fila 3: Fecha | Técnico
   drawField('Fecha:', formatDate(data.completionDate), leftCol, y);
   drawField('Técnico:', data.technicianName || '', rightCol, y);
+=======
+  drawField('Cliente:', data.clientName || '', leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  drawField('Periodo:', MONTHS[data.month - 1] || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  y += fieldHeight + 1.5;
+
+  // Fila 2: Dirección | Ascensor
+  drawField('Dirección:', data.clientAddress || '', leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  const ascensorText = data.elevatorNumber ? `Ascensor ${data.elevatorNumber}` : 'No especificado';
+  drawField('N° Ascensor:', ascensorText, PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  y += fieldHeight + 1.5;
+
+  // Fila 3: Fecha | Técnico
+  drawField('Fecha:', formatDate(data.completionDate), leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+  drawField('Técnico:', data.technicianName || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
   y += fieldHeight + 1.5;
 
   // Fila 4: Última/Próxima (izquierda) | Vigencia (derecha)
   // Lado izquierdo completo
+<<<<<<< HEAD
   const leftSectionWidth = (PAGE_WIDTH / 2) - MARGIN;
+=======
+  const leftSectionWidth = (PAGE_WIDTH / 2) - MARGIN - 3;
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
   const subLabelWidth = 28;
   const subFieldWidth = (leftSectionWidth - 2 * subLabelWidth - 2) / 2;
   
@@ -227,8 +256,15 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFont('helvetica', 'normal');
   doc.text(data.nextCertificationDate || 'No legible', proxX + subLabelWidth + 2, y + 4.2);
   
+<<<<<<< HEAD
   // Lado derecho - Vigencia (alineado perfectamente)
   drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightCol, y);
+=======
+  // Lado derecho - Vigencia (matemática exacta para alineación)
+  const rightColX = PAGE_WIDTH / 2 + 3;
+  const rightSectionWidth = (PAGE_WIDTH / 2) - MARGIN - 3;
+  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightColX, y, rightSectionWidth - labelWidth);
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
 
   return y + fieldHeight + 6;
 }
@@ -247,6 +283,7 @@ function drawLegend(doc: jsPDF, y: number): number {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   let x = MARGIN + 42;
+<<<<<<< HEAD
   const iconSize = 3.5;
   const spacing = 6;
 
@@ -303,6 +340,35 @@ function drawLegend(doc: jsPDF, y: number): number {
   doc.text('/', x + 1, y - 0.2);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
+=======
+
+  // Aprobado:
+  doc.text('Aprobado:', x, y);
+  x += doc.getTextWidth('Aprobado:') + 2;
+  doc.setFillColor(...greenRgb);
+  doc.circle(x, y - 1.5, 2, 'F');
+  x += 5;
+
+  // Rechazado:
+  doc.text('Rechazado:', x, y);
+  x += doc.getTextWidth('Rechazado:') + 2;
+  doc.setFillColor(...redRgb);
+  doc.circle(x, y - 1.5, 2, 'F');
+  x += 5;
+
+  // No corresponde al periodo:
+  doc.text('No corresponde al periodo:', x, y);
+  x += doc.getTextWidth('No corresponde al periodo:') + 2;
+  doc.setFillColor(...cyanRgb);
+  doc.circle(x, y - 1.5, 2, 'F');
+  x += 5;
+
+  // No aplica:
+  doc.text('No aplica:', x, y);
+  x += doc.getTextWidth('No aplica:') + 2;
+  doc.setFillColor(...grayRgb);
+  doc.circle(x, y - 1.5, 2, 'F');
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
 
   return y + 5;
 }
@@ -356,7 +422,11 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
         doc.setFontSize(7.5);
         doc.setTextColor(...blueRgb);
         doc.text(q.section.toUpperCase(), x, yCol);
+<<<<<<< HEAD
         yCol += 5; // Interlineado doble después del título (antes 4)
+=======
+        yCol += 4;
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
         lastSection = q.section;
       }
 
@@ -370,6 +440,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       doc.setTextColor(60, 60, 60);
       doc.text(lines, x + 1, yCol);
 
+<<<<<<< HEAD
       // Icono de estado (cuadrado con símbolo)
       const iconX = x + colWidth - 4.5;
       const iconY = yCol + (lines.length * 2.2) / 2 - 1.5;
@@ -407,6 +478,24 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       }
 
       yCol += Math.max(3, lines.length * 2.2 + 0.5); // Interlineado simple entre preguntas (antes 2.4)
+=======
+      // Círculo de estado (más a la derecha y centrado verticalmente)
+      const iconX = x + colWidth - 4;
+      const iconY = yCol + (lines.length * 2.4) / 2 - 0.5;
+
+      if (q.status === 'approved') {
+        doc.setFillColor(...greenRgb);
+      } else if (q.status === 'rejected') {
+        doc.setFillColor(...redRgb);
+      } else if (q.status === 'out_of_period') {
+        doc.setFillColor(...cyanRgb);
+      } else if (q.status === 'not_applicable') {
+        doc.setFillColor(...grayRgb);
+      }
+      doc.circle(iconX, iconY, 1.8, 'F');
+
+      yCol += Math.max(3.5, lines.length * 2.4 + 0.5);
+>>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
     });
 
     return yCol;
