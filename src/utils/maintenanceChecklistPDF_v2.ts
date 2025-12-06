@@ -343,12 +343,23 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       doc.setTextColor(60, 60, 60);
       doc.text(lines, x + 1, yCol);
 
-      // Círculo de estado (simple, limpio, más grande)
-      const iconX = x + colWidth - 4;
-      const iconY = yCol + (lines.length * 2.2) / 2 - 0.5;
-      const circleRadius = 2.5; // Círculos más grandes
+      // Cuadrado de estado (diseño mejorado con cuadrado dentro de cuadrado)
+      const boxSize = 5; // Tamaño del cuadrado grande
+      const innerBoxSize = 3.5; // Tamaño del cuadrado pequeño interior
+      const boxX = x + colWidth - boxSize - 1;
+      const lineHeight = lines.length * 2.8; // Altura total del texto
+      const boxY = yCol - 2 + (lineHeight / 2) - (boxSize / 2); // Centrado vertical
 
-      // Color según estado
+      // Cuadrado grande (borde negro, fondo blanco)
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(boxX, boxY, boxSize, boxSize, 0.5, 0.5, 'FD');
+
+      // Cuadrado pequeño interior centrado (color según estado)
+      const innerX = boxX + (boxSize - innerBoxSize) / 2;
+      const innerY = boxY + (boxSize - innerBoxSize) / 2;
+      
       if (q.status === 'approved') {
         doc.setFillColor(...greenRgb);
       } else if (q.status === 'rejected') {
@@ -358,9 +369,9 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       } else if (q.status === 'not_applicable') {
         doc.setFillColor(...grayRgb);
       }
-      doc.circle(iconX, iconY, circleRadius, 'F');
+      doc.roundedRect(innerX, innerY, innerBoxSize, innerBoxSize, 0.3, 0.3, 'F');
 
-      yCol += Math.max(3, lines.length * 2.2 + 0.5); // Interlineado simple entre preguntas (antes 2.4)
+      yCol += Math.max(5, lineHeight + 2); // Más espacio entre preguntas (antes 3)
     });
 
     return yCol;
