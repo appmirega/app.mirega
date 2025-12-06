@@ -461,7 +461,6 @@ export function DynamicChecklistForm({
 
                   return (
                     <div key={question.id} className="p-4 hover:bg-slate-50 transition">
-<<<<<<< HEAD
                       <div className="space-y-2">
                         {/* Número + Pregunta en la misma línea */}
                         <div className="flex items-start gap-3">
@@ -474,86 +473,6 @@ export function DynamicChecklistForm({
                         </div>
 
                         {/* Frecuencia debajo */}
-                        <p className="text-xs text-slate-600 ml-11">
-                          Frecuencia:{' '}
-                          {question.frequency === 'M'
-                            ? 'Mensual'
-                            : question.frequency === 'T'
-                            ? 'Trimestral'
-                            : 'Semestral'}
-                          {question.is_hydraulic_only && ' • Solo ascensores hidráulicos'}
-                        </p>
-
-                        {/* Botones compactos debajo */}
-                        <div className="flex gap-2 ml-11">
-                          <button
-                            onClick={() => handleAnswerChange(question.id, 'approved')}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                              status === 'approved'
-                                ? 'bg-green-600 text-white shadow-md'
-                                : 'bg-white border border-slate-300 text-slate-700 hover:border-green-500'
-                            }`}
-                            title="Aprobar"
-                          >
-                            <Check className="w-4 h-4" />
-                            <span className="hidden sm:inline">Aprobado</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleAnswerChange(question.id, 'rejected')}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                              status === 'rejected'
-                                ? 'bg-red-600 text-white shadow-md'
-                                : 'bg-white border border-slate-300 text-slate-700 hover:border-red-500'
-                            }`}
-                            title="Rechazar"
-                          >
-                            <X className="w-4 h-4" />
-                            <span className="hidden sm:inline">Rechazado</span>
-                          </button>
-                        </div>
-
-
-                        {/* Sección de observaciones y fotos (solo si está rechazado) */}
-                        {status === 'rejected' && (
-                          <div className="ml-11 space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                              <div>
-                                <label className="block text-sm font-semibold text-red-900 mb-2">
-                                  Observaciones (Obligatorias)
-                                </label>
-                                <textarea
-                                  value={answer?.observations || ''}
-                                  onChange={(e) =>
-                                    handleObservationsChange(question.id, e.target.value)
-                                  }
-                                  placeholder="Describe el problema encontrado..."
-                                  rows={3}
-                                  className="w-full px-4 py-2 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-semibold text-red-900 mb-2">
-                                  Evidencia Fotográfica (mínimo 1 foto)
-                                </label>
-                                <PhotoCapture
-                                  questionId={question.id}
-                                  checklistId={checklistId}
-                                  existingPhotos={{
-                                    photo1: answer?.photo_1_url || undefined,
-                                    photo2: answer?.photo_2_url || undefined,
-                                  }}
-                                onPhotosChange={(photo1Url, photo2Url) =>
-                                  handlePhotosChange(question.id, photo1Url, photo2Url)
-                                }
-                              />
-                              <p className="mt-2 text-xs text-red-700">
-                                • Foto 1 es obligatoria cuando la respuesta es Rechazado. Foto 2 es opcional.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>                        {/* Frecuencia debajo de la pregunta */}
                         <p className="text-xs text-slate-500 ml-8">
                           Frecuencia:{' '}
                           {question.frequency === 'M'
