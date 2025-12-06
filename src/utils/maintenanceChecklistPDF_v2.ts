@@ -229,9 +229,9 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.text(data.nextCertificationDate || 'No legible', proxX + subLabelWidth + 2, y + 4.2);
   
   // Lado derecho - Vigencia (matemática exacta para alineación)
-  const rightCol = PAGE_WIDTH / 2 + 3;
+  const rightColX = PAGE_WIDTH / 2 + 3;
   const rightSectionWidth = (PAGE_WIDTH / 2) - MARGIN - 3;
-  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightCol, y, rightSectionWidth - labelWidth);
+  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightColX, y, rightSectionWidth - labelWidth);
 
   return y + fieldHeight + 6;
 }
