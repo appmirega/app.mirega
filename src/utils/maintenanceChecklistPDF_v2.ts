@@ -247,7 +247,6 @@ function drawLegend(doc: jsPDF, y: number): number {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   let x = MARGIN + 42;
-<<<<<<< HEAD
   const iconSize = 3.5;
   const spacing = 6;
 
@@ -304,35 +303,6 @@ function drawLegend(doc: jsPDF, y: number): number {
   doc.text('/', x + 1, y - 0.2);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-=======
-
-  // Aprobado:
-  doc.text('Aprobado:', x, y);
-  x += doc.getTextWidth('Aprobado:') + 2;
-  doc.setFillColor(...greenRgb);
-  doc.circle(x, y - 1.5, 2, 'F');
-  x += 5;
-
-  // Rechazado:
-  doc.text('Rechazado:', x, y);
-  x += doc.getTextWidth('Rechazado:') + 2;
-  doc.setFillColor(...redRgb);
-  doc.circle(x, y - 1.5, 2, 'F');
-  x += 5;
-
-  // No corresponde al periodo:
-  doc.text('No corresponde al periodo:', x, y);
-  x += doc.getTextWidth('No corresponde al periodo:') + 2;
-  doc.setFillColor(...cyanRgb);
-  doc.circle(x, y - 1.5, 2, 'F');
-  x += 5;
-
-  // No aplica:
-  doc.text('No aplica:', x, y);
-  x += doc.getTextWidth('No aplica:') + 2;
-  doc.setFillColor(...grayRgb);
-  doc.circle(x, y - 1.5, 2, 'F');
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
 
   return y + 5;
 }
@@ -386,11 +356,7 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
         doc.setFontSize(7.5);
         doc.setTextColor(...blueRgb);
         doc.text(q.section.toUpperCase(), x, yCol);
-<<<<<<< HEAD
         yCol += 5; // Interlineado doble después del título (antes 4)
-=======
-        yCol += 4;
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
         lastSection = q.section;
       }
 
@@ -404,7 +370,6 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       doc.setTextColor(60, 60, 60);
       doc.text(lines, x + 1, yCol);
 
-<<<<<<< HEAD
       // Icono de estado (cuadrado con símbolo)
       const iconX = x + colWidth - 4.5;
       const iconY = yCol + (lines.length * 2.2) / 2 - 1.5;
@@ -442,24 +407,6 @@ function drawChecklist(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: nu
       }
 
       yCol += Math.max(3, lines.length * 2.2 + 0.5); // Interlineado simple entre preguntas (antes 2.4)
-=======
-      // Círculo de estado (más a la derecha y centrado verticalmente)
-      const iconX = x + colWidth - 4;
-      const iconY = yCol + (lines.length * 2.4) / 2 - 0.5;
-
-      if (q.status === 'approved') {
-        doc.setFillColor(...greenRgb);
-      } else if (q.status === 'rejected') {
-        doc.setFillColor(...redRgb);
-      } else if (q.status === 'out_of_period') {
-        doc.setFillColor(...cyanRgb);
-      } else if (q.status === 'not_applicable') {
-        doc.setFillColor(...grayRgb);
-      }
-      doc.circle(iconX, iconY, 1.8, 'F');
-
-      yCol += Math.max(3.5, lines.length * 2.4 + 0.5);
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
     });
 
     return yCol;
