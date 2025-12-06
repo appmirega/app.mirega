@@ -152,20 +152,11 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   const fieldHeight = 6;
   const labelWidth = 35;
   const leftCol = MARGIN;
-<<<<<<< HEAD
   const rightCol = PAGE_WIDTH / 2; // Columna derecha empieza exactamente a la mitad
 
   // Función para dibujar campo
   const drawField = (label: string, value: string, x: number, yPos: number, width?: number) => {
     const fieldWidth = width || ((PAGE_WIDTH / 2) - MARGIN - labelWidth);
-=======
-  const middleCol = PAGE_WIDTH / 3 + 2;
-  const rightCol = 2 * PAGE_WIDTH / 3 + 4;
-
-  // Función para dibujar campo
-  const drawField = (label: string, value: string, x: number, yPos: number, width?: number) => {
-    const fieldWidth = width || (PAGE_WIDTH / 3 - MARGIN - 6);
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
     
     // Label (azul)
     doc.setFillColor(...blueRgb);
@@ -187,7 +178,6 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   };
 
   // Fila 1: Cliente | Periodo
-<<<<<<< HEAD
   drawField('Cliente:', data.clientName || '', leftCol, y);
   drawField('Periodo:', MONTHS[data.month - 1] || '', rightCol, y);
   y += fieldHeight + 1.5;
@@ -201,30 +191,11 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   // Fila 3: Fecha | Técnico
   drawField('Fecha:', formatDate(data.completionDate), leftCol, y);
   drawField('Técnico:', data.technicianName || '', rightCol, y);
-=======
-  drawField('Cliente:', data.clientName || '', leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
-  drawField('Periodo:', MONTHS[data.month - 1] || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
-  y += fieldHeight + 1.5;
-
-  // Fila 2: Dirección | Ascensor
-  drawField('Dirección:', data.clientAddress || '', leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
-  const ascensorText = data.elevatorNumber ? `Ascensor ${data.elevatorNumber}` : 'No especificado';
-  drawField('N° Ascensor:', ascensorText, PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
-  y += fieldHeight + 1.5;
-
-  // Fila 3: Fecha | Técnico
-  drawField('Fecha:', formatDate(data.completionDate), leftCol, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
-  drawField('Técnico:', data.technicianName || '', PAGE_WIDTH / 2 + 3, y, PAGE_WIDTH / 2 - MARGIN - labelWidth - 8);
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
   y += fieldHeight + 1.5;
 
   // Fila 4: Última/Próxima (izquierda) | Vigencia (derecha)
   // Lado izquierdo completo
-<<<<<<< HEAD
   const leftSectionWidth = (PAGE_WIDTH / 2) - MARGIN;
-=======
-  const leftSectionWidth = (PAGE_WIDTH / 2) - MARGIN - 3;
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
   const subLabelWidth = 28;
   const subFieldWidth = (leftSectionWidth - 2 * subLabelWidth - 2) / 2;
   
@@ -256,15 +227,8 @@ function drawGeneralInfo(doc: jsPDF, data: MaintenanceChecklistPDFData, startY: 
   doc.setFont('helvetica', 'normal');
   doc.text(data.nextCertificationDate || 'No legible', proxX + subLabelWidth + 2, y + 4.2);
   
-<<<<<<< HEAD
   // Lado derecho - Vigencia (alineado perfectamente)
   drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightCol, y);
-=======
-  // Lado derecho - Vigencia (matemática exacta para alineación)
-  const rightColX = PAGE_WIDTH / 2 + 3;
-  const rightSectionWidth = (PAGE_WIDTH / 2) - MARGIN - 3;
-  drawField('Vigencia:', getCertificationStatusText(data.certificationStatus), rightColX, y, rightSectionWidth - labelWidth);
->>>>>>> 447e41d587f57dba6d065c719cb85aabe69166b9
 
   return y + fieldHeight + 6;
 }
