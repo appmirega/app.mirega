@@ -374,37 +374,6 @@ export function DynamicChecklistForm({
         </div>
       </div>
 
-      {/* Botones de acción */}
-      <div className="flex flex-wrap justify-between items-center gap-3">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleManualSave}
-            disabled={saving || changeCount === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-                       border border-slate-300 bg-white hover:bg-slate-50 text-slate-700
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? 'Guardando...' : 'Guardar Manualmente'}
-          </button>
-        </div>
-
-        <button
-          onClick={handleCompleteClick}
-          disabled={!canComplete() || saving}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold
-                      text-white shadow-sm transition
-                      ${
-                        canComplete() && !saving
-                          ? 'bg-green-600 hover:bg-green-700'
-                          : 'bg-slate-400 cursor-not-allowed'
-                      }`}
-        >
-          <Check className="w-4 h-4" />
-          {saving ? 'Guardando...' : 'Completar Checklist'}
-        </button>
-      </div>
-
       {/* Mensaje de validación si falta algo */}
       {!canComplete() && progress.answered > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
@@ -443,67 +412,61 @@ export function DynamicChecklistForm({
 
                   return (
                     <div key={question.id} className="p-4 hover:bg-slate-50 transition">
-                      <div className="flex flex-col gap-3">
-                        {/* Nuevo layout vertical */}
-                        <div className="space-y-3">
-                          {/* Número de pregunta */}
-                          <div className="flex items-center justify-center">
-                            <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white text-base font-bold">
-                              {question.question_number}
-                            </span>
-                          </div>
+                      <div className="space-y-2">
+                        {/* Número + Pregunta en la misma línea */}
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex-shrink-0 mt-0.5">
+                            {question.question_number}
+                          </span>
+                          <p className="font-medium text-slate-900 flex-1">
+                            {question.question_text}
+                          </p>
+                        </div>
 
-                          {/* Texto de la pregunta */}
-                          <div className="text-center">
-                            <p className="font-semibold text-slate-900 text-base">
-                              {question.question_text}
-                            </p>
-                          </div>
+                        {/* Frecuencia debajo */}
+                        <p className="text-xs text-slate-600 ml-11">
+                          Frecuencia:{' '}
+                          {question.frequency === 'M'
+                            ? 'Mensual'
+                            : question.frequency === 'T'
+                            ? 'Trimestral'
+                            : 'Semestral'}
+                          {question.is_hydraulic_only && ' • Solo ascensores hidráulicos'}
+                        </p>
 
-                          {/* Frecuencia */}
-                          <div className="text-center">
-                            <p className="text-sm text-slate-600">
-                              <span className="font-medium">Frecuencia:</span>{' '}
-                              {question.frequency === 'M'
-                                ? 'Mensual'
-                                : question.frequency === 'T'
-                                ? 'Trimestral'
-                                : 'Semestral'}
-                              {question.is_hydraulic_only && ' • Solo ascensores hidráulicos'}
-                            </p>
-                          </div>
+                        {/* Botones compactos debajo */}
+                        <div className="flex gap-2 ml-11">
+                          <button
+                            onClick={() => handleAnswerChange(question.id, 'approved')}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                              status === 'approved'
+                                ? 'bg-green-600 text-white shadow-md'
+                                : 'bg-white border border-slate-300 text-slate-700 hover:border-green-500'
+                            }`}
+                            title="Aprobar"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span className="hidden sm:inline">Aprobado</span>
+                          </button>
 
-                          {/* Botones Aprobado/Rechazado */}
-                          <div className="flex gap-3 justify-center max-w-md mx-auto w-full">
-                            <button
-                              onClick={() => handleAnswerChange(question.id, 'approved')}
-                              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition ${
-                                status === 'approved'
-                                  ? 'bg-green-600 text-white shadow-lg'
-                                  : 'bg-white border-2 border-slate-300 text-slate-700 hover:border-green-500'
-                              }`}
-                            >
-                              <Check className="w-5 h-5" />
-                              Aprobado
-                            </button>
-
-                            <button
-                              onClick={() => handleAnswerChange(question.id, 'rejected')}
-                              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition ${
-                                status === 'rejected'
-                                  ? 'bg-red-600 text-white shadow-lg'
-                                  : 'bg-white border-2 border-slate-300 text-slate-700 hover:border-red-500'
-                              }`}
-                            >
-                              <X className="w-5 h-5" />
-                              Rechazado
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleAnswerChange(question.id, 'rejected')}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                              status === 'rejected'
+                                ? 'bg-red-600 text-white shadow-md'
+                                : 'bg-white border border-slate-300 text-slate-700 hover:border-red-500'
+                            }`}
+                            title="Rechazar"
+                          >
+                            <X className="w-4 h-4" />
+                            <span className="hidden sm:inline">Rechazado</span>
+                          </button>
+                        </div>
 
 
-                          {/* Sección de observaciones y fotos (solo si está rechazado) */}
-                          {status === 'rejected' && (
-                            <div className="space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg max-w-2xl mx-auto w-full">
+                        {/* Sección de observaciones y fotos (solo si está rechazado) */}
+                        {status === 'rejected' && (
+                          <div className="ml-11 space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                               <div>
                                 <label className="block text-sm font-semibold text-red-900 mb-2">
                                   Observaciones (Obligatorias)
@@ -550,6 +513,39 @@ export function DynamicChecklistForm({
           </div>
         ))}
       </div>
+
+      {/* Botón flotante para guardar y completar checklist */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl p-4 z-40">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={handleManualSave}
+            disabled={saving || changeCount === 0}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
+                       border-2 border-blue-600 bg-white hover:bg-blue-50 text-blue-600
+                       disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Save className="w-6 h-6" />
+            {saving ? 'Guardando...' : 'Guardar Progreso'}
+          </button>
+
+          <button
+            onClick={handleCompleteClick}
+            disabled={!canComplete() || saving}
+            className={`flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
+                       text-white shadow-lg transition transform ${
+                         canComplete() && !saving
+                           ? 'bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98]'
+                           : 'bg-slate-400 cursor-not-allowed opacity-60'
+                       }`}
+          >
+            <Check className="w-6 h-6" />
+            {saving ? 'Guardando...' : 'Completar y Firmar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Espaciador para evitar que el contenido quede oculto bajo la barra flotante */}
+      <div className="h-24"></div>
     </div>
   );
 }
