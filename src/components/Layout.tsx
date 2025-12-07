@@ -53,6 +53,7 @@ const navigation: NavItem[] = [
   { label: 'Mi Perfil', icon: UserIcon, path: 'profile', roles: ['developer', 'admin', 'technician', 'client'] },
   { label: 'Mantenimientos', icon: ClipboardList, path: 'maintenance-checklist', roles: ['developer', 'admin', 'technician'] },
   { label: 'Certificaciones', icon: BadgeCheck, path: 'certifications', roles: ['developer', 'admin'] },
+  { label: 'Solicitudes de Servicio', icon: FileText, path: 'service-requests', roles: ['developer', 'admin', 'technician'] },
   { label: 'Estadísticas', icon: TrendingUp, path: 'statistics', roles: ['developer', 'admin'] },
   { label: 'Operaciones Masivas', icon: CalendarRange, path: 'bulk-operations', roles: ['developer', 'admin'] },
   { label: 'Registro de Auditoría', icon: FileSearch, path: 'audit-logs', roles: ['developer', 'admin'] },

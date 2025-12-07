@@ -756,8 +756,8 @@ export const TechnicianMaintenanceChecklistView = () => {
     // NUEVO: Crear solicitudes automáticas desde observaciones
     await createServiceRequestsFromChecklist(
       checklistId,
-      checklistData.elevators?.id,
-      checklistData.clients?.id,
+      selectedElevator?.id || '',
+      selectedClient?.id || '',
       allQuestions
     );
   };

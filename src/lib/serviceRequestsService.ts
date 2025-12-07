@@ -43,10 +43,63 @@ export async function createServiceRequest(data: CreateServiceRequestData) {
       .single();
 
     if (error) throw error;
+
+    // Crear notificación para admins
+    await createNotificationForAdmins({
+      title: title || `Solicitud ${data.request_type}`,
+      description: data.description,
+      priority: data.priority,
+      requestType: data.request_type,
+    });
+
     return { success: true, data: serviceRequest };
   } catch (error) {
     console.error('Error creating service request:', error);
     return { success: false, error };
+  }
+}
+
+// =============================================
+// CREAR NOTIFICACIÓN PARA ADMINS
+// =============================================
+
+async function createNotificationForAdmins(requestData: {
+  title: string;
+  description: string;
+  priority: Priority;
+  requestType: RequestType;
+}) {
+  try {
+    // Obtener todos los admins
+    const { data: admins, error: adminsError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin');
+
+    if (adminsError) throw adminsError;
+    if (!admins || admins.length === 0) return;
+
+    // Crear notificación para cada admin
+    const notifications = admins.map(admin => ({
+      user_id: admin.id,
+      type: 'service_request',
+      title: `Nueva Solicitud: ${requestData.title}`,
+      message: `Prioridad: ${requestData.priority.toUpperCase()} - ${requestData.description.substring(0, 100)}...`,
+      is_read: false,
+      metadata: {
+        request_type: requestData.requestType,
+        priority: requestData.priority,
+      }
+    }));
+
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .insert(notifications);
+
+    if (notifError) throw notifError;
+    console.log(`✅ ${notifications.length} notificación(es) creada(s) para admins`);
+  } catch (error) {
+    console.error('Error creating notifications:', error);
   }
 }
 
