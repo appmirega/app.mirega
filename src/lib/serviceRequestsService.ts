@@ -14,6 +14,13 @@ import type {
 
 export async function createServiceRequest(data: CreateServiceRequestData) {
   try {
+    console.log('📝 Creando service_request con datos:', {
+      request_type: data.request_type,
+      elevator_id: data.elevator_id,
+      client_id: data.client_id,
+      created_by_technician_id: data.created_by_technician_id
+    });
+
     // Generar título si no se provee
     let title = data.title;
     if (!title) {
@@ -50,7 +57,12 @@ export async function createServiceRequest(data: CreateServiceRequestData) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Error en INSERT service_requests:', error);
+      throw error;
+    }
+
+    console.log('✅ Service request creado:', serviceRequest.id);
 
     // Crear notificación para admins
     await createNotificationForAdmins({
@@ -149,14 +161,20 @@ export async function createRequestsFromMaintenance(
 
     if (result.success && result.data) {
       // Crear detalles de reparación
-      await createRepairRequest({
+      const repairResult = await createRepairRequest({
         service_request_id: result.data.id,
         repair_category: categorizeRepairFromQuestion(question.text),
         elevator_operational: !question.is_critical, // Si es crítico, probablemente no está operativo
         can_wait: !question.is_critical,
       });
 
+      if (!repairResult.success) {
+        console.error('❌ Error creando repair_request:', repairResult.error);
+      }
+
       results.push(result.data);
+    } else {
+      console.error('❌ Error creando service_request:', result.error);
     }
   }
 
