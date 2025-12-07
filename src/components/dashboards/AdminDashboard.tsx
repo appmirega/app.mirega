@@ -469,6 +469,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
             Gestionar Emergencias
           </button>
           <button
+            onClick={() => onNavigate?.('service-requests')}
+            className="bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 transition"
+          >
+            📋 Solicitudes de Servicio
+          </button>
+          <button
             onClick={() => onNavigate?.('bulk-operations')}
             className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition"
           >

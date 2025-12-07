@@ -21,6 +21,7 @@ import { QRScanner } from '../checklist/QRScanner';
 import { DynamicChecklistForm } from '../checklist/DynamicChecklistForm';
 import { ChecklistSignatureModal } from '../checklist/ChecklistSignatureModal';
 import { generateMaintenanceChecklistPDF, MaintenanceChecklistPDFData } from '../../utils/maintenanceChecklistPDF_v2';
+import { createRequestsFromMaintenance } from '../../lib/serviceRequestsService';
 
 interface Client {
   id: string;
@@ -751,6 +752,54 @@ export const TechnicianMaintenanceChecklistView = () => {
     }
     
     console.log(`✅ PDF generado y guardado: ${urlData.publicUrl}`);
+    
+    // NUEVO: Crear solicitudes automáticas desde observaciones
+    await createServiceRequestsFromChecklist(
+      checklistId,
+      checklistData.elevators?.id,
+      checklistData.clients?.id,
+      allQuestions
+    );
+  };
+  
+  // Crear solicitudes de servicio automáticas desde observaciones
+  const createServiceRequestsFromChecklist = async (
+    checklistId: string,
+    elevatorId: string,
+    clientId: string,
+    questions: any[]
+  ) => {
+    try {
+      // Filtrar preguntas rechazadas con observaciones
+      const rejectedQuestions = questions
+        .filter(q => q.status === 'rejected' && q.observations && q.observations.trim() !== '')
+        .map(q => ({
+          question_number: q.number,
+          text: q.text,
+          observations: q.observations,
+          is_critical: q.section === 'SALA DE MÁQUINAS' || q.section === 'GRUPO HIDRÁULICO, CILINDRO Y VÁLVULAS'
+        }));
+      
+      if (rejectedQuestions.length === 0) {
+        console.log('No hay observaciones para crear solicitudes');
+        return;
+      }
+      
+      console.log(`📋 Creando ${rejectedQuestions.length} solicitud(es) de servicio automáticas...`);
+      
+      const results = await createRequestsFromMaintenance(
+        checklistId,
+        elevatorId,
+        clientId,
+        profile?.id || '',
+        rejectedQuestions
+      );
+      
+      console.log(`✅ ${results.length} solicitud(es) creada(s) exitosamente`);
+    } catch (error) {
+      console.error('Error creando solicitudes automáticas:', error);
+      // No bloqueamos el flujo si falla la creación de solicitudes
+    }
   };
 
   // Cargar historial

@@ -35,6 +35,7 @@ import { TechnicianEmergencyView } from './components/views/TechnicianEmergencyV
 import { TechnicianWorkOrdersView } from './components/views/TechnicianWorkOrdersView';
 import { TechnicianRoutesView } from './components/views/TechnicianRoutesView';
 import { NotificationsView } from './components/views/NotificationsView';
+import { ServiceRequestsDashboard } from './components/views/ServiceRequestsDashboard';
 import { UsersView } from './components/views/UsersView';
 import { ClientsView } from './components/views/ClientsView';
 import { ElevatorsCompleteView } from './components/views/ElevatorsCompleteView';
@@ -128,6 +129,8 @@ function AppContent() {
         return <BulkOperationsView />;
       case 'notifications':
         return <NotificationsView />;
+      case 'service-requests':
+        return <ServiceRequestsDashboard />;
       case 'users':
         return <UsersView />;
       case 'clients':
