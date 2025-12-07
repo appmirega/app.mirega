@@ -14,15 +14,23 @@ import type {
 
 export async function createServiceRequest(data: CreateServiceRequestData) {
   try {
-    // Si no se provee título, se auto-genera
+    // Generar título si no se provee
     let title = data.title;
     if (!title) {
-      const { data: titleData } = await supabase.rpc('generate_service_request_title', {
-        p_request_type: data.request_type,
-        p_elevator_id: data.elevator_id,
-        p_description: data.description,
-      });
-      title = titleData || `Solicitud ${data.request_type}`;
+      const typeLabel = {
+        repair: 'Reparación',
+        parts: 'Repuestos',
+        support: 'Soporte',
+        inspection: 'Inspección'
+      }[data.request_type] || 'Solicitud';
+      
+      const sourceLabel = {
+        maintenance_checklist: 'Mantenimiento',
+        emergency_visit: 'Emergencia',
+        manual: 'Manual'
+      }[data.source_type] || '';
+      
+      title = `${typeLabel} - ${sourceLabel}`;
     }
 
     const { data: serviceRequest, error } = await supabase
