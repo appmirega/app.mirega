@@ -577,6 +577,8 @@ export const TechnicianMaintenanceChecklistView = () => {
         next_certification_date,
         certification_dates_readable,
         certification_status,
+        client_id,
+        elevator_id,
         clients(company_name, building_name, internal_alias, address),
         elevators(elevator_number, location_name, elevator_type),
         profiles(full_name)
@@ -756,8 +758,8 @@ export const TechnicianMaintenanceChecklistView = () => {
     // NUEVO: Crear solicitudes automáticas desde observaciones
     await createServiceRequestsFromChecklist(
       checklistId,
-      selectedElevator?.id || '',
-      selectedClient?.id || '',
+      checklistData.elevator_id,
+      checklistData.client_id,
       allQuestions
     );
   };
