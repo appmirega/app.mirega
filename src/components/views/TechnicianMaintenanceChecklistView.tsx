@@ -770,6 +770,13 @@ export const TechnicianMaintenanceChecklistView = () => {
     questions: any[]
   ) => {
     try {
+      // Validar que tengamos los IDs necesarios
+      if (!elevatorId || !clientId) {
+        console.error('❌ No se pueden crear solicitudes: falta elevator_id o client_id');
+        console.log('elevatorId:', elevatorId, 'clientId:', clientId);
+        return;
+      }
+
       // Filtrar preguntas rechazadas con observaciones
       const rejectedQuestions = questions
         .filter(q => q.status === 'rejected' && q.observations && q.observations.trim() !== '')
