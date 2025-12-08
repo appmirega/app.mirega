@@ -18,6 +18,8 @@ interface Answer {
   observations: string;
   photo_1_url: string | null;
   photo_2_url: string | null;
+  request_type?: 'reparacion' | 'repuestos' | 'soporte' | 'inspeccion';
+  request_priority?: 'baja' | 'media' | 'alta' | 'critica';
 }
 
 interface DynamicChecklistFormProps {
@@ -79,6 +81,8 @@ export function DynamicChecklistForm({
             observations: answer.observations || '',
             photo_1_url: answer.photo_1_url,
             photo_2_url: answer.photo_2_url,
+            request_type: answer.request_type,
+            request_priority: answer.request_priority,
           });
         });
 
@@ -149,6 +153,8 @@ export function DynamicChecklistForm({
       observations: status === 'approved' ? '' : currentAnswer.observations,
       photo_1_url: status === 'approved' ? null : currentAnswer.photo_1_url,
       photo_2_url: status === 'approved' ? null : currentAnswer.photo_2_url,
+      request_type: status === 'approved' ? undefined : currentAnswer.request_type,
+      request_priority: status === 'approved' ? undefined : currentAnswer.request_priority,
     };
 
     const newMap = new Map(answers);
@@ -163,6 +169,26 @@ export function DynamicChecklistForm({
 
     const newMap = new Map(answers);
     newMap.set(questionId, { ...currentAnswer, observations });
+    setAnswers(newMap);
+    setChangeCount((prev) => prev + 1);
+  };
+
+  const handleRequestTypeChange = (questionId: string, type: Answer['request_type']) => {
+    const currentAnswer = answers.get(questionId);
+    if (!currentAnswer) return;
+
+    const newMap = new Map(answers);
+    newMap.set(questionId, { ...currentAnswer, request_type: type });
+    setAnswers(newMap);
+    setChangeCount((prev) => prev + 1);
+  };
+
+  const handleRequestPriorityChange = (questionId: string, priority: Answer['request_priority']) => {
+    const currentAnswer = answers.get(questionId);
+    if (!currentAnswer) return;
+
+    const newMap = new Map(answers);
+    newMap.set(questionId, { ...currentAnswer, request_priority: priority });
     setAnswers(newMap);
     setChangeCount((prev) => prev + 1);
   };
@@ -199,6 +225,8 @@ export function DynamicChecklistForm({
         observations: answer.observations,
         photo_1_url: answer.photo_1_url,
         photo_2_url: answer.photo_2_url,
+        request_type: answer.request_type,
+        request_priority: answer.request_priority,
       }));
 
       for (const answer of answersToSave) {
@@ -423,6 +451,21 @@ export function DynamicChecklistForm({
         </div>
       </div>
 
+      {/* Auto-guardado indicador */}
+      <div className="flex justify-end items-center gap-3 text-xs">
+        {changeCount > 0 && (
+          <span className="flex items-center gap-1 text-amber-600">
+            <AlertCircle className="w-4 h-4" />
+            {changeCount} cambio{changeCount !== 1 ? 's' : ''} sin guardar
+          </span>
+        )}
+        {lastSaved && changeCount === 0 && (
+          <span className="text-green-600">
+            ✓ Guardado {formatDateTime(lastSaved)}
+          </span>
+        )}
+      </div>
+
       {/* Mensaje de validación si falta algo */}
       {!canComplete() && progress.answered > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
@@ -461,18 +504,16 @@ export function DynamicChecklistForm({
 
                   return (
                     <div key={question.id} className="p-4 hover:bg-slate-50 transition">
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-3">
                         {/* Número + Pregunta en la misma línea */}
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex-shrink-0 mt-0.5">
+                        <div className="flex items-start gap-2">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-xs font-semibold text-slate-700 flex-shrink-0 mt-0.5">
                             {question.question_number}
                           </span>
-                          <p className="font-medium text-slate-900 flex-1">
-                            {question.question_text}
-                          </p>
+                          <p className="font-medium text-slate-900 flex-1">{question.question_text}</p>
                         </div>
 
-                        {/* Frecuencia debajo */}
+                        {/* Frecuencia debajo de la pregunta */}
                         <p className="text-xs text-slate-500 ml-8">
                           Frecuencia:{' '}
                           {question.frequency === 'M'
@@ -513,6 +554,62 @@ export function DynamicChecklistForm({
                         {/* Observaciones y fotos para respuestas rechazadas */}
                         {status === 'rejected' && (
                           <div className="ml-8 space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            {/* Tipo de solicitud */}
+                            <div>
+                              <label className="block text-sm font-semibold text-red-900 mb-2">
+                                Tipo de Solicitud
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { value: 'reparacion', label: 'Reparación', color: 'bg-orange-100 border-orange-300 text-orange-800 hover:bg-orange-200' },
+                                  { value: 'repuestos', label: 'Repuestos', color: 'bg-blue-100 border-blue-300 text-blue-800 hover:bg-blue-200' },
+                                  { value: 'soporte', label: 'Soporte', color: 'bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200' },
+                                  { value: 'inspeccion', label: 'Inspección', color: 'bg-teal-100 border-teal-300 text-teal-800 hover:bg-teal-200' },
+                                ].map((type) => (
+                                  <button
+                                    key={type.value}
+                                    type="button"
+                                    onClick={() => handleRequestTypeChange(question.id, type.value as Answer['request_type'])}
+                                    className={`px-3 py-2 rounded-lg border-2 font-medium text-sm transition ${
+                                      answer?.request_type === type.value
+                                        ? type.color + ' ring-2 ring-offset-1 ring-red-400'
+                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+                                    }`}
+                                  >
+                                    {type.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Prioridad */}
+                            <div>
+                              <label className="block text-sm font-semibold text-red-900 mb-2">
+                                Prioridad
+                              </label>
+                              <div className="grid grid-cols-4 gap-2">
+                                {[
+                                  { value: 'baja', label: 'Baja', color: 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200' },
+                                  { value: 'media', label: 'Media', color: 'bg-yellow-100 border-yellow-300 text-yellow-800 hover:bg-yellow-200' },
+                                  { value: 'alta', label: 'Alta', color: 'bg-orange-100 border-orange-300 text-orange-800 hover:bg-orange-200' },
+                                  { value: 'critica', label: 'Crítica', color: 'bg-red-100 border-red-300 text-red-800 hover:bg-red-200' },
+                                ].map((priority) => (
+                                  <button
+                                    key={priority.value}
+                                    type="button"
+                                    onClick={() => handleRequestPriorityChange(question.id, priority.value as Answer['request_priority'])}
+                                    className={`px-3 py-2 rounded-lg border-2 font-medium text-sm transition ${
+                                      answer?.request_priority === priority.value
+                                        ? priority.color + ' ring-2 ring-offset-1 ring-red-400'
+                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+                                    }`}
+                                  >
+                                    {priority.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
                             <div>
                               <label className="block text-sm font-semibold text-red-900 mb-2">
                                 Observaciones (Obligatorias)
@@ -559,38 +656,40 @@ export function DynamicChecklistForm({
         ))}
       </div>
 
-      {/* Botón flotante para guardar y completar checklist */}
+      {/* Botones al final del checklist */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl p-4 z-40">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-3">
+        <div className="max-w-4xl mx-auto flex gap-3">
+          {/* Botón Guardar */}
           <button
             onClick={handleManualSave}
             disabled={saving || changeCount === 0}
-            className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
-                       border-2 border-blue-600 bg-white hover:bg-blue-50 text-blue-600
-                       disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-[1.02] active:scale-[0.98]"
+            className={`flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
+                        shadow-lg transition transform ${
+                          !saving && changeCount > 0
+                            ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]'
+                            : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+                        }`}
           >
             <Save className="w-6 h-6" />
-            {saving ? 'Guardando...' : 'Guardar Progreso'}
+            {saving ? 'Guardando...' : 'Guardar'}
           </button>
 
+          {/* Botón Completar */}
           <button
             onClick={handleCompleteClick}
             disabled={!canComplete() || saving}
             className={`flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 rounded-lg text-lg font-bold
-                       text-white shadow-lg transition transform ${
-                         canComplete() && !saving
-                           ? 'bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98]'
-                           : 'bg-slate-400 cursor-not-allowed opacity-60'
-                       }`}
+                        text-white shadow-lg transition transform ${
+                          canComplete() && !saving
+                            ? 'bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98]'
+                            : 'bg-slate-400 cursor-not-allowed opacity-60'
+                        }`}
           >
             <Check className="w-6 h-6" />
-            {saving ? 'Guardando...' : 'Completar y Firmar'}
+            {saving ? 'Guardando...' : 'Completar Checklist'}
           </button>
         </div>
       </div>
-
-      {/* Espaciador para evitar que el contenido quede oculto bajo la barra flotante */}
-      <div className="h-24"></div>
     </div>
   );
 }

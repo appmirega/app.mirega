@@ -226,7 +226,7 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Ej: Reparación motor 3° piso"
+              placeholder="Ej: Cambio de roldanas de puerta"
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-sm text-gray-500 mt-1">
