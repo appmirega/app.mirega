@@ -1,0 +1,273 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { X, Building2, Wrench, Package, HelpCircle, AlertCircle } from 'lucide-react';
+import { createServiceRequest } from '../../lib/serviceRequestsService';
+import type { Priority, RequestType } from '../../types/serviceRequests';
+
+interface ManualServiceRequestFormProps {
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+interface Client {
+  id: string;
+  company_name: string;
+  building_name: string;
+  internal_alias: string;
+}
+
+interface Elevator {
+  id: string;
+  elevator_number: string;
+  location_name: string;
+  client_id: string;
+}
+
+export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRequestFormProps) {
+  const { profile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [elevators, setElevators] = useState<Elevator[]>([]);
+  const [filteredElevators, setFilteredElevators] = useState<Elevator[]>([]);
+
+  const [formData, setFormData] = useState({
+    clientId: '',
+    elevatorId: '',
+    requestType: 'repair' as RequestType,
+    priority: 'medium' as Priority,
+    title: '',
+    description: '',
+  });
+
+  useEffect(() => {
+    loadClients();
+    loadElevators();
+  }, []);
+
+  useEffect(() => {
+    if (formData.clientId) {
+      const filtered = elevators.filter(e => e.client_id === formData.clientId);
+      setFilteredElevators(filtered);
+    } else {
+      setFilteredElevators([]);
+    }
+  }, [formData.clientId, elevators]);
+
+  const loadClients = async () => {
+    const { data } = await supabase
+      .from('clients')
+      .select('id, company_name, building_name, internal_alias')
+      .order('internal_alias');
+    if (data) setClients(data);
+  };
+
+  const loadElevators = async () => {
+    const { data } = await supabase
+      .from('elevators')
+      .select('id, elevator_number, location_name, client_id')
+      .order('elevator_number');
+    if (data) setElevators(data);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.id) return;
+
+    setLoading(true);
+    try {
+      const result = await createServiceRequest({
+        request_type: formData.requestType,
+        source_type: 'manual',
+        source_id: null,
+        elevator_id: formData.elevatorId,
+        client_id: formData.clientId,
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        created_by_technician_id: profile.id,
+      });
+
+      if (result.success) {
+        alert('✅ Solicitud creada exitosamente');
+        onSuccess();
+        onClose();
+      } else {
+        throw new Error('Error al crear solicitud');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al crear la solicitud');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestTypes = [
+    { value: 'repair', label: 'Reparación', icon: Wrench, color: 'text-red-600' },
+    { value: 'parts', label: 'Repuestos', icon: Package, color: 'text-blue-600' },
+    { value: 'support', label: 'Soporte Técnico', icon: HelpCircle, color: 'text-purple-600' },
+    { value: 'inspection', label: 'Inspección', icon: AlertCircle, color: 'text-orange-600' },
+  ];
+
+  const priorities = [
+    { value: 'low', label: 'Baja', color: 'bg-gray-100 text-gray-700' },
+    { value: 'medium', label: 'Media', color: 'bg-blue-100 text-blue-700' },
+    { value: 'high', label: 'Alta', color: 'bg-orange-100 text-orange-700' },
+    { value: 'critical', label: 'Crítica', color: 'bg-red-100 text-red-700' },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Nueva Solicitud Manual</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Cliente */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Building2 className="w-4 h-4 inline mr-1" />
+              Cliente *
+            </label>
+            <select
+              required
+              value={formData.clientId}
+              onChange={(e) => setFormData({ ...formData, clientId: e.target.value, elevatorId: '' })}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar cliente...</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.internal_alias} - {client.company_name || client.building_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Ascensor */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ascensor *
+            </label>
+            <select
+              required
+              value={formData.elevatorId}
+              onChange={(e) => setFormData({ ...formData, elevatorId: e.target.value })}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              disabled={!formData.clientId}
+            >
+              <option value="">Seleccionar ascensor...</option>
+              {filteredElevators.map(elevator => (
+                <option key={elevator.id} value={elevator.id}>
+                  Ascensor {elevator.elevator_number} - {elevator.location_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tipo de Solicitud */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Tipo de Solicitud *
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {requestTypes.map(type => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, requestType: type.value as RequestType })}
+                  className={`p-4 border-2 rounded-lg flex items-center gap-3 transition ${
+                    formData.requestType === type.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <type.icon className={`w-5 h-5 ${type.color}`} />
+                  <span className="font-medium">{type.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Prioridad */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Prioridad *
+            </label>
+            <div className="flex gap-2">
+              {priorities.map(priority => (
+                <button
+                  key={priority.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, priority: priority.value as Priority })}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                    formData.priority === priority.value
+                      ? priority.color + ' ring-2 ring-offset-2'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {priority.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Título */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Título (Opcional)
+            </label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Ej: Reparación motor 3° piso"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Si no se especifica, se generará automáticamente
+            </p>
+          </div>
+
+          {/* Descripción */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Descripción *
+            </label>
+            <textarea
+              required
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Describe el problema, repuesto necesario, o tipo de apoyo requerido..."
+              rows={4}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Botones */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Creando...' : 'Crear Solicitud'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

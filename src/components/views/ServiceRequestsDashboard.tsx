@@ -13,8 +13,10 @@ import {
   FileText,
   TrendingUp,
   AlertCircle,
+  Plus,
 } from 'lucide-react';
 import type { ServiceRequest } from '../../types/serviceRequests';
+import { ManualServiceRequestForm } from '../forms/ManualServiceRequestForm';
 
 interface ServiceRequestWithDetails extends ServiceRequest {
   elevators?: {
@@ -39,6 +41,7 @@ export function ServiceRequestsDashboard() {
   const [requests, setRequests] = useState<ServiceRequestWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'critical'>('pending');
+  const [showManualForm, setShowManualForm] = useState(false);
   const [stats, setStats] = useState({
     total_pending: 0,
     critical_count: 0,
@@ -169,10 +172,27 @@ export function ServiceRequestsDashboard() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Solicitudes de Servicio</h1>
-          <p className="text-gray-600">Gestión centralizada de solicitudes desde mantenimiento y emergencias</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Solicitudes de Servicio</h1>
+            <p className="text-gray-600">Gestión centralizada de solicitudes desde mantenimiento y emergencias</p>
+          </div>
+          <button
+            onClick={() => setShowManualForm(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md"
+          >
+            <Plus className="w-5 h-5" />
+            Nueva Solicitud
+          </button>
         </div>
+
+        {/* Manual Form Modal */}
+        {showManualForm && (
+          <ManualServiceRequestForm
+            onClose={() => setShowManualForm(false)}
+            onSuccess={() => loadRequests()}
+          />
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

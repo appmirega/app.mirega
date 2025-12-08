@@ -64,13 +64,8 @@ export async function createServiceRequest(data: CreateServiceRequestData) {
 
     console.log('✅ Service request creado:', serviceRequest.id);
 
-    // Crear notificación para admins
-    await createNotificationForAdmins({
-      title: title || `Solicitud ${data.request_type}`,
-      description: data.description,
-      priority: data.priority,
-      requestType: data.request_type,
-    });
+    // TODO: Crear notificación para admins (requiere política RLS)
+    // await createNotificationForAdmins({...});
 
     return { success: true, data: serviceRequest };
   } catch (error) {
@@ -160,18 +155,8 @@ export async function createRequestsFromMaintenance(
     });
 
     if (result.success && result.data) {
-      // Crear detalles de reparación
-      const repairResult = await createRepairRequest({
-        service_request_id: result.data.id,
-        repair_category: categorizeRepairFromQuestion(question.text),
-        elevator_operational: !question.is_critical, // Si es crítico, probablemente no está operativo
-        can_wait: !question.is_critical,
-      });
-
-      if (!repairResult.success) {
-        console.error('❌ Error creando repair_request:', repairResult.error);
-      }
-
+      // Por ahora solo creamos service_request, sin repair_request
+      // Los detalles se agregarán manualmente desde el dashboard
       results.push(result.data);
     } else {
       console.error('❌ Error creando service_request:', result.error);
