@@ -332,35 +332,3 @@ export function NotificationCenter({ onNavigate }: NotificationCenterProps) {
     </div>
   );
 }
-
-                        }`}
-                      >
-                        <div className="mt-0.5">{icon}</div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {notification.title}
-                          </p>
-                          <p className="text-sm text-gray-700">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {new Date(
-                              notification.created_at
-                            ).toLocaleString('es-CL')}
-                          </p>
-                        </div>
-                        {!notification.is_read && (
-                          <span className="w-2 h-2 rounded-full bg-blue-600 mt-2" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
