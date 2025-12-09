@@ -229,6 +229,13 @@ export function DynamicChecklistForm({
         request_priority: answer.request_priority,
       }));
 
+      // Obtener datos del checklist para las solicitudes
+      const { data: checklistData } = await supabase
+        .from('mnt_checklists')
+        .select('client_id, elevator_id, technician_id')
+        .eq('id', checklistId)
+        .single();
+
       for (const answer of answersToSave) {
         const { error } = await supabase
           .from('mnt_checklist_answers')
@@ -237,6 +244,61 @@ export function DynamicChecklistForm({
           });
 
         if (error) throw error;
+
+        // Crear solicitud automática si tiene tipo y prioridad
+        if (answer.status === 'rejected' && answer.request_type && answer.request_priority && checklistData) {
+          // Verificar si ya existe una solicitud para esta respuesta
+          const { data: existingRequest } = await supabase
+            .from('service_requests')
+            .select('id')
+            .eq('checklist_answer_id', answer.question_id)
+            .eq('checklist_id', checklistId)
+            .maybeSingle();
+
+          if (!existingRequest) {
+            // Obtener el texto de la pregunta
+            const question = questions.find(q => q.id === answer.question_id);
+            
+            // Mapear tipos en español a inglés
+            const typeMap: Record<string, string> = {
+              'reparacion': 'repair',
+              'repuestos': 'parts',
+              'soporte': 'support',
+              'inspeccion': 'inspection'
+            };
+
+            // Mapear prioridades en español a inglés
+            const priorityMap: Record<string, string> = {
+              'baja': 'low',
+              'media': 'medium',
+              'alta': 'high',
+              'critica': 'critical'
+            };
+
+            // Crear solicitud de servicio
+            const { error: requestError } = await supabase
+              .from('service_requests')
+              .insert({
+                client_id: checklistData.client_id,
+                elevator_id: checklistData.elevator_id,
+                created_by_technician_id: checklistData.technician_id,
+                checklist_id: checklistId,
+                checklist_answer_id: answer.question_id,
+                request_type: typeMap[answer.request_type] || 'repair',
+                priority: priorityMap[answer.request_priority] || 'medium',
+                title: `Pregunta ${question?.question_number}: ${question?.question_text.substring(0, 80)}`,
+                description: answer.observations,
+                photo_1_url: answer.photo_1_url,
+                photo_2_url: answer.photo_2_url,
+                status: 'pending',
+                source: 'maintenance'
+              });
+
+            if (requestError) {
+              console.error('Error creando solicitud de servicio:', requestError);
+            }
+          }
+        }
       }
 
       // Auto-guardado: marcamos que el checklist se actualizó
