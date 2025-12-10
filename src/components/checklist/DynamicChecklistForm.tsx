@@ -284,6 +284,7 @@ export function DynamicChecklistForm({
                 created_by_technician_id: checklistData.technician_id,
                 checklist_id: checklistId,
                 checklist_answer_id: answer.question_id,
+                source_type: 'checklist',
                 request_type: typeMap[answer.request_type] || 'repair',
                 priority: priorityMap[answer.request_priority] || 'medium',
                 title: `Pregunta ${question?.question_number}: ${question?.question_text.substring(0, 80)}`,
