@@ -290,12 +290,13 @@ export function DynamicChecklistForm({
                 description: answer.observations,
                 photo_1_url: answer.photo_1_url,
                 photo_2_url: answer.photo_2_url,
-                status: 'pending',
-                source: 'maintenance'
+                status: 'pending'
               });
 
             if (requestError) {
               console.error('Error creando solicitud de servicio:', requestError);
+            } else {
+              console.log('✅ Solicitud de servicio creada exitosamente');
             }
           }
         }
