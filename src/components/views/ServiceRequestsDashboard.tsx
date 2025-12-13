@@ -75,14 +75,31 @@ export function ServiceRequestsDashboard() {
     notes: '',
   });
 
-  // Estados para Cotización/Repuestos
-  const [showQuotationForm, setShowQuotationForm] = useState(false);
-  const [quotation, setQuotation] = useState({
-    items: [{ description: '', quantity: 1, unit_price: 0, part_number: '', notes: '' }],
+  // Estados para Cotización/Repuestos - Vinculación manual
+  const [showPartsForm, setShowPartsForm] = useState(false);
+  const [partsRequest, setPartsRequest] = useState({
+    work_order_number: '',
+    quotation_number: '',
+    quotation_amount: '',
     notes: '',
-    terms: 'Cotización válida por 15 días. Precios en pesos chilenos. IVA incluido.',
-    valid_days: 15,
   });
+
+  // Estados para Apoyo Externo
+  const [showExternalForm, setShowExternalForm] = useState(false);
+  const [externalWork, setExternalWork] = useState({
+    is_reminder: false, // Si es solo recordatorio
+    provider_name: '',
+    scheduled_date: '',
+    notes: '',
+  });
+
+  // Estado para zoom de fotos
+  const [zoomedPhoto, setZoomedPhoto] = useState<string | null>(null);
+    provider_name: '',
+    scheduled_date: '',
+    notes: '',
+  });
+  
   const [taxRate] = useState(19); // IVA 19%
   
   // Verificar permisos
@@ -386,12 +403,9 @@ export function ServiceRequestsDashboard() {
     if (approvalAction === 'internal') {
       setShowInternalWorkForm(true);
     } else if (approvalAction === 'parts') {
-      setShowQuotationForm(true);
+      setShowPartsForm(true);
     } else if (approvalAction === 'external') {
-      // TODO: Abrir formulario de coordinación externa
-      alert('Coordinación externa - Próximamente');
-      setApprovalAction(null);
-      setSelectedRequest(null);
+      setShowExternalForm(true);
     }
   };
 
@@ -446,6 +460,125 @@ export function ServiceRequestsDashboard() {
     } catch (error) {
       console.error('Error:', error);
       alert('Error al asignar trabajo');
+    }
+  };
+
+  const submitPartsRequest = async () => {
+    if (!selectedRequest || !partsRequest.work_order_number.trim() || !partsRequest.quotation_number.trim()) {
+      alert('Debe ingresar número de OT y cotización');
+      return;
+    }
+
+    try {
+      // Actualizar solicitud con información de repuestos
+      const { error } = await supabase
+        .from('service_requests')
+        .update({
+          status: 'approved',
+          work_order_number: partsRequest.work_order_number,
+          quotation_number: partsRequest.quotation_number,
+          quotation_amount: partsRequest.quotation_amount ? parseFloat(partsRequest.quotation_amount) : null,
+          admin_notes: partsRequest.notes,
+          assigned_to_admin_id: profile?.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', selectedRequest.id);
+
+      if (error) throw error;
+
+      alert('✅ Solicitud de repuestos vinculada exitosamente');
+      setShowPartsForm(false);
+      setPartsRequest({
+        work_order_number: '',
+        quotation_number: '',
+        quotation_amount: '',
+        notes: '',
+      });
+      setApprovalAction(null);
+      setSelectedRequest(null);
+      loadRequests();
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al vincular repuestos');
+    }
+  };
+
+  const submitExternalWork = async () => {
+    if (!selectedRequest) return;
+
+    // Si es recordatorio, solo agregar notas
+    if (externalWork.is_reminder) {
+      if (!externalWork.notes.trim()) {
+        alert('Debe agregar notas para el recordatorio');
+        return;
+      }
+
+      try {
+        const { error } = await supabase
+          .from('service_requests')
+          .update({
+            admin_notes: externalWork.notes,
+            assigned_to_admin_id: profile?.id,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('id', selectedRequest.id);
+
+        if (error) throw error;
+
+        alert('✅ Recordatorio agregado a la solicitud');
+        setShowExternalForm(false);
+        setExternalWork({
+          is_reminder: false,
+          provider_name: '',
+          scheduled_date: '',
+          notes: '',
+        });
+        setApprovalAction(null);
+        setSelectedRequest(null);
+        loadRequests();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al agregar recordatorio');
+      }
+    } else {
+      // Si es asignación de proveedor, validar campos
+      if (!externalWork.provider_name.trim() || !externalWork.scheduled_date) {
+        alert('Debe ingresar nombre del proveedor y fecha programada');
+        return;
+      }
+
+      try {
+        const { error } = await supabase
+          .from('service_requests')
+          .update({
+            status: 'in_progress',
+            provider_name: externalWork.provider_name,
+            scheduled_date: externalWork.scheduled_date,
+            admin_notes: externalWork.notes,
+            assigned_to_admin_id: profile?.id,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('id', selectedRequest.id);
+
+        if (error) throw error;
+
+        alert('✅ Proveedor externo asignado exitosamente');
+        setShowExternalForm(false);
+        setExternalWork({
+          is_reminder: false,
+          provider_name: '',
+          scheduled_date: '',
+          notes: '',
+        });
+        setApprovalAction(null);
+        setSelectedRequest(null);
+        
+        // Cambiar a tab "En Proceso"
+        setActiveTab('in_progress');
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al asignar proveedor externo');
+      }
     }
   };
 
@@ -713,11 +846,13 @@ export function ServiceRequestsDashboard() {
             >
               <Clock className="w-4 h-4" />
               Pendientes
-              {stats.pending > 0 && (
-                <span className="bg-white text-blue-600 px-2 py-0.5 rounded-full text-xs font-bold">
-                  {stats.pending}
-                </span>
-              )}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center ${
+                activeTab === 'pending' 
+                  ? 'bg-white text-blue-600' 
+                  : 'bg-blue-600 text-white'
+              }`}>
+                {stats.pending}
+              </span>
             </button>
             
             <button
@@ -730,11 +865,13 @@ export function ServiceRequestsDashboard() {
             >
               <XCircle className="w-4 h-4" />
               Rechazadas
-              {stats.rejected > 0 && (
-                <span className="bg-white text-red-600 px-2 py-0.5 rounded-full text-xs font-bold">
-                  {stats.rejected}
-                </span>
-              )}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center ${
+                activeTab === 'rejected' 
+                  ? 'bg-white text-red-600' 
+                  : 'bg-red-600 text-white'
+              }`}>
+                {stats.rejected}
+              </span>
             </button>
             
             <button
@@ -747,11 +884,13 @@ export function ServiceRequestsDashboard() {
             >
               <TrendingUp className="w-4 h-4" />
               En Proceso
-              {stats.in_progress > 0 && (
-                <span className="bg-white text-green-600 px-2 py-0.5 rounded-full text-xs font-bold">
-                  {stats.in_progress}
-                </span>
-              )}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center ${
+                activeTab === 'in_progress' 
+                  ? 'bg-white text-green-600' 
+                  : 'bg-green-600 text-white'
+              }`}>
+                {stats.in_progress}
+              </span>
             </button>
             
             <button
@@ -764,11 +903,13 @@ export function ServiceRequestsDashboard() {
             >
               <CheckCircle2 className="w-4 h-4" />
               Completadas
-              {stats.completed > 0 && (
-                <span className="bg-white text-purple-600 px-2 py-0.5 rounded-full text-xs font-bold">
-                  {stats.completed}
-                </span>
-              )}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center ${
+                activeTab === 'completed' 
+                  ? 'bg-white text-purple-600' 
+                  : 'bg-purple-600 text-white'
+              }`}>
+                {stats.completed}
+              </span>
             </button>
           </div>
         </div>
@@ -932,6 +1073,20 @@ export function ServiceRequestsDashboard() {
                 <div className="font-semibold text-gray-900">✅ Trabajo Interno</div>
                 <div className="text-sm text-gray-600 mt-1">
                   Asignar técnico(s), coordinar fecha y hora de visita
+                </div>
+              </button>
+
+              <button
+                onClick={() => setApprovalAction('parts')}
+                className={`w-full p-4 border-2 rounded-lg text-left transition ${
+                  approvalAction === 'parts'
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-300 hover:border-green-300'
+                }`}
+              >
+                <div className="font-semibold text-gray-900">📦 Requiere Repuestos</div>
+                <div className="text-sm text-gray-600 mt-1">
+                  Vincular orden de trabajo y cotización externa
                 </div>
               </button>
 
@@ -1155,6 +1310,232 @@ export function ServiceRequestsDashboard() {
                 className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Asignar Trabajo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Repuestos - Vinculación Manual */}
+      {showPartsForm && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 my-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">📦 Vincular Repuestos</h3>
+            
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+              <p className="font-semibold text-purple-900">{selectedRequest.title}</p>
+              <p className="text-sm text-purple-700 mt-1">{selectedRequest.description}</p>
+              <p className="text-sm text-purple-600 mt-2">
+                {selectedRequest.clients?.company_name || selectedRequest.clients?.building_name} - 
+                Ascensor #{selectedRequest.elevators?.elevator_number}
+              </p>
+            </div>
+
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+              <p className="text-sm text-yellow-800">
+                ℹ️ Ingresa el número de OT y cotización que ya fueron generados externamente. 
+                Esta solicitud quedará vinculada a esa orden de trabajo.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Número de Orden de Trabajo *
+                </label>
+                <input
+                  type="text"
+                  value={partsRequest.work_order_number}
+                  onChange={(e) => setPartsRequest({ ...partsRequest, work_order_number: e.target.value })}
+                  placeholder="Ej: OT-2024-1234"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Número de Cotización *
+                </label>
+                <input
+                  type="text"
+                  value={partsRequest.quotation_number}
+                  onChange={(e) => setPartsRequest({ ...partsRequest, quotation_number: e.target.value })}
+                  placeholder="Ej: COT-2024-5678"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Monto de Cotización (CLP)
+                </label>
+                <input
+                  type="number"
+                  step="1000"
+                  min="0"
+                  value={partsRequest.quotation_amount}
+                  onChange={(e) => setPartsRequest({ ...partsRequest, quotation_amount: e.target.value })}
+                  placeholder="Ej: 150000"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Notas Adicionales
+                </label>
+                <textarea
+                  value={partsRequest.notes}
+                  onChange={(e) => setPartsRequest({ ...partsRequest, notes: e.target.value })}
+                  placeholder="Repuestos solicitados, tiempos de espera, etc..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowPartsForm(false);
+                  setPartsRequest({
+                    work_order_number: '',
+                    quotation_number: '',
+                    quotation_amount: '',
+                    notes: '',
+                  });
+                  setApprovalAction(null);
+                  setSelectedRequest(null);
+                }}
+                className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitPartsRequest}
+                disabled={!partsRequest.work_order_number.trim() || !partsRequest.quotation_number.trim()}
+                className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Vincular Repuestos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Apoyo Externo */}
+      {showExternalForm && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 my-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">🤝 Apoyo Externo</h3>
+            
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+              <p className="font-semibold text-orange-900">{selectedRequest.title}</p>
+              <p className="text-sm text-orange-700 mt-1">{selectedRequest.description}</p>
+              <p className="text-sm text-orange-600 mt-2">
+                {selectedRequest.clients?.company_name || selectedRequest.clients?.building_name} - 
+                Ascensor #{selectedRequest.elevators?.elevator_number}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Checkbox Recordatorio */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={externalWork.is_reminder}
+                    onChange={(e) => setExternalWork({ 
+                      ...externalWork, 
+                      is_reminder: e.target.checked,
+                      provider_name: e.target.checked ? '' : externalWork.provider_name,
+                      scheduled_date: e.target.checked ? '' : externalWork.scheduled_date,
+                    })}
+                    className="w-5 h-5 rounded text-blue-600"
+                  />
+                  <div>
+                    <span className="font-semibold text-blue-900">Solo crear recordatorio</span>
+                    <p className="text-sm text-blue-700 mt-1">
+                      La solicitud quedará pendiente hasta coordinar proveedor
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Campos según tipo */}
+              {!externalWork.is_reminder && (
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Nombre del Proveedor / Especialista *
+                    </label>
+                    <input
+                      type="text"
+                      value={externalWork.provider_name}
+                      onChange={(e) => setExternalWork({ ...externalWork, provider_name: e.target.value })}
+                      placeholder="Ej: Empresa XYZ Ltda."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Fecha Programada *
+                    </label>
+                    <input
+                      type="date"
+                      value={externalWork.scheduled_date}
+                      onChange={(e) => setExternalWork({ ...externalWork, scheduled_date: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {externalWork.is_reminder ? 'Recordatorio / Notas' : 'Notas Adicionales'}
+                </label>
+                <textarea
+                  value={externalWork.notes}
+                  onChange={(e) => setExternalWork({ ...externalWork, notes: e.target.value })}
+                  placeholder={externalWork.is_reminder 
+                    ? "Describe lo que se necesita coordinar..." 
+                    : "Información de contacto, detalles del trabajo, etc..."}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowExternalForm(false);
+                  setExternalWork({
+                    is_reminder: false,
+                    provider_name: '',
+                    scheduled_date: '',
+                    notes: '',
+                  });
+                  setApprovalAction(null);
+                  setSelectedRequest(null);
+                }}
+                className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitExternalWork}
+                disabled={
+                  externalWork.is_reminder 
+                    ? !externalWork.notes.trim()
+                    : !externalWork.provider_name.trim() || !externalWork.scheduled_date
+                }
+                className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {externalWork.is_reminder ? 'Agregar Recordatorio' : 'Asignar Proveedor'}
               </button>
             </div>
           </div>
@@ -1424,17 +1805,41 @@ export function ServiceRequestsDashboard() {
               {/* Fotos */}
               {(selectedRequest.photo_1_url || selectedRequest.photo_2_url) && (
                 <div className="mt-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Evidencia Fotográfica:</p>
-                  <div className="flex gap-2">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">📸 Evidencia Fotográfica:</p>
+                  <div className="flex gap-3">
                     {selectedRequest.photo_1_url && (
-                      <a href={selectedRequest.photo_1_url} target="_blank" rel="noopener noreferrer">
-                        <img src={selectedRequest.photo_1_url} className="w-24 h-24 object-cover rounded-lg border-2 border-gray-300" />
-                      </a>
+                      <button
+                        onClick={() => setZoomedPhoto(selectedRequest.photo_1_url)}
+                        className="relative group hover:opacity-90 transition-opacity"
+                      >
+                        <img 
+                          src={selectedRequest.photo_1_url} 
+                          className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300 shadow-md" 
+                          alt="Foto 1"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-all">
+                          <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 bg-black bg-opacity-70 px-2 py-1 rounded">
+                            🔍 Ver ampliada
+                          </span>
+                        </div>
+                      </button>
                     )}
                     {selectedRequest.photo_2_url && (
-                      <a href={selectedRequest.photo_2_url} target="_blank" rel="noopener noreferrer">
-                        <img src={selectedRequest.photo_2_url} className="w-24 h-24 object-cover rounded-lg border-2 border-gray-300" />
-                      </a>
+                      <button
+                        onClick={() => setZoomedPhoto(selectedRequest.photo_2_url)}
+                        className="relative group hover:opacity-90 transition-opacity"
+                      >
+                        <img 
+                          src={selectedRequest.photo_2_url} 
+                          className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300 shadow-md" 
+                          alt="Foto 2"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-all">
+                          <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 bg-black bg-opacity-70 px-2 py-1 rounded">
+                            🔍 Ver ampliada
+                          </span>
+                        </div>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1526,6 +1931,29 @@ export function ServiceRequestsDashboard() {
                 {isRejectionResponse ? 'Enviar Respuesta' : 'Agregar Comentario'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Zoom de Foto */}
+      {zoomedPhoto && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60] p-4"
+          onClick={() => setZoomedPhoto(null)}
+        >
+          <div className="relative max-w-6xl max-h-[90vh]">
+            <button
+              onClick={() => setZoomedPhoto(null)}
+              className="absolute -top-12 right-0 text-white bg-red-600 hover:bg-red-700 rounded-full p-2 font-bold text-xl w-10 h-10 flex items-center justify-center"
+            >
+              ×
+            </button>
+            <img 
+              src={zoomedPhoto} 
+              alt="Foto ampliada" 
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}
