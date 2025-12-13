@@ -40,12 +40,13 @@ export function ServiceRequestsDashboard() {
   const { profile } = useAuth();
   const [requests, setRequests] = useState<ServiceRequestWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pending' | 'rejected' | 'in_progress' | 'completed'>('pending');
+  const [activeTab, setActiveTab] = useState<'new' | 'analyzing' | 'rejected' | 'in_progress' | 'completed'>('new');
   const [showManualForm, setShowManualForm] = useState(false);
   
   // Estadísticas separadas por estado
   const [stats, setStats] = useState({
-    pending: 0,
+    new: 0,
+    analyzing: 0,
     rejected: 0,
     in_progress: 0,
     completed: 0,
@@ -144,8 +145,10 @@ export function ServiceRequestsDashboard() {
       }
 
       // Filtrar por tab activo
-      if (activeTab === 'pending') {
-        query = query.in('status', ['pending', 'analyzing']);
+      if (activeTab === 'new') {
+        query = query.eq('status', 'pending');
+      } else if (activeTab === 'analyzing') {
+        query = query.eq('status', 'analyzing');
       } else if (activeTab === 'rejected') {
         query = query.eq('status', 'rejected');
       } else if (activeTab === 'in_progress') {
@@ -172,18 +175,22 @@ export function ServiceRequestsDashboard() {
 
       const { data: allData } = await statsQuery;
 
-      const pending = allData?.filter(r => ['pending', 'analyzing'].includes(r.status)).length || 0;
+      const newRequests = allData?.filter(r => r.status === 'pending').length || 0;
+      const analyzing = allData?.filter(r => r.status === 'analyzing').length || 0;
       const rejected = allData?.filter(r => r.status === 'rejected').length || 0;
       const inProgress = allData?.filter(r => r.status === 'in_progress').length || 0;
       const completed = allData?.filter(r => r.status === 'completed').length || 0;
       const critical = allData?.filter(r => r.priority === 'critical').length || 0;
+      const highPriority = allData?.filter(r => r.priority === 'high').length || 0;
 
       setStats({
-        pending,
+        new: newRequests,
+        analyzing,
         rejected,
         in_progress: inProgress,
         completed,
         critical_count: critical,
+        high_priority_count: highPriority,
       });
     } catch (error) {
       console.error('Error loading requests:', error);
@@ -660,7 +667,7 @@ export function ServiceRequestsDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Pendientes</p>
-                <p className="text-3xl font-bold text-gray-900">{stats.total_pending}</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.analyzing}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-lg">
                 <Clock className="w-6 h-6 text-blue-600" />
@@ -709,21 +716,40 @@ export function ServiceRequestsDashboard() {
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="flex gap-2 overflow-x-auto">
             <button
-              onClick={() => setActiveTab('pending')}
+              onClick={() => setActiveTab('new')}
               className={`px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
-                activeTab === 'pending'
+                activeTab === 'new'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <Clock className="w-4 h-4" />
-              Pendientes
+              Nuevas
               <span className={`px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center ${
-                activeTab === 'pending' 
+                activeTab === 'new' 
                   ? 'bg-white text-blue-600' 
                   : 'bg-blue-600 text-white'
               }`}>
-                {stats.pending}
+                {stats.new}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('analyzing')}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
+                activeTab === 'analyzing'
+                  ? 'bg-yellow-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4" />
+              Pendientes
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center ${
+                activeTab === 'analyzing' 
+                  ? 'bg-white text-yellow-600' 
+                  : 'bg-yellow-600 text-white'
+              }`}>
+                {stats.analyzing}
               </span>
             </button>
             
@@ -886,8 +912,8 @@ export function ServiceRequestsDashboard() {
                       {request.status === 'rejected' && isTechnician ? 'Responder' : 'Ver Detalles'}
                     </button>
 
-                    {/* Botones de Admin - Solo en tab pending */}
-                    {isAdmin && activeTab === 'pending' && (
+                    {/* Botones de Admin - Solo en tab new */}
+                    {isAdmin && activeTab === 'new' && (
                       <>
                         <button
                           onClick={() => handleUpdateStatus(request.id, 'analyzing')}
@@ -895,6 +921,24 @@ export function ServiceRequestsDashboard() {
                         >
                           Analizar
                         </button>
+                        <button
+                          onClick={() => handleApprove(request)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                        >
+                          Aprobar
+                        </button>
+                        <button
+                          onClick={() => handleReject(request)}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                        >
+                          Rechazar
+                        </button>
+                      </>
+                    )}
+
+                    {/* Botones de Admin - Tab analyzing (pendientes) */}
+                    {isAdmin && activeTab === 'analyzing' && (
+                      <>
                         <button
                           onClick={() => handleApprove(request)}
                           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
