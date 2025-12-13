@@ -718,29 +718,13 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Generar PDF
     const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
     
-    // Sanitizar internal_alias para usar en la ruta del storage
-    // Remover espacios, caracteres especiales y convertir a minúsculas
-    const sanitizeForStorage = (text: string | undefined) => {
-      if (!text) return 'general';
-      return text
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remover acentos
-        .replace(/[^a-z0-9]/g, '_') // Reemplazar caracteres especiales con _
-        .replace(/_+/g, '_') // Remover múltiples _ consecutivos
-        .replace(/^_|_$/g, ''); // Remover _ al inicio o final
-    };
-    
-    const clientFolder = sanitizeForStorage(checklistData.clients?.internal_alias);
-    
-    // Nombre del archivo
+    // Nombre del archivo (SIN subcarpetas para evitar errores de permisos)
     const fileName = `mantenimiento_${checklistData.clients?.internal_alias || 'cliente'}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
-    const filePath = `${clientFolder}/${fileName}`;
     
-    // Subir a Supabase Storage
+    // Subir a Supabase Storage (directo en la raíz del bucket, sin subcarpetas)
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('maintenance-pdfs')
-      .upload(filePath, pdfBlob, {
+      .upload(fileName, pdfBlob, {
         contentType: 'application/pdf',
         upsert: false
       });
@@ -752,7 +736,7 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Obtener URL pública del PDF
     const { data: urlData } = supabase.storage
       .from('maintenance-pdfs')
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName);
     
     if (!urlData) {
       throw new Error('No se pudo obtener la URL del PDF');
