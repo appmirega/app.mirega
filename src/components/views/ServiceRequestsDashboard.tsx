@@ -239,6 +239,11 @@ export function ServiceRequestsDashboard() {
 
   // Abrir modal de comentarios
   const handleViewComments = async (request: ServiceRequestWithDetails) => {
+    console.log('📋 Ver Detalles - Request completo:', request);
+    console.log('📸 Fotos en request:', {
+      photo_1_url: request.photo_1_url,
+      photo_2_url: request.photo_2_url
+    });
     setSelectedRequest(request);
     await loadComments(request.id);
     setShowCommentsModal(true);
@@ -307,6 +312,18 @@ export function ServiceRequestsDashboard() {
     } catch (error) {
       console.error('Error:', error);
       alert('Error al enviar comentario');
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'NUEVA';
+      case 'analyzing': return 'PENDIENTE';
+      case 'approved': return 'APROBADA';
+      case 'rejected': return 'RECHAZADA';
+      case 'in_progress': return 'EN PROCESO';
+      case 'completed': return 'COMPLETADA';
+      default: return status.toUpperCase();
     }
   };
 
@@ -1466,10 +1483,11 @@ export function ServiceRequestsDashboard() {
                 <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                   selectedRequest.status === 'rejected' ? 'bg-red-200 text-red-800' :
                   selectedRequest.status === 'pending' ? 'bg-yellow-200 text-yellow-800' :
+                  selectedRequest.status === 'analyzing' ? 'bg-blue-200 text-blue-800' :
                   selectedRequest.status === 'in_progress' ? 'bg-green-200 text-green-800' :
                   'bg-gray-200 text-gray-800'
                 }`}>
-                  {selectedRequest.status.toUpperCase()}
+                  {getStatusLabel(selectedRequest.status)}
                 </span>
               </div>
 
@@ -1482,7 +1500,14 @@ export function ServiceRequestsDashboard() {
               )}
 
               {/* Fotos */}
-              {(selectedRequest.photo_1_url || selectedRequest.photo_2_url) && (
+              {(() => {
+                console.log('📸 Debug Fotos Modal:', {
+                  photo_1_url: selectedRequest.photo_1_url,
+                  photo_2_url: selectedRequest.photo_2_url,
+                  tiene_foto_1: !!selectedRequest.photo_1_url,
+                  tiene_foto_2: !!selectedRequest.photo_2_url
+                });
+                return (selectedRequest.photo_1_url || selectedRequest.photo_2_url) && (
                 <div className="mt-4">
                   <p className="text-sm font-semibold text-gray-700 mb-2">📸 Evidencia Fotográfica:</p>
                   <div className="flex gap-3">
@@ -1540,7 +1565,8 @@ export function ServiceRequestsDashboard() {
                     )}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Historial de Comentarios */}
