@@ -95,10 +95,6 @@ export function ServiceRequestsDashboard() {
 
   // Estado para zoom de fotos
   const [zoomedPhoto, setZoomedPhoto] = useState<string | null>(null);
-    provider_name: '',
-    scheduled_date: '',
-    notes: '',
-  });
   
   const [taxRate] = useState(19); // IVA 19%
   
