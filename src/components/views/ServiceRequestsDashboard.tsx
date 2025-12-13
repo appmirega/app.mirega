@@ -1529,14 +1529,7 @@ export function ServiceRequestsDashboard() {
               )}
 
               {/* Fotos */}
-              {(() => {
-                console.log('📸 Debug Fotos Modal:', {
-                  photo_1_url: selectedRequest.photo_1_url,
-                  photo_2_url: selectedRequest.photo_2_url,
-                  tiene_foto_1: !!selectedRequest.photo_1_url,
-                  tiene_foto_2: !!selectedRequest.photo_2_url
-                });
-                return (selectedRequest.photo_1_url || selectedRequest.photo_2_url) && (
+              {(selectedRequest.photo_1_url || selectedRequest.photo_2_url) ? (
                 <div className="mt-4">
                   <p className="text-sm font-semibold text-gray-700 mb-2">📸 Evidencia Fotográfica:</p>
                   <div className="flex gap-3">
@@ -1594,8 +1587,7 @@ export function ServiceRequestsDashboard() {
                     )}
                   </div>
                 </div>
-                );
-              })()}
+              ) : null}
             </div>
 
             {/* Historial de Comentarios */}
