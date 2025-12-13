@@ -865,9 +865,6 @@ export function ServiceRequestsDashboard() {
                     )}
 
                     <div className="flex items-center gap-4 text-sm">
-                      <span className={`px-3 py-1 rounded-full border ${getPriorityColor(request.priority)}`}>
-                        {request.priority.toUpperCase()}
-                      </span>
                       <span className="text-gray-600">
                         <Clock className="w-4 h-4 inline mr-1" />
                         {getTimeAgo(request.created_at)}
@@ -1239,21 +1236,6 @@ export function ServiceRequestsDashboard() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Monto de Cotización (CLP)
-                </label>
-                <input
-                  type="number"
-                  step="1000"
-                  min="0"
-                  value={partsRequest.quotation_amount}
-                  onChange={(e) => setPartsRequest({ ...partsRequest, quotation_amount: e.target.value })}
-                  placeholder="Ej: 150000"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Notas Adicionales
                 </label>
                 <textarea
@@ -1461,38 +1443,56 @@ export function ServiceRequestsDashboard() {
                   <p className="text-sm font-semibold text-gray-700 mb-2">📸 Evidencia Fotográfica:</p>
                   <div className="flex gap-3">
                     {selectedRequest.photo_1_url && (
-                      <button
-                        onClick={() => setZoomedPhoto(selectedRequest.photo_1_url)}
-                        className="relative group hover:opacity-90 transition-opacity"
-                      >
-                        <img 
-                          src={selectedRequest.photo_1_url} 
-                          className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300 shadow-md" 
-                          alt="Foto 1"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-all">
-                          <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 bg-black bg-opacity-70 px-2 py-1 rounded">
-                            🔍 Ver ampliada
-                          </span>
-                        </div>
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => setZoomedPhoto(selectedRequest.photo_1_url)}
+                          className="relative group hover:opacity-90 transition-opacity"
+                        >
+                          <img 
+                            src={selectedRequest.photo_1_url} 
+                            className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300 shadow-md" 
+                            alt="Foto 1"
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-all">
+                            <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 bg-black bg-opacity-70 px-2 py-1 rounded">
+                              🔍 Ver ampliada
+                            </span>
+                          </div>
+                        </button>
+                        <a
+                          href={selectedRequest.photo_1_url}
+                          download="foto-1.jpg"
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 text-center"
+                        >
+                          ⬇ Descargar
+                        </a>
+                      </div>
                     )}
                     {selectedRequest.photo_2_url && (
-                      <button
-                        onClick={() => setZoomedPhoto(selectedRequest.photo_2_url)}
-                        className="relative group hover:opacity-90 transition-opacity"
-                      >
-                        <img 
-                          src={selectedRequest.photo_2_url} 
-                          className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300 shadow-md" 
-                          alt="Foto 2"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-all">
-                          <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 bg-black bg-opacity-70 px-2 py-1 rounded">
-                            🔍 Ver ampliada
-                          </span>
-                        </div>
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => setZoomedPhoto(selectedRequest.photo_2_url)}
+                          className="relative group hover:opacity-90 transition-opacity"
+                        >
+                          <img 
+                            src={selectedRequest.photo_2_url} 
+                            className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300 shadow-md" 
+                            alt="Foto 2"
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-all">
+                            <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 bg-black bg-opacity-70 px-2 py-1 rounded">
+                              🔍 Ver ampliada
+                            </span>
+                          </div>
+                        </button>
+                        <a
+                          href={selectedRequest.photo_2_url}
+                          download="foto-2.jpg"
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 text-center"
+                        >
+                          ⬇ Descargar
+                        </a>
+                      </div>
                     )}
                   </div>
                 </div>
