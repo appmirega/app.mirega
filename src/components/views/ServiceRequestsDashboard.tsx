@@ -347,8 +347,8 @@ export function ServiceRequestsDashboard() {
 
       if (error) throw error;
 
-      alert(`✅ Estado actualizado a: ${newStatus}`);
-      loadRequests();
+      // Recargar sin alert
+      await loadRequests();
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Error al actualizar el estado');
@@ -932,20 +932,6 @@ export function ServiceRequestsDashboard() {
                 <div className="font-semibold text-gray-900">✅ Trabajo Interno</div>
                 <div className="text-sm text-gray-600 mt-1">
                   Asignar técnico(s), coordinar fecha y hora de visita
-                </div>
-              </button>
-
-              <button
-                onClick={() => setApprovalAction('parts')}
-                className={`w-full p-4 border-2 rounded-lg text-left transition ${
-                  approvalAction === 'parts'
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-300 hover:border-green-300'
-                }`}
-              >
-                <div className="font-semibold text-gray-900">📦 Requiere Repuestos</div>
-                <div className="text-sm text-gray-600 mt-1">
-                  Generar cotización y enviar al cliente para aprobación
                 </div>
               </button>
 
