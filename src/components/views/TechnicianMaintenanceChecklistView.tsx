@@ -718,20 +718,9 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Generar PDF
     const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
     
-    // Función para sanitizar nombre de archivo
-    const sanitizeFileName = (name: string): string => {
-      return name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
-        .replace(/[^a-zA-Z0-9_-]/g, '_') // Reemplazar caracteres especiales con _
-        .replace(/_+/g, '_') // Eliminar múltiples _ consecutivos
-        .toLowerCase();
-    };
-    
-    // Nombre del archivo sanitizado
-    const clientAlias = sanitizeFileName(checklistData.clients?.internal_alias || 'cliente');
-    const fileName = `mantenimiento_${clientAlias}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
-    const filePath = `${clientAlias}/${fileName}`;
+    // Nombre del archivo
+    const fileName = `mantenimiento_${checklistData.clients?.internal_alias || 'cliente'}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
+    const filePath = `${checklistData.clients?.internal_alias || 'general'}/${fileName}`;
     
     // Subir a Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage

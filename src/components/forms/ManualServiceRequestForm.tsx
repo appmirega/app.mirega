@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Building2, Wrench, Package, HelpCircle, AlertCircle } from 'lucide-react';
+import { X, Building2, Wrench, Package, HelpCircle, AlertCircle, Camera } from 'lucide-react';
 import { createServiceRequest } from '../../lib/serviceRequestsService';
 import type { Priority, RequestType } from '../../types/serviceRequests';
 
@@ -39,6 +39,9 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
     title: '',
     description: '',
   });
+  const [photo1, setPhoto1] = useState<string | null>(null);
+  const [photo2, setPhoto2] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState<1 | 2 | null>(null);
 
   useEffect(() => {
     loadClients();
@@ -70,9 +73,55 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
     if (data) setElevators(data);
   };
 
+  const handlePhotoUpload = async (file: File, photoNumber: 1 | 2) => {
+    if (!file) return;
+
+    // Validar tipo y tamaño
+    if (!file.type.startsWith('image/')) {
+      alert('Solo se permiten imágenes');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen no debe superar 5MB');
+      return;
+    }
+
+    setUploadingPhoto(photoNumber);
+    try {
+      const fileName = `manual-request-${Date.now()}-${photoNumber}.${file.name.split('.').pop()}`;
+      const filePath = `service-requests/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('maintenance-photos')
+        .upload(filePath, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('maintenance-photos')
+        .getPublicUrl(filePath);
+
+      if (photoNumber === 1) {
+        setPhoto1(publicUrl);
+      } else {
+        setPhoto2(publicUrl);
+      }
+    } catch (error) {
+      console.error('Error subiendo foto:', error);
+      alert('Error al subir la foto');
+    } finally {
+      setUploadingPhoto(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.id) return;
+
+    if (!photo1 || !photo2) {
+      alert('Debes subir ambas fotos obligatorias');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -86,6 +135,8 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
         description: formData.description,
         priority: formData.priority,
         created_by_technician_id: profile.id,
+        photo_1_url: photo1,
+        photo_2_url: photo2,
       });
 
       if (result.success) {
@@ -247,6 +298,87 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
               rows={4}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          {/* Fotos Obligatorias */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              <Camera className="w-4 h-4 inline mr-1" />
+              Evidencia Fotográfica (2 fotos obligatorias) *
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Foto 1 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Foto 1 *</label>
+                {photo1 ? (
+                  <div className="relative">
+                    <img src={photo1} alt="Foto 1" className="w-full h-40 object-cover rounded-lg border-2 border-green-500" />
+                    <button
+                      type="button"
+                      onClick={() => setPhoto1(null)}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 cursor-pointer transition">
+                    {uploadingPhoto === 1 ? (
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    ) : (
+                      <>
+                        <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                        <span className="text-sm text-gray-600">Subir foto</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], 1)}
+                      className="hidden"
+                      disabled={uploadingPhoto === 1}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Foto 2 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Foto 2 *</label>
+                {photo2 ? (
+                  <div className="relative">
+                    <img src={photo2} alt="Foto 2" className="w-full h-40 object-cover rounded-lg border-2 border-green-500" />
+                    <button
+                      type="button"
+                      onClick={() => setPhoto2(null)}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 cursor-pointer transition">
+                    {uploadingPhoto === 2 ? (
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    ) : (
+                      <>
+                        <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                        <span className="text-sm text-gray-600">Subir foto</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], 2)}
+                      className="hidden"
+                      disabled={uploadingPhoto === 2}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Botones */}
