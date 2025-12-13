@@ -187,6 +187,9 @@ export function ServiceRequestsDashboard() {
 
       if (error) throw error;
 
+      console.log('🔍 Solicitudes cargadas:', data?.length);
+      console.log('📸 Primera solicitud con fotos:', data?.find(r => r.photo_1_url || r.photo_2_url));
+
       setRequests(data || []);
 
       // Calcular estadísticas (todas las solicitudes para las tabs)
