@@ -271,6 +271,8 @@ export interface CreateServiceRequestData {
   description: string;
   priority: Priority;
   created_by_technician_id: string;
+  photo_1_url?: string | null;
+  photo_2_url?: string | null;
 }
 
 export interface CreateRepairRequestData {

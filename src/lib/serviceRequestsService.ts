@@ -52,6 +52,8 @@ export async function createServiceRequest(data: CreateServiceRequestData) {
         description: data.description,
         priority: data.priority,
         created_by_technician_id: data.created_by_technician_id,
+        photo_1_url: data.photo_1_url || null,
+        photo_2_url: data.photo_2_url || null,
         status: 'pending',
       })
       .select()

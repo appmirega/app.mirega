@@ -1494,12 +1494,6 @@ export function ServiceRequestsDashboard() {
               {isRejectionResponse ? 'Responder Solicitud Rechazada' : 'Detalles y Comentarios'}
             </h3>
             
-            {/* DEBUG - Mostrar info de fotos */}
-            <div className="bg-yellow-100 border border-yellow-400 p-2 mb-2 text-xs">
-              <strong>DEBUG:</strong> photo_1_url: {selectedRequest.photo_1_url || 'null'} | 
-              photo_2_url: {selectedRequest.photo_2_url || 'null'}
-            </div>
-            
             {/* Información de la Solicitud */}
             <div className={`border-2 rounded-lg p-4 mb-6 ${
               selectedRequest.status === 'rejected' 
