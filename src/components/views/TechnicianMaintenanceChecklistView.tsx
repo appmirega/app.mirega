@@ -721,9 +721,9 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Nombre del archivo (sin subcarpetas - guardar en raíz del bucket)
     const fileName = `mantenimiento_${checklistData.clients?.internal_alias || 'cliente'}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
     
-    // Subir a Supabase Storage
+    // Subir a Supabase Storage (usando maintenance-photos que ya existe y funciona)
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('maintenance-pdfs')
+      .from('maintenance-photos')
       .upload(fileName, pdfBlob, {
         contentType: 'application/pdf',
         upsert: false
@@ -735,7 +735,7 @@ export const TechnicianMaintenanceChecklistView = () => {
     
     // Obtener URL pública del PDF
     const { data: urlData } = supabase.storage
-      .from('maintenance-pdfs')
+      .from('maintenance-photos')
       .getPublicUrl(fileName);
     
     if (!urlData) {
