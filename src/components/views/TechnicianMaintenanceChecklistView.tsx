@@ -718,10 +718,28 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Generar PDF
     const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
     
-    // Nombre del archivo (sin subcarpetas - guardar en raíz del bucket)
-    const fileName = `mantenimiento_${checklistData.clients?.internal_alias || 'cliente'}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
+    // Sanitizar nombres para evitar caracteres problemáticos en Storage
+    const sanitize = (str: string) => {
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+        .replace(/[^a-z0-9]/g, '_') // Solo letras, números y _
+        .replace(/_+/g, '_') // Remover múltiples _ consecutivos
+        .replace(/^_|_$/g, ''); // Remover _ al inicio/final
+    };
     
-    // Subir a Supabase Storage (usando maintenance-photos que ya existe y funciona)
+    const clientAlias = sanitize(checklistData.clients?.internal_alias || 'cliente');
+    const elevatorNum = sanitize(String(checklistData.elevators?.elevator_number || 'X'));
+    const monthYear = `${checklistData.month}_${checklistData.year}`;
+    const timestamp = Date.now();
+    
+    // Nombre del archivo completamente sanitizado
+    const fileName = `mnt_${clientAlias}_asc${elevatorNum}_${monthYear}_${timestamp}.pdf`;
+    
+    console.log('📄 Nombre del archivo sanitizado:', fileName);
+    
+    // Subir a Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('maintenance-photos')
       .upload(fileName, pdfBlob, {
@@ -730,8 +748,11 @@ export const TechnicianMaintenanceChecklistView = () => {
       });
     
     if (uploadError) {
+      console.error('❌ Error subiendo PDF:', uploadError);
       throw new Error(`Error subiendo PDF: ${uploadError.message}`);
     }
+    
+    console.log('✅ PDF subido correctamente:', uploadData);
     
     // Obtener URL pública del PDF
     const { data: urlData } = supabase.storage
