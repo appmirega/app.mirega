@@ -783,7 +783,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       // Obtener respuestas con fotos desde la base de datos
       const { data: answers, error: answersError } = await supabase
         .from('mnt_checklist_answers')
-        .select('question_id, observation_photo_1, observation_photo_2')
+        .select('question_id, photo_1_url, photo_2_url')
         .eq('checklist_id', checklistId);
 
       if (answersError) {
@@ -794,7 +794,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       console.log('🔍 DEBUG - Preguntas rechazadas:', questions.filter(q => q.status === 'rejected'));
 
       const photosMap = new Map(
-        (answers || []).map(a => [a.question_id, { photo1: a.observation_photo_1, photo2: a.observation_photo_2 }])
+        (answers || []).map(a => [a.question_id, { photo1: a.photo_1_url, photo2: a.photo_2_url }])
       );
 
       console.log('🔍 DEBUG - Mapa de fotos:', Array.from(photosMap.entries()));
