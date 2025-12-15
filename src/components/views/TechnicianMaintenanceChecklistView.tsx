@@ -789,15 +789,21 @@ export const TechnicianMaintenanceChecklistView = () => {
         console.error('Error obteniendo fotos de respuestas:', answersError);
       }
 
+      console.log('🔍 DEBUG - Respuestas con fotos:', answers);
+      console.log('🔍 DEBUG - Preguntas rechazadas:', questions.filter(q => q.status === 'rejected'));
+
       const photosMap = new Map(
         (answers || []).map(a => [a.question_id, { photo1: a.observation_photo_1, photo2: a.observation_photo_2 }])
       );
+
+      console.log('🔍 DEBUG - Mapa de fotos:', Array.from(photosMap.entries()));
 
       // Filtrar preguntas rechazadas con observaciones
       const rejectedQuestions = questions
         .filter(q => q.status === 'rejected' && q.observations && q.observations.trim() !== '')
         .map(q => {
           const photos = photosMap.get(q.id) || { photo1: null, photo2: null };
+          console.log(`🔍 DEBUG - Pregunta ${q.number} (ID: ${q.id}):`, photos);
           return {
             question_number: q.number,
             text: q.text,
