@@ -683,6 +683,7 @@ export const TechnicianMaintenanceChecklistView = () => {
       }
       
       return {
+        id: q.id,
         number: q.question_number,
         section: q.section,
         text: q.question_text,
