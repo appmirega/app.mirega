@@ -718,46 +718,26 @@ export const TechnicianMaintenanceChecklistView = () => {
     // Generar PDF
     const pdfBlob = await generateMaintenanceChecklistPDF(pdfData);
     
-    // Sanitizar nombres para evitar caracteres problemáticos en Storage
-    const sanitize = (str: string) => {
-      return str
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remover acentos
-        .replace(/[^a-z0-9]/g, '_') // Solo letras, números y _
-        .replace(/_+/g, '_') // Remover múltiples _ consecutivos
-        .replace(/^_|_$/g, ''); // Remover _ al inicio/final
-    };
-    
-    const clientAlias = sanitize(checklistData.clients?.internal_alias || 'cliente');
-    const elevatorNum = sanitize(String(checklistData.elevators?.elevator_number || 'X'));
-    const monthYear = `${checklistData.month}_${checklistData.year}`;
-    const timestamp = Date.now();
-    
-    // Nombre del archivo completamente sanitizado
-    const fileName = `mnt_${clientAlias}_asc${elevatorNum}_${monthYear}_${timestamp}.pdf`;
-    
-    console.log('📄 Nombre del archivo sanitizado:', fileName);
+    // Nombre del archivo
+    const fileName = `mantenimiento_${checklistData.clients?.internal_alias || 'cliente'}_asc${checklistData.elevators?.elevator_number || 'X'}_${checklistData.month}-${checklistData.year}_${Date.now()}.pdf`;
+    const filePath = `${checklistData.clients?.internal_alias || 'general'}/${fileName}`;
     
     // Subir a Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('maintenance-photos')
-      .upload(fileName, pdfBlob, {
+      .from('maintenance-pdfs')
+      .upload(filePath, pdfBlob, {
         contentType: 'application/pdf',
         upsert: false
       });
     
     if (uploadError) {
-      console.error('❌ Error subiendo PDF:', uploadError);
       throw new Error(`Error subiendo PDF: ${uploadError.message}`);
     }
     
-    console.log('✅ PDF subido correctamente:', uploadData);
-    
     // Obtener URL pública del PDF
     const { data: urlData } = supabase.storage
-      .from('maintenance-photos')
-      .getPublicUrl(fileName);
+      .from('maintenance-pdfs')
+      .getPublicUrl(filePath);
     
     if (!urlData) {
       throw new Error('No se pudo obtener la URL del PDF');
