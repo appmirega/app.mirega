@@ -799,15 +799,34 @@ export const TechnicianMaintenanceChecklistView = () => {
         return;
       }
 
+      // Obtener respuestas con fotos desde la base de datos
+      const { data: answers, error: answersError } = await supabase
+        .from('mnt_checklist_answers')
+        .select('question_id, observation_photo_1, observation_photo_2')
+        .eq('checklist_id', checklistId);
+
+      if (answersError) {
+        console.error('Error obteniendo fotos de respuestas:', answersError);
+      }
+
+      const photosMap = new Map(
+        (answers || []).map(a => [a.question_id, { photo1: a.observation_photo_1, photo2: a.observation_photo_2 }])
+      );
+
       // Filtrar preguntas rechazadas con observaciones
       const rejectedQuestions = questions
         .filter(q => q.status === 'rejected' && q.observations && q.observations.trim() !== '')
-        .map(q => ({
-          question_number: q.number,
-          text: q.text,
-          observations: q.observations,
-          is_critical: q.section === 'SALA DE MÁQUINAS' || q.section === 'GRUPO HIDRÁULICO, CILINDRO Y VÁLVULAS'
-        }));
+        .map(q => {
+          const photos = photosMap.get(q.id) || { photo1: null, photo2: null };
+          return {
+            question_number: q.number,
+            text: q.text,
+            observations: q.observations,
+            is_critical: q.section === 'SALA DE MÁQUINAS' || q.section === 'GRUPO HIDRÁULICO, CILINDRO Y VÁLVULAS',
+            observation_photo_1: photos.photo1,
+            observation_photo_2: photos.photo2
+          };
+        });
       
       if (rejectedQuestions.length === 0) {
         console.log('No hay observaciones para crear solicitudes');

@@ -134,6 +134,8 @@ export async function createRequestsFromMaintenance(
     text: string;
     observations: string;
     is_critical?: boolean;
+    observation_photo_1?: string | null;
+    observation_photo_2?: string | null;
   }>
 ) {
   const results = [];
@@ -154,6 +156,8 @@ export async function createRequestsFromMaintenance(
       description: `Pregunta ${question.question_number}: ${question.text}\n\nObservaciones: ${question.observations}`,
       priority,
       created_by_technician_id: technicianId,
+      photo_1_url: question.observation_photo_1 || null,
+      photo_2_url: question.observation_photo_2 || null,
     });
 
     if (result.success && result.data) {
