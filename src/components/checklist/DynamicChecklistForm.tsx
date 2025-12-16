@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Check, X, ChevronDown, ChevronUp, AlertCircle, Save } from 'lucide-react';
+import { Check, X, Minus, ChevronDown, ChevronUp, AlertCircle, Save } from 'lucide-react';
 import PhotoCapture from './PhotoCapture';
 
 interface Question {
@@ -14,7 +14,7 @@ interface Question {
 
 interface Answer {
   question_id: string;
-  status: 'approved' | 'rejected' | 'pending';
+  status: 'approved' | 'rejected' | 'not_applicable' | 'pending';
   observations: string;
   photo_1_url: string | null;
   photo_2_url: string | null;
@@ -495,6 +495,18 @@ export function DynamicChecklistForm({
                             title="Aprobar"
                           >
                             <Check className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleAnswerChange(question.id, 'not_applicable')}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                              status === 'not_applicable'
+                                ? 'bg-gray-500 text-white'
+                                : 'bg-white border border-slate-300 text-slate-700 hover:border-gray-500'
+                            }`}
+                            title="No Aplica (Manual)"
+                          >
+                            <Minus className="w-4 h-4" />
                           </button>
 
                           <button
