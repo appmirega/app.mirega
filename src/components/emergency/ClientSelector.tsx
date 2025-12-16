@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Building2, MapPin, Loader2 } from 'lucide-react';
-import { supabase } from '../../supabase/client';
+import { supabase } from '../../lib/supabase';
 
 interface Client {
   id: string;
