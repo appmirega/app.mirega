@@ -1,11 +1,15 @@
 ﻿import { useState } from 'react';
 import { QrCode, Search, Clock, AlertTriangle, History } from 'lucide-react';
 import { EmergencyQRScanner } from '../emergency/EmergencyQRScanner';
+import { ClientSelector } from '../emergency/ClientSelector';
+import { EmergencyForm } from '../emergency/EmergencyForm';
 
-type ViewMode = 'main' | 'qr-scanner' | 'client-selector' | 'in-progress' | 'stopped' | 'history';
+type ViewMode = 'main' | 'qr-scanner' | 'client-selector' | 'emergency-form' | 'in-progress' | 'stopped' | 'history';
 
 export function TechnicianEmergencyView() {
   const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedElevatorIds, setSelectedElevatorIds] = useState<string[]>([]);
 
   const renderContent = () => {
     switch (viewMode) {
@@ -14,14 +18,46 @@ export function TechnicianEmergencyView() {
           <EmergencyQRScanner
             onCancel={() => setViewMode('main')}
             onElevatorSelected={(clientId, elevatorId) => {
-              console.log('Selected:', clientId, elevatorId);
-              // Aquí se abrirá el formulario de emergencia
+              setSelectedClientId(clientId);
+              setSelectedElevatorIds([elevatorId]);
+              setViewMode('emergency-form');
             }}
           />
         );
 
       case 'client-selector':
-        return <div className="p-6"><p>Buscar Cliente (por implementar)</p></div>;
+        return (
+          <ClientSelector
+            onCancel={() => setViewMode('main')}
+            onElevatorSelected={(clientId, elevatorId) => {
+              setSelectedClientId(clientId);
+              setSelectedElevatorIds([elevatorId]);
+              setViewMode('emergency-form');
+            }}
+          />
+        );
+
+      case 'emergency-form':
+        if (!selectedClientId || selectedElevatorIds.length === 0) {
+          setViewMode('main');
+          return null;
+        }
+        return (
+          <EmergencyForm
+            clientId={selectedClientId}
+            elevatorIds={selectedElevatorIds}
+            onComplete={() => {
+              setSelectedClientId(null);
+              setSelectedElevatorIds([]);
+              setViewMode('main');
+            }}
+            onCancel={() => {
+              setSelectedClientId(null);
+              setSelectedElevatorIds([]);
+              setViewMode('main');
+            }}
+          />
+        );
 
       case 'in-progress':
         return <div className="p-6"><p>Emergencias en Progreso (por implementar)</p></div>;
