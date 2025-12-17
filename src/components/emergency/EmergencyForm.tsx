@@ -13,6 +13,7 @@ import {
   Loader2
 } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
+import { ManualServiceRequestForm } from '../forms/ManualServiceRequestForm';
 
 interface EmergencyFormProps {
   clientId: string;
@@ -463,6 +464,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <input
               type="file"
               accept="image/*"
+              capture="environment"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
@@ -470,7 +472,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                   handleFailurePhotoUpload(1, file);
                 }
               }}
-              className="w-full"
+              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
             {failurePhoto1Url && (
               <img src={failurePhoto1Url} alt="Falla 1" className="mt-2 w-full h-32 object-cover rounded" />
@@ -483,6 +485,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <input
               type="file"
               accept="image/*"
+              capture="environment"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
@@ -490,7 +493,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                   handleFailurePhotoUpload(2, file);
                 }
               }}
-              className="w-full"
+              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
             {failurePhoto2Url && (
               <img src={failurePhoto2Url} alt="Falla 2" className="mt-2 w-full h-32 object-cover rounded" />
@@ -563,9 +566,9 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
         <h2 className="text-lg font-semibold mb-4">Solicitudes de Servicio</h2>
         <button
           onClick={() => setShowServiceRequestModal(true)}
-          className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
         >
-          {serviceRequestId ? 'Ver Solicitud Creada' : 'Crear Solicitud Manual'}
+          {serviceRequestId ? 'Ver Solicitud Creada' : 'Solicitud Técnica Adicional'}
         </button>
       </div>
 
@@ -587,6 +590,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <input
               type="file"
               accept="image/*"
+              capture="environment"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
@@ -594,7 +598,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                   handleResolutionPhotoUpload(1, file);
                 }
               }}
-              className="w-full"
+              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
             />
             {resolutionPhoto1Url && (
               <img src={resolutionPhoto1Url} alt="Resolución 1" className="mt-2 w-full h-32 object-cover rounded" />
@@ -607,6 +611,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <input
               type="file"
               accept="image/*"
+              capture="environment"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
@@ -614,7 +619,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                   handleResolutionPhotoUpload(2, file);
                 }
               }}
-              className="w-full"
+              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+            />
             />
             {resolutionPhoto2Url && (
               <img src={resolutionPhoto2Url} alt="Resolución 2" className="mt-2 w-full h-32 object-cover rounded" />
@@ -694,6 +700,17 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
           </>
         )}
       </button>
+
+      {/* Modal de Solicitud Técnica */}
+      {showServiceRequestModal && (
+        <ManualServiceRequestForm
+          onClose={() => setShowServiceRequestModal(false)}
+          onSuccess={() => {
+            setShowServiceRequestModal(false);
+            // Aquí podrías guardar el ID de la solicitud si lo necesitas
+          }}
+        />
+      )}
     </div>
   );
 }
