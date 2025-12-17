@@ -461,42 +461,68 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Foto 1
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setFailurePhoto1(file);
-                  handleFailurePhotoUpload(1, file);
-                }
-              }}
-              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            {failurePhoto1Url && (
-              <img src={failurePhoto1Url} alt="Falla 1" className="mt-2 w-full h-32 object-cover rounded" />
+            {!failurePhoto1Url ? (
+              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                <Camera className="w-12 h-12 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">Subir foto</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setFailurePhoto1(file);
+                      handleFailurePhotoUpload(1, file);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="relative">
+                <img src={failurePhoto1Url} alt="Falla 1" className="w-full h-40 object-cover rounded-lg" />
+                <button
+                  onClick={() => { setFailurePhoto1(null); setFailurePhoto1Url(''); }}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
             )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Foto 2
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setFailurePhoto2(file);
-                  handleFailurePhotoUpload(2, file);
-                }
-              }}
-              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            {failurePhoto2Url && (
-              <img src={failurePhoto2Url} alt="Falla 2" className="mt-2 w-full h-32 object-cover rounded" />
+            {!failurePhoto2Url ? (
+              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                <Camera className="w-12 h-12 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">Subir foto</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setFailurePhoto2(file);
+                      handleFailurePhotoUpload(2, file);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="relative">
+                <img src={failurePhoto2Url} alt="Falla 2" className="w-full h-40 object-cover rounded-lg" />
+                <button
+                  onClick={() => { setFailurePhoto2(null); setFailurePhoto2Url(''); }}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -587,42 +613,68 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Foto Resolución 1
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setResolutionPhoto1(file);
-                  handleResolutionPhotoUpload(1, file);
-                }
-              }}
-              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-            />
-            {resolutionPhoto1Url && (
-              <img src={resolutionPhoto1Url} alt="Resolución 1" className="mt-2 w-full h-32 object-cover rounded" />
+            {!resolutionPhoto1Url ? (
+              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors">
+                <Camera className="w-12 h-12 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">Subir foto</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setResolutionPhoto1(file);
+                      handleResolutionPhotoUpload(1, file);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="relative">
+                <img src={resolutionPhoto1Url} alt="Resolución 1" className="w-full h-40 object-cover rounded-lg" />
+                <button
+                  onClick={() => { setResolutionPhoto1(null); setResolutionPhoto1Url(''); }}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
             )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Foto Resolución 2
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setResolutionPhoto2(file);
-                  handleResolutionPhotoUpload(2, file);
-                }
-              }}
-              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-            />
-            {resolutionPhoto2Url && (
-              <img src={resolutionPhoto2Url} alt="Resolución 2" className="mt-2 w-full h-32 object-cover rounded" />
+            {!resolutionPhoto2Url ? (
+              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors">
+                <Camera className="w-12 h-12 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">Subir foto</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setResolutionPhoto2(file);
+                      handleResolutionPhotoUpload(2, file);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="relative">
+                <img src={resolutionPhoto2Url} alt="Resolución 2" className="w-full h-40 object-cover rounded-lg" />
+                <button
+                  onClick={() => { setResolutionPhoto2(null); setResolutionPhoto2Url(''); }}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -631,16 +683,41 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Clasificación de la Falla
           </label>
-          <select
-            value={failureCause}
-            onChange={(e) => setFailureCause(e.target.value as any)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Seleccionar...</option>
-            <option value="normal_use">Desgaste por uso normal</option>
-            <option value="third_party">Responsabilidad de terceros</option>
-            <option value="part_lifespan">Vida útil de repuesto</option>
-          </select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={() => setFailureCause('normal_use')}
+              className={`p-4 rounded-lg border-2 transition-all text-left ${
+                failureCause === 'normal_use'
+                  ? 'bg-blue-50 border-blue-500'
+                  : 'bg-white border-gray-300 hover:border-blue-300'
+              }`}
+            >
+              <p className="font-semibold text-gray-900">Desgaste por uso normal</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFailureCause('third_party')}
+              className={`p-4 rounded-lg border-2 transition-all text-left ${
+                failureCause === 'third_party'
+                  ? 'bg-orange-50 border-orange-500'
+                  : 'bg-white border-gray-300 hover:border-orange-300'
+              }`}
+            >
+              <p className="font-semibold text-gray-900">Responsabilidad de terceros</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFailureCause('part_lifespan')}
+              className={`p-4 rounded-lg border-2 transition-all text-left ${
+                failureCause === 'part_lifespan'
+                  ? 'bg-purple-50 border-purple-500'
+                  : 'bg-white border-gray-300 hover:border-purple-300'
+              }`}
+            >
+              <p className="font-semibold text-gray-900">Vida útil de repuesto</p>
+            </button>
+          </div>
         </div>
       </div>
 

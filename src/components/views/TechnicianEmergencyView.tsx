@@ -3,6 +3,9 @@ import { QrCode, Search, Clock, AlertTriangle, History } from 'lucide-react';
 import { EmergencyQRScanner } from '../emergency/EmergencyQRScanner';
 import { ClientSelector } from '../emergency/ClientSelector';
 import { EmergencyForm } from '../emergency/EmergencyForm';
+import { InProgressEmergencies } from '../emergency/InProgressEmergencies';
+import { StoppedElevators } from '../emergency/StoppedElevators';
+import { EmergencyHistory } from '../emergency/EmergencyHistory';
 
 type ViewMode = 'main' | 'qr-scanner' | 'client-selector' | 'emergency-form' | 'in-progress' | 'stopped' | 'history';
 
@@ -60,13 +63,13 @@ export function TechnicianEmergencyView() {
         );
 
       case 'in-progress':
-        return <div className="p-6"><p>Emergencias en Progreso (por implementar)</p></div>;
+        return <InProgressEmergencies onBack={() => setViewMode('main')} />;
 
       case 'stopped':
-        return <div className="p-6"><p className="text-red-600">Ascensores Detenidos (por implementar)</p></div>;
+        return <StoppedElevators onBack={() => setViewMode('main')} />;
 
       case 'history':
-        return <div className="p-6"><p>Historial (por implementar)</p></div>;
+        return <EmergencyHistory onBack={() => setViewMode('main')} />;
 
       default:
         return (
