@@ -621,7 +621,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
               }}
               className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
             />
-            />
             {resolutionPhoto2Url && (
               <img src={resolutionPhoto2Url} alt="Resolución 2" className="mt-2 w-full h-32 object-cover rounded" />
             )}
