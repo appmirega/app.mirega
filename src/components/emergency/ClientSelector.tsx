@@ -10,7 +10,6 @@ interface Client {
 
 interface Elevator {
   id: string;
-  internal_alias: string;
   elevator_number: number;
   brand: string;
   model: string;
@@ -54,7 +53,7 @@ export function ClientSelector({ onCancel, onElevatorSelected }: ClientSelectorP
     setLoading(true);
     const { data, error } = await supabase
       .from('elevators')
-      .select('id, internal_alias, elevator_number, brand, model, serial_number, location_name')
+      .select('id, elevator_number, brand, model, serial_number, location_name')
       .eq('client_id', clientId)
       .order('elevator_number');
 
@@ -171,7 +170,7 @@ export function ClientSelector({ onCancel, onElevatorSelected }: ClientSelectorP
                   </div>
                   <div className="flex-1 text-left">
                     <h3 className="font-semibold text-gray-900">
-                      {elevator.internal_alias} - Asc. #{elevator.elevator_number}
+                    Ascensor #{elevator.elevator_number}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
                       {elevator.brand} {elevator.model}

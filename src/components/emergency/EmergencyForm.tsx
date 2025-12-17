@@ -23,7 +23,6 @@ interface EmergencyFormProps {
 
 interface ElevatorInfo {
   id: string;
-  internal_alias: string;
   elevator_number: number;
   brand: string;
   model: string;
@@ -111,7 +110,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       // Cargar información de ascensores
       const { data: elevatorsData } = await supabase
         .from('elevators')
-        .select('id, internal_alias, elevator_number, brand, model, location_name')
+        .select('id, elevator_number, brand, model, location_name')
         .in('id', elevatorIds);
       
       if (elevatorsData) {
@@ -399,7 +398,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-semibold">
-                      {elevator.internal_alias} - Asc. #{elevator.elevator_number}
+                      Ascensor #{elevator.elevator_number}
                     </h3>
                     <p className="text-sm text-gray-600">
                       {elevator.brand} {elevator.model} - {elevator.location_name}
