@@ -583,6 +583,9 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             <p className="text-sm text-red-700 font-medium">
               ⚠️ Debe crear una solicitud de servicio antes de cerrar
             </p>
+            <p className="text-xs text-red-600 mt-1">
+              La prioridad será automáticamente <span className="font-bold">CRÍTICA</span> porque el ascensor quedó detenido
+            </p>
           </div>
         )}
       </div>
@@ -785,6 +788,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
             setShowServiceRequestModal(false);
             // Aquí podrías guardar el ID de la solicitud si lo necesitas
           }}
+          forcedPriority={finalStatus === 'stopped' ? 'critical' : undefined}
         />
       )}
     </div>

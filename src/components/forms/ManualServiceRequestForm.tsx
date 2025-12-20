@@ -8,6 +8,7 @@ import type { Priority, RequestType } from '../../types/serviceRequests';
 interface ManualServiceRequestFormProps {
   onClose: () => void;
   onSuccess: () => void;
+  forcedPriority?: Priority;
 }
 
 interface Client {
@@ -24,7 +25,7 @@ interface Elevator {
   client_id: string;
 }
 
-export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRequestFormProps) {
+export function ManualServiceRequestForm({ onClose, onSuccess, forcedPriority }: ManualServiceRequestFormProps) {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -35,7 +36,7 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
     clientId: '',
     elevatorId: '',
     requestType: 'repair' as RequestType,
-    priority: 'medium' as Priority,
+    priority: (forcedPriority || 'medium') as Priority,
     title: '',
     description: '',
   });
@@ -250,16 +251,30 @@ export function ManualServiceRequestForm({ onClose, onSuccess }: ManualServiceRe
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Prioridad *
             </label>
+            {forcedPriority && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800 font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Prioridad automática: <span className="font-bold">CRÍTICA</span>
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Se asigna automáticamente porque el ascensor quedó detenido
+                </p>
+              </div>
+            )}
             <div className="flex gap-2">
               {priorities.map(priority => (
                 <button
                   key={priority.value}
                   type="button"
-                  onClick={() => setFormData({ ...formData, priority: priority.value as Priority })}
+                  onClick={() => !forcedPriority && setFormData({ ...formData, priority: priority.value as Priority })}
+                  disabled={!!forcedPriority}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
                     formData.priority === priority.value
                       ? priority.color + ' ring-2 ring-offset-2'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  } ${
+                    forcedPriority ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
                   {priority.label}
