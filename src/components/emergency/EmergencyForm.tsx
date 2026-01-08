@@ -5,7 +5,6 @@ import {
   ArrowLeft, 
   AlertTriangle, 
   Camera, 
-  FileText, 
   Save, 
   CheckCircle,
   Clock,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { ManualServiceRequestForm } from '../forms/ManualServiceRequestForm';
+import { generateEmergencyVisitPDF, EmergencyVisitPDFData } from '../../utils/emergencyVisitPDF';
 
 interface EmergencyFormProps {
   clientId: string;
@@ -299,7 +299,80 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
     
     return true;
   };
+  const generateAndUploadPDF = async (signatureUrl: string | null) => {
+    try {
+      // Preparar datos del PDF
+      const pdfData: EmergencyVisitPDFData = {
+        visitId: visitId!,
+        clientName,
+        clientAddress: elevators[0]?.location_name || null,
+        visitDate: new Date().toISOString(),
+        visitTime: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+        technicianName: profile?.full_name || 'Técnico',
+        elevators: elevators.map(e => ({
+          elevator_number: e.elevator_number,
+          brand: e.brand,
+          model: e.model,
+          location_name: e.location_name,
+          initial_status: elevatorInitialStatus.get(e.id) || 'operational',
+          final_status: finalStatus as 'operational' | 'observation' | 'stopped'
+        })),
+        failureDescription,
+        failurePhoto1Url,
+        failurePhoto2Url,
+        resolutionSummary,
+        resolutionPhoto1Url,
+        resolutionPhoto2Url,
+        failureCause: failureCause as 'normal_use' | 'third_party' | 'part_lifespan',
+        finalStatus: finalStatus as 'operational' | 'observation' | 'stopped',
+        observationUntil: finalStatus === 'observation' 
+          ? new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString()
+          : null,
+        receiverName,
+        signatureDataUrl: signatureUrl || '',
+        completedAt: new Date().toISOString()
+      };
 
+      // Generar PDF
+      const pdfBlob = await generateEmergencyVisitPDF(pdfData);
+
+      // Subir PDF a Storage
+      const pdfFileName = `emergency-${visitId}-${Date.now()}.pdf`;
+      const pdfPath = `${visitId}/${pdfFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('emergency-pdfs')
+        .upload(pdfPath, pdfBlob, {
+          contentType: 'application/pdf',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Error uploading PDF:', uploadError);
+        throw uploadError;
+      }
+
+      // Obtener URL pública del PDF
+      const { data: urlData } = supabase.storage
+        .from('emergency-pdfs')
+        .getPublicUrl(pdfPath);
+
+      const pdfUrl = urlData.publicUrl;
+
+      // Actualizar URL del PDF en la base de datos
+      await supabase
+        .from('emergency_visits')
+        .update({ pdf_url: pdfUrl })
+        .eq('id', visitId);
+
+      console.log('PDF generado y subido correctamente:', pdfUrl);
+
+    } catch (error) {
+      console.error('Error generando o subiendo PDF:', error);
+      // No bloqueamos el flujo si falla el PDF
+      alert('Advertencia: El PDF no pudo generarse, pero la emergencia se guardó correctamente.');
+    }
+  };
   const handleComplete = async () => {
     if (!canComplete()) return;
     
@@ -352,7 +425,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
           .eq('elevator_id', elevatorId);
       }
       
-      // TODO: Generar PDF aquí
+      // Generar PDF
+      await generateAndUploadPDF(signatureUrl);
       
       onComplete();
       
