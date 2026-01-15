@@ -336,36 +336,44 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       // Generar PDF
       const pdfBlob = await generateEmergencyVisitPDF(pdfData);
 
-      // Subir PDF a Storage
-      const pdfFileName = `emergency-${visitId}-${Date.now()}.pdf`;
-      const pdfPath = `${visitId}/${pdfFileName}`;
+      // Subir PDF a Storage (misma lógica que mantenimiento)
+      const fileName = `emergencia_${clientName.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const filePath = `emergencias/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('emergency-pdfs')
-        .upload(pdfPath, pdfBlob, {
+        .upload(filePath, pdfBlob, {
           contentType: 'application/pdf',
           upsert: false
         });
 
       if (uploadError) {
-        console.error('Error uploading PDF:', uploadError);
-        throw uploadError;
+        console.error('❌ Error subiendo PDF:', uploadError);
+        throw new Error(`Error al subir PDF: ${uploadError.message}`);
       }
 
       // Obtener URL pública del PDF
       const { data: urlData } = supabase.storage
         .from('emergency-pdfs')
-        .getPublicUrl(pdfPath);
+        .getPublicUrl(filePath);
+
+      if (!urlData) {
+        throw new Error('No se pudo obtener la URL del PDF');
+      }
 
       const pdfUrl = urlData.publicUrl;
 
       // Actualizar URL del PDF en la base de datos
-      await supabase
+      const { error: updateError } = await supabase
         .from('emergency_visits')
         .update({ pdf_url: pdfUrl })
         .eq('id', visitId);
 
-      console.log('PDF generado y subido correctamente:', pdfUrl);
+      if (updateError) {
+        throw new Error(`Error guardando URL del PDF: ${updateError.message}`);
+      }
+
+      console.log('✅ PDF generado y guardado:', pdfUrl);
 
     } catch (error) {
       console.error('Error generando o subiendo PDF:', error);
