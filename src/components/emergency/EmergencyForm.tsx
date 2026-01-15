@@ -203,13 +203,13 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       const filePath = `emergency-visits/${visitId}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
-        .from('maintenance-photos')
+        .from('emergency-photos')
         .upload(filePath, file);
       
       if (uploadError) throw uploadError;
       
       const { data: urlData } = supabase.storage
-        .from('maintenance-photos')
+        .from('emergency-photos')
         .getPublicUrl(filePath);
       
       return urlData.publicUrl;
@@ -292,7 +292,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
   const canComplete = () => {
     // Validaciones básicas
     if (!failureDescription || !resolutionSummary || !finalStatus || !failureCause) return false;
-    if (!receiverName || !signatureRef?.isEmpty()) return false;
+    if (!receiverName || signatureRef?.isEmpty()) return false;
     
     // Si está detenido, requiere solicitud
     if (finalStatus === 'stopped' && !serviceRequestId) return false;
@@ -382,7 +382,19 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
     }
   };
   const handleComplete = async () => {
-    if (!canComplete()) return;
+    if (!canComplete()) {
+      console.log('❌ Validación falló. Estado:', {
+        failureDescription: !!failureDescription,
+        resolutionSummary: !!resolutionSummary,
+        finalStatus,
+        failureCause,
+        receiverName,
+        signatureEmpty: signatureRef?.isEmpty()
+      });
+      return;
+    }
+    
+    console.log('✅ Iniciando completado de emergencia...');
     
     try {
       setSaving(true);
