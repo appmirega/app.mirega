@@ -85,7 +85,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
   useEffect(() => {
     console.log('🔄 useEffect loadInitialData ejecutándose...');
     loadInitialData();
-  }, [clientId, elevatorIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, elevatorIds.join(',')]); // Usar join para comparación estable
 
   // Guardado automático cada 30 segundos
   useEffect(() => {
@@ -143,14 +144,17 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       // Crear borrador de visita
       await createDraft();
       
+      console.log('✅ Datos iniciales cargados correctamente');
+      
     } catch (error) {
-      console.error('Error loading initial data:', error);
+      console.error('❌ Error loading initial data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const createDraft = async () => {
+    console.log('📝 Creando borrador de visita...');
     try {
       const { data, error } = await supabase
         .from('emergency_visits')
@@ -162,8 +166,12 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error creando borrador:', error);
+        throw error;
+      }
       
+      console.log('✅ Borrador creado con ID:', data.id);
       setVisitId(data.id);
       
       // Insertar ascensores afectados
@@ -173,12 +181,20 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
         initial_status: 'operational'
       }));
       
-      await supabase
+      const { error: elevatorsError } = await supabase
         .from('emergency_visit_elevators')
         .insert(elevatorInserts);
       
+      if (elevatorsError) {
+        console.error('❌ Error insertando ascensores:', elevatorsError);
+        throw elevatorsError;
+      }
+      
+      console.log('✅ Ascensores vinculados al borrador');
+      
     } catch (error) {
-      console.error('Error creating draft:', error);
+      console.error('❌ Error in createDraft:', error);
+      throw error;
     }
   };
 
