@@ -63,7 +63,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
         supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('elevators').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'technician').eq('is_active', true),
-        supabase.from('emergency_visits').select('id', { count: 'exact', head: true }).in('status', ['reported', 'assigned', 'in_progress']),
+        supabase.from('emergency_visits').select('id', { count: 'exact', head: true }).eq('status', 'draft'),
         supabase.from('maintenance_schedules').select('id', { count: 'exact', head: true }).eq('scheduled_date', today),
         supabase.from('quotations').select('id', { count: 'exact', head: true }).eq('status', 'sent'),
       ]);

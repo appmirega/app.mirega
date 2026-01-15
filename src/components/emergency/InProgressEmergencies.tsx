@@ -43,7 +43,7 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
           created_at,
           last_autosave,
           clients (
-            business_name
+            company_name
           )
         `)
         .eq('technician_id', user.id)
@@ -68,7 +68,7 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
             client_id: emergency.client_id,
             created_at: emergency.created_at,
             last_autosave: emergency.last_autosave,
-            client_name: (emergency.clients as any)?.business_name,
+            client_name: (emergency.clients as any)?.company_name,
             elevator_numbers: elevatorsData?.map(e => (e.elevators as any)?.elevator_number).filter(Boolean)
           };
         })
