@@ -41,7 +41,13 @@ export function TechnicianEmergencyView() {
         );
 
       case 'emergency-form':
+        console.log('🔀 TechnicianEmergencyView: Renderizando EmergencyForm', { 
+          selectedClientId, 
+          selectedElevatorIds 
+        });
+        
         if (!selectedClientId || selectedElevatorIds.length === 0) {
+          console.warn('⚠️ No hay cliente o ascensores seleccionados, volviendo a main');
           setViewMode('main');
           return null;
         }

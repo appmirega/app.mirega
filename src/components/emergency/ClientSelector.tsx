@@ -71,6 +71,7 @@ export function ClientSelector({ onCancel, onElevatorSelected }: ClientSelectorP
   };
 
   const handleElevatorSelect = (elevatorId: string) => {
+    console.log('🎯 Ascensor seleccionado:', elevatorId, 'Cliente:', selectedClient?.id);
     if (selectedClient) {
       onElevatorSelected(selectedClient.id, elevatorId);
     }

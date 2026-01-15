@@ -36,6 +36,8 @@ interface LastEmergency {
 }
 
 export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: EmergencyFormProps) {
+  console.log('🚨 EmergencyForm montado con:', { clientId, elevatorIds: elevatorIds.length });
+  
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,6 +83,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
 
   // Cargar datos iniciales
   useEffect(() => {
+    console.log('🔄 useEffect loadInitialData ejecutándose...');
     loadInitialData();
   }, [clientId, elevatorIds]);
 
@@ -96,10 +99,12 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
   }, [visitId, failureDescription, resolutionSummary, finalStatus]);
 
   const loadInitialData = async () => {
+    console.log('📊 Cargando datos iniciales para emergencia...');
     try {
       setLoading(true);
       
       // Cargar información del cliente
+      console.log('🔍 Buscando cliente:', clientId);
       const { data: client } = await supabase
         .from('clients')
         .select('company_name')
