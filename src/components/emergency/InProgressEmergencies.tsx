@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Clock, Building2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, Building2, Loader2, Trash2, CheckSquare } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface InProgressEmergency {
@@ -18,6 +18,8 @@ interface InProgressEmergenciesProps {
 export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
   const [emergencies, setEmergencies] = useState<InProgressEmergency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadInProgressEmergencies();
@@ -98,6 +100,82 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
     console.log('Resume emergency:', emergencyId);
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) {
+      alert('Selecciona al menos un borrador para eliminar');
+      return;
+    }
+
+    if (!confirm(`¿Eliminar ${selectedIds.size} borrador(es)? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('emergency_visits')
+        .delete()
+        .in('id', Array.from(selectedIds));
+
+      if (error) throw error;
+
+      setSelectedIds(new Set());
+      await loadInProgressEmergencies();
+      alert('Borradores eliminados exitosamente');
+    } catch (error) {
+      console.error('Error deleting drafts:', error);
+      alert('Error al eliminar borradores');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (emergencies.length === 0) return;
+
+    if (!confirm(`¿Eliminar TODOS los ${emergencies.length} borradores? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const ids = emergencies.map(e => e.id);
+      const { error } = await supabase
+        .from('emergency_visits')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      setSelectedIds(new Set());
+      await loadInProgressEmergencies();
+      alert('Todos los borradores eliminados exitosamente');
+    } catch (error) {
+      console.error('Error deleting all drafts:', error);
+      alert('Error al eliminar todos los borradores');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === emergencies.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(emergencies.map(e => e.id)));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto">
@@ -116,6 +194,49 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
             </p>
           </div>
         </div>
+
+        {/* Bulk Actions */}
+        {!loading && emergencies.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === emergencies.length && emergencies.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-5 h-5"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Seleccionar todos ({emergencies.length})
+                </span>
+              </label>
+              {selectedIds.size > 0 && (
+                <span className="text-sm text-blue-600 font-medium">
+                  {selectedIds.size} seleccionado(s)
+                </span>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={handleDeleteSelected}
+                disabled={selectedIds.size === 0 || deleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Eliminar seleccionados
+              </button>
+              <button
+                onClick={handleDeleteAll}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Eliminar todo
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Loading */}
         {loading && (
@@ -145,7 +266,15 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
                 key={emergency.id}
                 className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                  {/* Checkbox */}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(emergency.id)}
+                    onChange={() => toggleSelection(emergency.id)}
+                    className="w-5 h-5 mt-1 cursor-pointer"
+                  />
+                  
                   <div className="flex-1">
                     {/* Client */}
                     <div className="flex items-center gap-2 mb-2">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Building2, Loader2, FileText, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, Building2, Loader2, FileText, CheckCircle, Clock, Download, Share2, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface EmergencyVisit {
@@ -25,6 +25,13 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
 
   useEffect(() => {
     loadHistory();
+    
+    // Recargar cada 10 segundos para mantener actualizado
+    const interval = setInterval(() => {
+      loadHistory();
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, [filterStatus]);
 
   const loadHistory = async () => {
@@ -291,6 +298,44 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
                     </p>
                   </div>
                 </div>
+
+                {/* PDF Actions */}
+                {visit.pdf_url && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
+                    <a
+                      href={visit.pdf_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Ver PDF
+                    </a>
+                    <a
+                      href={visit.pdf_url}
+                      download
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                    <button
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({
+                            title: `Emergencia - ${visit.client_name}`,
+                            url: visit.pdf_url
+                          });
+                        } else {
+                          navigator.clipboard.writeText(visit.pdf_url!);
+                          alert('URL copiada al portapapeles');
+                        }
+                      }}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
