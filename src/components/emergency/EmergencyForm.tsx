@@ -355,11 +355,22 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       };
 
       // Generar PDF
+      console.log('📄 Generando PDF de emergencia...');
       const pdfBlob = await generateEmergencyVisitPDF(pdfData);
+      console.log('✅ PDF generado, tamaño:', pdfBlob.size, 'bytes');
 
-      // Subir PDF a Storage (misma lógica que mantenimiento)
-      const fileName = `emergencia_${clientName.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      // Subir PDF a Storage con nombre limpio
+      const cleanClientName = clientName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
+        .replace(/[^a-zA-Z0-9]/g, '_') // Solo alfanuméricos
+        .substring(0, 30); // Limitar longitud
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const fileName = `emergencia_${cleanClientName}_${timestamp}.pdf`;
       const filePath = `emergencias/${fileName}`;
+      
+      console.log('📤 Subiendo PDF:', filePath);
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('emergency-pdfs')
