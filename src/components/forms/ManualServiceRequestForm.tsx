@@ -7,7 +7,7 @@ import type { Priority, RequestType } from '../../types/serviceRequests';
 
 interface ManualServiceRequestFormProps {
   onClose: () => void;
-  onSuccess: (requestId: string) => void;
+  onSuccess?: (requestId?: string) => void;
   forcedPriority?: Priority;
   prefilledClientId?: string;
   prefilledElevatorId?: string;
@@ -150,7 +150,9 @@ export function ManualServiceRequestForm({
 
       if (result.success) {
         alert('✅ Solicitud creada exitosamente');
-        onSuccess(result.request.id);
+        if (onSuccess) {
+          onSuccess(result.request?.id);
+        }
         onClose();
       } else {
         throw new Error('Error al crear solicitud');

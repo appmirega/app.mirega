@@ -13,9 +13,10 @@ interface InProgressEmergency {
 
 interface InProgressEmergenciesProps {
   onBack: () => void;
+  onResume?: (visitId: string, clientId: string, elevatorIds: string[]) => void;
 }
 
-export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
+export function InProgressEmergencies({ onBack, onResume }: InProgressEmergenciesProps) {
   const [emergencies, setEmergencies] = useState<InProgressEmergency[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -95,9 +96,35 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
     });
   };
 
-  const handleResumeEmergency = (emergencyId: string) => {
-    // TODO: Navigate to emergency form with this ID
-    console.log('Resume emergency:', emergencyId);
+  const handleResumeEmergency = async (emergencyId: string) => {
+    try {
+      // Cargar datos de la emergencia
+      const { data: visitData, error: visitError } = await supabase
+        .from('emergency_visits')
+        .select('client_id')
+        .eq('id', emergencyId)
+        .single();
+      
+      if (visitError) throw visitError;
+      
+      // Cargar los IDs de ascensores vinculados
+      const { data: elevatorsData, error: elevatorsError } = await supabase
+        .from('emergency_visit_elevators')
+        .select('elevator_id')
+        .eq('emergency_visit_id', emergencyId);
+      
+      if (elevatorsError) throw elevatorsError;
+      
+      const elevatorIds = elevatorsData.map(e => e.elevator_id);
+      
+      // Llamar al callback con los datos necesarios
+      if (onResume) {
+        onResume(emergencyId, visitData.client_id, elevatorIds);
+      }
+    } catch (error) {
+      console.error('Error resumiendo emergencia:', error);
+      alert('Error al cargar la emergencia. Por favor intenta de nuevo.');
+    }
   };
 
   const handleDeleteSelected = async () => {

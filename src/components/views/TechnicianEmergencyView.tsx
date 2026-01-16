@@ -13,6 +13,7 @@ export function TechnicianEmergencyView() {
   const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedElevatorIds, setSelectedElevatorIds] = useState<string[]>([]);
+  const [resumeVisitId, setResumeVisitId] = useState<string | null>(null);
 
   const renderContent = () => {
     switch (viewMode) {
@@ -55,21 +56,34 @@ export function TechnicianEmergencyView() {
           <EmergencyForm
             clientId={selectedClientId}
             elevatorIds={selectedElevatorIds}
+            existingVisitId={resumeVisitId}
             onComplete={() => {
               setSelectedClientId(null);
               setSelectedElevatorIds([]);
+              setResumeVisitId(null);
               setViewMode('main');
             }}
             onCancel={() => {
               setSelectedClientId(null);
               setSelectedElevatorIds([]);
+              setResumeVisitId(null);
               setViewMode('main');
             }}
           />
         );
 
       case 'in-progress':
-        return <InProgressEmergencies onBack={() => setViewMode('main')} />;
+        return (
+          <InProgressEmergencies 
+            onBack={() => setViewMode('main')} 
+            onResume={(visitId, clientId, elevatorIds) => {
+              setResumeVisitId(visitId);
+              setSelectedClientId(clientId);
+              setSelectedElevatorIds(elevatorIds);
+              setViewMode('emergency-form');
+            }}
+          />
+        );
 
       case 'stopped':
         return <StoppedElevators onBack={() => setViewMode('main')} />;

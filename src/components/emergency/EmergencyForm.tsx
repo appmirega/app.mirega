@@ -20,6 +20,7 @@ interface EmergencyFormProps {
   elevatorIds: string[];
   onComplete: () => void;
   onCancel: () => void;
+  existingVisitId?: string; // Para continuar emergencias en progreso
 }
 
 interface ElevatorInfo {
@@ -35,13 +36,13 @@ interface LastEmergency {
   days_since_last_emergency: number;
 }
 
-export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: EmergencyFormProps) {
-  console.log('🚨 EmergencyForm montado con:', { clientId, elevatorIds: elevatorIds.length });
+export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, existingVisitId }: EmergencyFormProps) {
+  console.log('🚨 EmergencyForm montado con:', { clientId, elevatorIds: elevatorIds.length, existingVisitId });
   
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [visitId, setVisitId] = useState<string | null>(null);
+  const [visitId, setVisitId] = useState<string | null>(existingVisitId || null);
   
   // Datos del cliente y ascensores
   const [clientName, setClientName] = useState('');
@@ -144,8 +145,12 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
         setLastEmergencies(emergenciesMap);
       }
       
-      // Crear borrador de visita
-      await createDraft();
+      // Cargar borrador existente o crear uno nuevo
+      if (existingVisitId) {
+        await loadDraftData(existingVisitId);
+      } else {
+        await createDraft();
+      }
       
       console.log('✅ Datos iniciales cargados correctamente');
       
@@ -197,6 +202,60 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       
     } catch (error) {
       console.error('❌ Error in createDraft:', error);
+      throw error;
+    }
+  };
+
+  const loadDraftData = async (draftVisitId: string) => {
+    console.log('📂 Cargando borrador existente:', draftVisitId);
+    try {
+      // Cargar datos de la visita
+      const { data: visitData, error: visitError } = await supabase
+        .from('emergency_visits')
+        .select('*')
+        .eq('id', draftVisitId)
+        .single();
+      
+      if (visitError) throw visitError;
+      
+      // Restaurar estados del formulario
+      if (visitData.failure_description) setFailureDescription(visitData.failure_description);
+      if (visitData.resolution_summary) setResolutionSummary(visitData.resolution_summary);
+      if (visitData.final_status) setFinalStatus(visitData.final_status);
+      
+      // Cargar fotos de evidencia si existen
+      const { data: photosData } = await supabase
+        .from('emergency_photos')
+        .select('photo_url, caption')
+        .eq('emergency_visit_id', draftVisitId);
+      
+      if (photosData && photosData.length > 0) {
+        // Convertir URLs a File objects (solo para mostrar)
+        const uploadedPhotosData = photosData.map(p => ({
+          url: p.photo_url,
+          caption: p.caption || ''
+        }));
+        setUploadedPhotos(uploadedPhotosData);
+      }
+      
+      // Cargar estados iniciales de ascensores
+      const { data: elevatorsData } = await supabase
+        .from('emergency_visit_elevators')
+        .select('*')
+        .eq('emergency_visit_id', draftVisitId);
+      
+      if (elevatorsData) {
+        const statusMap = new Map();
+        elevatorsData.forEach(e => {
+          statusMap.set(e.elevator_id, e.initial_status);
+        });
+        setElevatorInitialStatus(statusMap);
+      }
+      
+      console.log('✅ Borrador cargado correctamente');
+      
+    } catch (error) {
+      console.error('❌ Error cargando borrador:', error);
       throw error;
     }
   };
@@ -829,7 +888,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                   : 'bg-white border-gray-300 hover:border-blue-300'
               }`}
             >
-              <p className="font-semibold text-gray-900">Falla por uso normal</p>
+              <p className="font-semibold text-gray-900">Falla por uso</p>
             </button>
             <button
               type="button"

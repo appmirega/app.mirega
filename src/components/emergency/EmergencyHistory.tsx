@@ -306,10 +306,9 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
                       href={visit.pdf_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
                       <Eye className="w-4 h-4" />
-                      Ver PDF
                     </a>
                     <a
                       href={visit.pdf_url}
