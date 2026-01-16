@@ -7,8 +7,10 @@ import type { Priority, RequestType } from '../../types/serviceRequests';
 
 interface ManualServiceRequestFormProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (requestId: string) => void;
   forcedPriority?: Priority;
+  prefilledClientId?: string;
+  prefilledElevatorId?: string;
 }
 
 interface Client {
@@ -25,7 +27,13 @@ interface Elevator {
   client_id: string;
 }
 
-export function ManualServiceRequestForm({ onClose, onSuccess, forcedPriority }: ManualServiceRequestFormProps) {
+export function ManualServiceRequestForm({ 
+  onClose, 
+  onSuccess, 
+  forcedPriority,
+  prefilledClientId,
+  prefilledElevatorId
+}: ManualServiceRequestFormProps) {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -33,8 +41,8 @@ export function ManualServiceRequestForm({ onClose, onSuccess, forcedPriority }:
   const [filteredElevators, setFilteredElevators] = useState<Elevator[]>([]);
 
   const [formData, setFormData] = useState({
-    clientId: '',
-    elevatorId: '',
+    clientId: prefilledClientId || '',
+    elevatorId: prefilledElevatorId || '',
     requestType: 'repair' as RequestType,
     priority: (forcedPriority || 'medium') as Priority,
     title: '',
@@ -142,7 +150,7 @@ export function ManualServiceRequestForm({ onClose, onSuccess, forcedPriority }:
 
       if (result.success) {
         alert('✅ Solicitud creada exitosamente');
-        onSuccess();
+        onSuccess(result.request.id);
         onClose();
       } else {
         throw new Error('Error al crear solicitud');

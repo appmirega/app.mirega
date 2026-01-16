@@ -175,13 +175,34 @@ export function InProgressEmergencies({ onBack }: InProgressEmergenciesProps) {
                     </div>
                   </div>
 
-                  {/* Action button */}
-                  <button
-                    onClick={() => handleResumeEmergency(emergency.id)}
-                    className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Continuar
-                  </button>
+                  {/* Action buttons */}
+                  <div className="ml-4 flex flex-col gap-2">
+                    <button
+                      onClick={() => handleResumeEmergency(emergency.id)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Continuar
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (confirm('¿Eliminar este borrador? Esta acción no se puede deshacer.')) {
+                          const { error } = await supabase
+                            .from('emergency_visits')
+                            .delete()
+                            .eq('id', emergency.id);
+                          
+                          if (!error) {
+                            loadInProgressEmergencies();
+                          } else {
+                            alert('Error al eliminar el borrador');
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

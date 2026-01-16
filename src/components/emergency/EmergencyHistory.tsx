@@ -46,10 +46,12 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
           client_id,
           visit_date,
           failure_description,
-          resolution_description,
+          resolution_summary,
           status,
+          final_status,
+          pdf_url,
           clients (
-            business_name
+            company_name
           )
         `)
         .eq('technician_id', user.id)
@@ -81,11 +83,12 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
             client_id: visit.client_id,
             visit_date: visit.visit_date,
             failure_description: visit.failure_description,
-            resolution_description: visit.resolution_description,
+            resolution_description: visit.resolution_summary,
             status: visit.status,
-            client_name: (visit.clients as any)?.business_name,
+            client_name: (visit.clients as any)?.company_name,
             elevator_numbers: elevatorsData?.map(e => (e.elevators as any)?.elevator_number).filter(Boolean),
-            final_status: elevatorsData?.[0]?.final_status
+            final_status: visit.final_status || elevatorsData?.[0]?.final_status,
+            pdf_url: visit.pdf_url
           };
         })
       );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -313,7 +313,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
     return `hace ${years} año${years !== 1 ? 's' : ''}`;
   };
 
-  const canComplete = () => {
+  const canComplete = useMemo(() => {
     // Validaciones básicas
     if (!failureDescription || !resolutionSummary || !finalStatus || !failureCause) return false;
     if (!receiverName || signatureRef?.isEmpty()) return false;
@@ -322,7 +322,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
     if (finalStatus === 'stopped' && !serviceRequestId) return false;
     
     return true;
-  };
+  }, [failureDescription, resolutionSummary, finalStatus, failureCause, receiverName, signatureRef, serviceRequestId]);
   const generateAndUploadPDF = async (signatureUrl: string | null) => {
     try {
       // Preparar datos del PDF
@@ -417,7 +417,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
     }
   };
   const handleComplete = async () => {
-    if (!canComplete()) {
+    if (!canComplete) {
       console.log('❌ Validación falló. Estado:', {
         failureDescription: !!failureDescription,
         resolutionSummary: !!resolutionSummary,
@@ -829,7 +829,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
                   : 'bg-white border-gray-300 hover:border-blue-300'
               }`}
             >
-              <p className="font-semibold text-gray-900">Desgaste por uso normal</p>
+              <p className="font-semibold text-gray-900">Falla por uso normal</p>
             </button>
             <button
               type="button"
@@ -897,7 +897,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       {/* Botón de completar */}
       <button
         onClick={handleComplete}
-        disabled={!canComplete() || saving}
+        disabled={!canComplete || saving}
         className="w-full py-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
       >
         {saving ? (
@@ -917,11 +917,13 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       {showServiceRequestModal && (
         <ManualServiceRequestForm
           onClose={() => setShowServiceRequestModal(false)}
-          onSuccess={() => {
+          onSuccess={(requestId) => {
             setShowServiceRequestModal(false);
-            // Aquí podrías guardar el ID de la solicitud si lo necesitas
+            setServiceRequestId(requestId);
           }}
           forcedPriority={finalStatus === 'stopped' ? 'critical' : undefined}
+          prefilledClientId={clientId}
+          prefilledElevatorId={elevatorIds[0]}
         />
       )}
     </div>
