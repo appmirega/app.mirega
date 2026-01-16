@@ -80,13 +80,16 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
   // Control de UI
   const [currentStep, setCurrentStep] = useState(1);
   const [showWarning, setShowWarning] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  // Cargar datos iniciales
+  // Cargar datos iniciales SOLO UNA VEZ
   useEffect(() => {
+    if (initialized) return;
     console.log('🔄 useEffect loadInitialData ejecutándose...');
     loadInitialData();
+    setInitialized(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, elevatorIds.join(',')]); // Usar join para comparación estable
+  }, []);
 
   // Guardado automático cada 30 segundos
   useEffect(() => {
@@ -480,10 +483,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel }: E
       // Generar PDF
       await generateAndUploadPDF(signatureUrl);
       
+      console.log('✅ Emergencia completada exitosamente');
+      alert('Emergencia guardada correctamente con PDF generado');
+      
       onComplete();
       
     } catch (error) {
-      console.error('Error completing visit:', error);
+      console.error('❌ Error completing visit:', error);
+      alert(`Error al completar emergencia: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
       setSaving(false);
     }
