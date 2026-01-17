@@ -977,8 +977,11 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         <ManualServiceRequestForm
           onClose={() => setShowServiceRequestModal(false)}
           onSuccess={(requestId) => {
+            if (requestId) {
+              console.log('✅ Solicitud creada con ID:', requestId);
+              setServiceRequestId(requestId);
+            }
             setShowServiceRequestModal(false);
-            setServiceRequestId(requestId);
           }}
           forcedPriority={finalStatus === 'stopped' ? 'critical' : undefined}
           prefilledClientId={clientId}

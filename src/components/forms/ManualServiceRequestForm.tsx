@@ -148,10 +148,10 @@ export function ManualServiceRequestForm({
         photo_2_url: photo2,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
         alert('✅ Solicitud creada exitosamente');
         if (onSuccess) {
-          onSuccess(result.request?.id);
+          onSuccess(result.data.id);
         }
         onClose();
       } else {
