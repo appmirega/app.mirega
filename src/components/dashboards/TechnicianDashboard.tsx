@@ -26,6 +26,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
     emergencies: 0,
     checklistsThisMonth: 0,
     checklistsInProgress: 0,
+    stoppedElevators: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -95,6 +96,14 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         .eq('technician_id', profile?.id)
         .eq('status', 'in_progress');
 
+      // Cargar ascensores detenidos
+      const { count: stoppedCount } = await supabase
+        .from('emergency_visits')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'completed')
+        .eq('final_status', 'stopped')
+        .is('reactivation_date', null);
+
       setStats({
         scheduledToday: schedules?.length || 0,
         completed,
@@ -102,6 +111,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         emergencies: emergencyCount || 0,
         checklistsThisMonth: checklistsCount || 0,
         checklistsInProgress: inProgressCount || 0,
+        stoppedElevators: stoppedCount || 0,
       });
     } catch (error) {
       console.error('Error loading technician data:', error);
@@ -174,6 +184,24 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergencies}</h3>
           <p className="text-sm text-slate-600">Emergencias Activas</p>
+        </div>
+
+        <div 
+          className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg border-2 border-red-700 p-6 cursor-pointer hover:shadow-xl transition-all transform hover:scale-105"
+          onClick={() => onNavigate?.('/stopped-elevators')}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+            </div>
+            {stats.stoppedElevators > 0 && (
+              <span className="bg-white text-red-600 text-xs font-bold px-3 py-1 rounded-full animate-bounce">
+                ¡ALERTA!
+              </span>
+            )}
+          </div>
+          <h3 className="text-3xl font-bold text-white mb-1">{stats.stoppedElevators}</h3>
+          <p className="text-sm text-white/90 font-medium">🚨 Ascensores Detenidos</p>
         </div>
 
         <div 

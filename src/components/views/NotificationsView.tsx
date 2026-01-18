@@ -23,6 +23,20 @@ interface Notification {
   metadata: any;
 }
 
+interface StoppedElevatorNotification {
+  id: string;
+  type: 'stopped_elevator';
+  title: string;
+  message: string;
+  is_read: false;
+  created_at: string;
+  metadata: {
+    visit_id: string;
+    building_name: string;
+    elevator_id: string;
+  };
+}
+
 interface Reminder {
   id: string;
   title: string;
@@ -52,6 +66,7 @@ export function NotificationsView() {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<ViewTab>('notifications');
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [stoppedElevatorNotifications, setStoppedElevatorNotifications] = useState<StoppedElevatorNotification[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReminderForm, setShowReminderForm] = useState(false);
@@ -69,6 +84,7 @@ export function NotificationsView() {
 
   useEffect(() => {
     loadNotifications();
+    loadStoppedElevators();
     loadReminders();
     if (profile?.role === 'admin' || profile?.role === 'technician') {
       loadUsers();
@@ -89,6 +105,58 @@ export function NotificationsView() {
       console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStoppedElevators = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('emergency_visits')
+        .select(`
+          id,
+          visit_date,
+          completed_at,
+          final_status,
+          elevators:emergency_visit_elevators!inner(
+            elevator:elevators!inner(
+              id,
+              building:clients!inner(
+                building_name,
+                address
+              )
+            )
+          )
+        `)
+        .eq('status', 'completed')
+        .eq('final_status', 'stopped')
+        .is('reactivation_date', null);
+
+      if (error) throw error;
+
+      // Convertir los ascensores detenidos a notificaciones
+      const stoppedNotifications: StoppedElevatorNotification[] = (data || []).map((visit: any) => {
+        const elevator = visit.elevators[0]?.elevator;
+        const buildingName = elevator?.building?.building_name || 'Desconocido';
+        const address = elevator?.building?.address || '';
+
+        return {
+          id: `stopped-${visit.id}`,
+          type: 'stopped_elevator',
+          title: '🚨 Ascensor Detenido',
+          message: `El ascensor en ${buildingName}${address ? ` (${address})` : ''} está detenido y requiere atención urgente`,
+          is_read: false,
+          created_at: visit.completed_at || visit.visit_date,
+          metadata: {
+            visit_id: visit.id,
+            building_name: buildingName,
+            elevator_id: elevator?.id,
+          },
+        };
+      });
+
+      setStoppedElevatorNotifications(stoppedNotifications);
+    } catch (error) {
+      console.error('Error loading stopped elevators:', error);
     }
   };
 
@@ -216,6 +284,8 @@ export function NotificationsView() {
         return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'emergency':
         return <AlertCircle className="w-5 h-5 text-red-600" />;
+      case 'stopped_elevator':
+        return <AlertCircle className="w-5 h-5 text-red-600" />;
       case 'work_order_closed':
         return <CheckCircle className="w-5 h-5 text-blue-600" />;
       case 'reminder':
@@ -243,6 +313,12 @@ export function NotificationsView() {
     if (filterRead === 'read') return n.is_read;
     return true;
   });
+
+  // Combinar notificaciones regulares con ascensores detenidos
+  const allNotifications = [
+    ...stoppedElevatorNotifications,
+    ...filteredNotifications
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const canCreateReminders = profile?.role === 'admin' || profile?.role === 'technician';
 
@@ -276,9 +352,9 @@ export function NotificationsView() {
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5" />
             Notificaciones
-            {notifications.filter((n) => !n.is_read).length > 0 && (
+            {(notifications.filter((n) => !n.is_read).length + stoppedElevatorNotifications.length) > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {notifications.filter((n) => !n.is_read).length}
+                {notifications.filter((n) => !n.is_read).length + stoppedElevatorNotifications.length}
               </span>
             )}
           </div>
@@ -332,18 +408,22 @@ export function NotificationsView() {
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             </div>
-          ) : filteredNotifications.length === 0 ? (
+          ) : allNotifications.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
               <Bell className="w-16 h-16 text-slate-300 mx-auto mb-4" />
               <p className="text-slate-600 font-medium">No hay notificaciones</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredNotifications.map((notification) => (
+              {allNotifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={`bg-white rounded-lg shadow-sm border p-4 ${
-                    notification.is_read ? 'border-slate-200' : 'border-blue-300 bg-blue-50'
+                    notification.type === 'stopped_elevator' 
+                      ? 'border-red-300 bg-red-50'
+                      : notification.is_read 
+                        ? 'border-slate-200' 
+                        : 'border-blue-300 bg-blue-50'
                   }`}
                 >
                   <div className="flex items-start gap-4">
@@ -356,7 +436,7 @@ export function NotificationsView() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      {!notification.is_read && (
+                      {notification.type !== 'stopped_elevator' && !notification.is_read && (
                         <button
                           onClick={() => markAsRead(notification.id)}
                           className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"
@@ -365,13 +445,15 @@ export function NotificationsView() {
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       )}
-                      <button
-                        onClick={() => deleteNotification(notification.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {notification.type !== 'stopped_elevator' && (
+                        <button
+                          onClick={() => deleteNotification(notification.id)}
+                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -122,11 +122,11 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   // Logo JPG con aspect ratio correcto - a la izquierda del título
   if (logoImg) {
     try {
-      // Mantener aspect ratio del logo
-      const logoWidth = 30;
+      // Mantener aspect ratio del logo - reducido para mejor ajuste
+      const logoWidth = 25;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
-      // Posicionar logo a la izquierda, alineado con los títulos
+      // Posicionar logo a la izquierda
       doc.addImage(logoImg, 'JPEG', MARGIN, y, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
@@ -134,7 +134,7 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   }
 
   // Títulos a la derecha del logo, centrados en el espacio disponible
-  const titleStartX = MARGIN + 35; // Después del logo
+  const titleStartX = MARGIN + 35; // Después del logo con espacio apropiado
   const titleAreaWidth = PAGE_WIDTH - titleStartX - MARGIN;
   const titleCenterX = titleStartX + (titleAreaWidth / 2);
 
