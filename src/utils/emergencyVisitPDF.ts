@@ -122,8 +122,8 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   // Logo JPG con aspect ratio correcto - a la izquierda del título
   if (logoImg) {
     try {
-      // Mantener aspect ratio del logo - reducido para mejor ajuste
-      const logoWidth = 25;
+      // Logo más pequeño
+      const logoWidth = 20;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
       // Posicionar logo a la izquierda
@@ -133,8 +133,8 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
     }
   }
 
-  // Títulos a la derecha del logo, centrados en el espacio disponible
-  const titleStartX = MARGIN + 35; // Después del logo con espacio apropiado
+  // Títulos a la derecha del logo, empezando justo después del logo
+  const titleStartX = MARGIN + 23; // Pegado al logo de 20mm
   const titleAreaWidth = PAGE_WIDTH - titleStartX - MARGIN;
   const titleCenterX = titleStartX + (titleAreaWidth / 2);
 

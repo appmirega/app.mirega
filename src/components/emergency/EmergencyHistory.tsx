@@ -120,7 +120,10 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Fecha no disponible';
+    // Convertir de UTC a hora chilena (UTC-3)
     const date = new Date(dateString);
+    date.setHours(date.getHours() - 3);
+    
     const fechaStr = date.toLocaleDateString('es-ES', {
       day: '2-digit',
       month: '2-digit',
@@ -128,8 +131,7 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
     });
     const horaStr = date.toLocaleTimeString('es-ES', {
       hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Santiago'
+      minute: '2-digit'
     });
     return `${fechaStr}, ${horaStr}`;
   };

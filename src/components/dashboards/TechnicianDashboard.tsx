@@ -176,19 +176,22 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
           <p className="text-sm text-slate-600">Pendientes Hoy</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
+          onClick={() => onNavigate?.('emergency-history-complete')}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-red-500 p-3 rounded-lg">
               <AlertTriangle className="w-6 h-6 text-white" />
             </div>
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergencies}</h3>
-          <p className="text-sm text-slate-600">Emergencias Activas</p>
+          <p className="text-sm text-slate-600">Emergencias Hoy</p>
         </div>
 
         <div 
           className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg border-2 border-red-700 p-6 cursor-pointer hover:shadow-xl transition-all transform hover:scale-105"
-          onClick={() => onNavigate?.('/stopped-elevators')}
+          onClick={() => onNavigate?.('stopped-elevators')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-white/20 p-3 rounded-lg">
