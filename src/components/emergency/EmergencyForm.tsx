@@ -399,17 +399,19 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       // Obtener tipo y descripción de solicitud si existe
       let requestType: 'repair' | 'parts' | 'support' | null = null;
       let requestDescription: string | null = null;
+      let requestPriority: 'low' | 'medium' | 'high' | 'critical' | null = null;
       
       if (serviceRequestId) {
         const { data: requestData } = await supabase
           .from('service_requests')
-          .select('request_type, description')
+          .select('request_type, description, priority')
           .eq('id', serviceRequestId)
           .single();
         
         if (requestData) {
           requestType = requestData.request_type as 'repair' | 'parts' | 'support';
           requestDescription = requestData.description;
+          requestPriority = requestData.priority as 'low' | 'medium' | 'high' | 'critical';
         }
       }
 
@@ -447,7 +449,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         signatureDataUrl: signatureUrl || '',
         completedAt: new Date().toISOString(),
         serviceRequestType: requestType,
-        serviceRequestDescription: requestDescription
+        serviceRequestDescription: requestDescription,
+        serviceRequestPriority: requestPriority
       };
 
       // Generar PDF

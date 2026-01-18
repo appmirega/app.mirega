@@ -34,6 +34,7 @@ export interface EmergencyVisitPDFData {
   completedAt: string;
   serviceRequestType?: 'repair' | 'parts' | 'support' | null;
   serviceRequestDescription?: string | null;
+  serviceRequestPriority?: 'low' | 'medium' | 'high' | 'critical' | null;
 }
 
 // Configuración de página A4
@@ -317,9 +318,9 @@ function drawFailureDescription(doc: jsPDF, data: EmergencyVisitPDFData, startY:
     y = MARGIN;
   }
 
-  // Barra de título
-  const redRgb = hexToRgb(COLORS.red);
-  doc.setFillColor(...redRgb);
+  // Barra de título AZUL
+  const blueRgb = hexToRgb(COLORS.blue);
+  doc.setFillColor(...blueRgb);
   doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
   
   doc.setFont('helvetica', 'bold');
@@ -358,9 +359,9 @@ function drawResolution(doc: jsPDF, data: EmergencyVisitPDFData, startY: number)
     y = MARGIN;
   }
 
-  // Barra de título
-  const greenRgb = hexToRgb(COLORS.green);
-  doc.setFillColor(...greenRgb);
+  // Barra de título AZUL
+  const blueRgb = hexToRgb(COLORS.blue);
+  doc.setFillColor(...blueRgb);
   doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
   
   doc.setFont('helvetica', 'bold');
@@ -394,12 +395,12 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
   let y = startY;
 
   // Verificar espacio
-  if (y > PAGE_HEIGHT - 40) {
+  if (y > PAGE_HEIGHT - 60) {
     doc.addPage();
     y = MARGIN;
   }
 
-  // Barra de título
+  // Barra de título AZUL
   const blueRgb = hexToRgb(COLORS.blue);
   doc.setFillColor(...blueRgb);
   doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
@@ -411,69 +412,109 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
 
   y += 12;
 
-  // Estado final
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('Estado:', MARGIN, y);
-  
-  let statusColor = COLORS.green;
-  if (data.finalStatus === 'observation') statusColor = COLORS.yellow;
-  if (data.finalStatus === 'stopped') statusColor = COLORS.red;
-  
-  doc.setTextColor(...hexToRgb(statusColor));
-  doc.text(getStatusLabel(data.finalStatus), MARGIN + 20, y);
+  // Generar mensaje contextual según estado y solicitudes
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   
-  y += 8;
+  const maxWidth = PAGE_WIDTH - 2 * MARGIN;
+  
+  // Obtener etiqueta de prioridad
+  const getPriorityLabel = (priority?: string | null): string => {
+    switch (priority) {
+      case 'critical': return 'CRÍTICA';
+      case 'high': return 'ALTA';
+      case 'medium': return 'MEDIA';
+      case 'low': return 'BAJA';
+      default: return 'MEDIA';
+    }
+  };
 
-  // Si está en observación
-  if (data.finalStatus === 'observation' && data.observationUntil) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...hexToRgb(COLORS.orange));
-    doc.text(`⚠ En observación hasta: ${formatDate(data.observationUntil)}`, MARGIN, y);
-    doc.text('Se cerrará automáticamente si no se reportan problemas.', MARGIN, y + 5);
-    doc.setTextColor(0, 0, 0);
-    y += 12;
-  }
-
-  // Si quedó detenido - mostrar detalle de solicitud
-  if (data.finalStatus === 'stopped' && data.serviceRequestType) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...hexToRgb(COLORS.red));
-    doc.text('⚠ ASCENSOR DETENIDO - REQUIERE ATENCIÓN', MARGIN, y);
-    y += 6;
+  // Generar mensaje según estado final
+  let message = '';
+  
+  if (data.finalStatus === 'operational') {
+    // OPERATIVO
+    const elevatorNumbers = data.elevators.map(e => `N° ${e.elevator_number}`).join(', ');
+    message = `Ascensor${data.elevators.length > 1 ? 'es' : ''} ${elevatorNumbers} ${data.elevators.length > 1 ? 'quedan' : 'queda'} operativo${data.elevators.length > 1 ? 's' : ''} y sin anormalidades.`;
     
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Siguiente Paso:', MARGIN, y);
-    y += 5;
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    
-    // Detalle según tipo de solicitud
-    if (data.serviceRequestType === 'parts') {
-      const partDescription = data.serviceRequestDescription || 'No especificado';
-      doc.text(`Se ha creado solicitud de Repuestos. ${partDescription}`, MARGIN, y);
-      y += 5;
-      doc.text('El supervisor coordinará la adquisición e instalación.', MARGIN, y);
-    } else if (data.serviceRequestType === 'support') {
-      doc.text('Se ha creado solicitud de Soporte Técnico.', MARGIN, y);
-      y += 5;
-      doc.text('Se requiere segunda opinión especializada.', MARGIN, y);
-    } else if (data.serviceRequestType === 'repair') {
-      doc.text('Se ha creado solicitud de Reparación.', MARGIN, y);
-      y += 5;
-      doc.text('El supervisor asignará técnico para realizar la reparación.', MARGIN, y);
+    // Agregar información de solicitud si existe
+    if (data.serviceRequestType) {
+      message += '\n\n';
+      if (data.serviceRequestType === 'parts') {
+        const priority = getPriorityLabel(data.serviceRequestPriority);
+        message += `Se ha generado una solicitud de repuestos con prioridad ${priority}. `;
+        if (data.serviceRequestDescription) {
+          message += `${data.serviceRequestDescription}. `;
+        }
+        message += 'El supervisor coordinará la adquisición e instalación en fecha a definir.';
+      } else if (data.serviceRequestType === 'support') {
+        const priority = getPriorityLabel(data.serviceRequestPriority);
+        message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}. Se requiere segunda opinión especializada. El supervisor coordinará la visita del técnico especialista.`;
+      } else if (data.serviceRequestType === 'repair') {
+        const priority = getPriorityLabel(data.serviceRequestPriority);
+        message += `Se ha generado una solicitud de reparación con prioridad ${priority}. El supervisor asignará técnico para realizar los trabajos necesarios.`;
+      }
     }
     
-    doc.setTextColor(0, 0, 0);
-    y += 8;
+  } else if (data.finalStatus === 'observation') {
+    // EN OBSERVACIÓN
+    const elevatorNumbers = data.elevators.map(e => `N° ${e.elevator_number}`).join(', ');
+    const observationDate = data.observationUntil ? formatDate(data.observationUntil) : 'fecha a definir';
+    
+    message = `Ascensor${data.elevators.length > 1 ? 'es' : ''} ${elevatorNumbers} ${data.elevators.length > 1 ? 'quedarán' : 'quedará'} en observación hasta el ${observationDate}. Este estatus se cerrará automáticamente de no generarse ningún reporte durante el periodo señalado.`;
+    
+    // Agregar información de solicitud si existe
+    if (data.serviceRequestType) {
+      message += '\n\n';
+      if (data.serviceRequestType === 'parts') {
+        const priority = getPriorityLabel(data.serviceRequestPriority);
+        message += `Adicionalmente, se ha generado una solicitud de repuestos con prioridad ${priority} para atención preventiva. El supervisor coordinará la instalación durante el periodo de observación.`;
+      } else if (data.serviceRequestType === 'support') {
+        const priority = getPriorityLabel(data.serviceRequestPriority);
+        message += `Adicionalmente, se ha generado una solicitud de soporte técnico con prioridad ${priority}. Se requiere una segunda visita con apoyo especializado durante el periodo de observación.`;
+      } else if (data.serviceRequestType === 'repair') {
+        const priority = getPriorityLabel(data.serviceRequestPriority);
+        message += `Adicionalmente, se ha generado una solicitud de reparación con prioridad ${priority}. Los trabajos se realizarán durante el periodo de observación.`;
+      }
+    }
+    
+  } else if (data.finalStatus === 'stopped') {
+    // DETENIDO
+    const elevatorNumbers = data.elevators.map(e => `N° ${e.elevator_number}`).join(', ');
+    message = `Ascensor${data.elevators.length > 1 ? 'es' : ''} ${elevatorNumbers} ${data.elevators.length > 1 ? 'quedan' : 'queda'} DETENIDO${data.elevators.length > 1 ? 'S' : ''} por seguridad.`;
+    
+    // La solicitud es OBLIGATORIA para detenidos
+    if (data.serviceRequestType) {
+      message += '\n\n';
+      const priority = getPriorityLabel(data.serviceRequestPriority);
+      
+      if (data.serviceRequestType === 'parts') {
+        message += `Se ha generado una solicitud de repuestos con prioridad ${priority}. `;
+        if (data.serviceRequestDescription) {
+          message += `${data.serviceRequestDescription}. `;
+        }
+        message += `El ascensor permanecerá fuera de servicio hasta la instalación y puesta en marcha del equipo.`;
+      } else if (data.serviceRequestType === 'support') {
+        message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}. Se requiere segunda opinión especializada para determinar el plan de acción. El ascensor permanecerá fuera de servicio hasta la resolución del diagnóstico.`;
+      } else if (data.serviceRequestType === 'repair') {
+        message += `Se ha generado una solicitud de reparación con prioridad ${priority}. El supervisor asignará técnico especializado. El ascensor permanecerá fuera de servicio hasta completar la reparación.`;
+      }
+    }
   }
 
-  return y + 3;
+  // Dividir mensaje en líneas y renderizar
+  const lines = doc.splitTextToSize(message, maxWidth);
+  lines.forEach((line: string) => {
+    if (y > PAGE_HEIGHT - 20) {
+      doc.addPage();
+      y = MARGIN;
+    }
+    doc.text(line, MARGIN, y);
+    y += 5;
+  });
+
+  return y + 5;
 }
 
 // PÁGINA 2: EVIDENCIA FOTOGRÁFICA Y FIRMA
