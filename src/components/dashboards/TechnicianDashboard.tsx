@@ -73,12 +73,20 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const completed = schedules?.filter(s => s.status === 'completed').length || 0;
       const pending = schedules?.filter(s => s.status === 'pending').length || 0;
 
-      // Cargar emergencias
+      // Cargar emergencias del día (completadas hoy)
       const { count: emergencyCount } = await supabase
         .from('emergency_visits')
         .select('id', { count: 'exact', head: true })
         .eq('assigned_technician_id', profile?.id)
-        .in('status', ['assigned', 'in_progress']);
+        .eq('status', 'completed')
+        .gte('completed_at', `${today}T00:00:00`)
+        .lte('completed_at', `${today}T23:59:59`);
+
+      // Cargar solicitudes de servicio del técnico
+      const { count: requestsCount } = await supabase
+        .from('service_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('created_by_id', profile?.id);
 
       // Cargar checklists del mes actual (completados)
       const { count: checklistsCount } = await supabase
@@ -108,7 +116,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       setStats({
         scheduledToday: schedules?.length || 0,
         completed,
-        pending,
+        pending: requestsCount || 0,
         emergencies: emergencyCount || 0,
         checklistsThisMonth: checklistsCount || 0,
         totalChecklistsMonth: totalChecklistsCount || 0,
@@ -169,7 +177,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         {/* Mantenimientos del Mes */}
         <div 
           className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('maintenance-complete')}
+          onClick={() => onNavigate?.('maintenance-complete-view')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-white bg-opacity-20 p-3 rounded-lg">

@@ -153,14 +153,15 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   doc.setTextColor(0, 0, 0);
   doc.text('SERVICIO DE ATENCIÓN', titleStartX, y + 16);
 
-  // Información de contacto (centrada en toda la página, debajo del logo y títulos)
-  y += 22;
+  // Información de contacto (centrada en toda la página, más abajo)
+  y += 28;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setTextColor(100, 100, 100);
   const contactInfo = 'MIREGA ASCENSORES LTDA. | Pedro de Valdivia N°255 – Of. 202, Providencia | +56956087972 | contacto@mirega.cl | www.mirega.cl';
   doc.text(contactInfo, PAGE_WIDTH / 2, y, { align: 'center' });
 
-  return y + 8;
+  return y + 5;
 }
 
 // INFORMACIÓN GENERAL
