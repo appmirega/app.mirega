@@ -77,6 +77,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   // Solicitud
   const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false);
+  const [visitStartTime, setVisitStartTime] = useState<string>(''); // Hora de inicio del formulario
   
   // Control de UI
   const [currentStep, setCurrentStep] = useState(1);
@@ -164,6 +165,9 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   const createDraft = async () => {
     console.log('📝 Creando borrador de visita...');
     try {
+      const startTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
+      setVisitStartTime(startTime);
+      
       const { data, error } = await supabase
         .from('emergency_visits')
         .insert({
@@ -212,11 +216,18 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       // Cargar datos de la visita
       const { data: visitData, error: visitError } = await supabase
         .from('emergency_visits')
-        .select('*')
+        .select('*, created_at')
         .eq('id', draftVisitId)
         .single();
       
       if (visitError) throw visitError;
+      
+      // Capturar hora de creación
+      if (visitData.created_at) {
+        const createdDate = new Date(visitData.created_at);
+        const startTime = createdDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
+        setVisitStartTime(startTime);
+      }
       
       // Restaurar estados del formulario
       if (visitData.failure_description) setFailureDescription(visitData.failure_description);
@@ -230,12 +241,13 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .eq('emergency_visit_id', draftVisitId);
       
       if (photosData && photosData.length > 0) {
-        // Convertir URLs a File objects (solo para mostrar)
-        const uploadedPhotosData = photosData.map(p => ({
-          url: p.photo_url,
-          caption: p.caption || ''
-        }));
-        setUploadedPhotos(uploadedPhotosData);
+        // TODO: Restaurar fotos de evidencia desde URLs
+        // const uploadedPhotosData = photosData.map(p => ({
+        //   url: p.photo_url,
+        //   caption: p.caption || ''
+        // }));
+        // setUploadedPhotos(uploadedPhotosData);
+        console.log('📷 Fotos encontradas en borrador:', photosData.length);
       }
       
       // Cargar estados iniciales de ascensores
@@ -384,13 +396,33 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   }, [failureDescription, resolutionSummary, finalStatus, failureCause, receiverName, signatureRef, serviceRequestId]);
   const generateAndUploadPDF = async (signatureUrl: string | null) => {
     try {
+      // Obtener tipo y descripción de solicitud si existe
+      let requestType: 'repair' | 'parts' | 'support' | null = null;
+      let requestDescription: string | null = null;
+      
+      if (serviceRequestId) {
+        const { data: requestData } = await supabase
+          .from('service_requests')
+          .select('request_type, description')
+          .eq('id', serviceRequestId)
+          .single();
+        
+        if (requestData) {
+          requestType = requestData.request_type as 'repair' | 'parts' | 'support';
+          requestDescription = requestData.description;
+        }
+      }
+
+      const endTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
+
       // Preparar datos del PDF
       const pdfData: EmergencyVisitPDFData = {
         visitId: visitId!,
         clientName,
         clientAddress: elevators[0]?.location_name || null,
         visitDate: new Date().toISOString(),
-        visitTime: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+        visitStartTime: visitStartTime,
+        visitEndTime: endTime,
         technicianName: profile?.full_name || 'Técnico',
         elevators: elevators.map(e => ({
           elevator_number: e.elevator_number,
@@ -413,7 +445,9 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
           : null,
         receiverName,
         signatureDataUrl: signatureUrl || '',
-        completedAt: new Date().toISOString()
+        completedAt: new Date().toISOString(),
+        serviceRequestType: requestType,
+        serviceRequestDescription: requestDescription
       };
 
       // Generar PDF

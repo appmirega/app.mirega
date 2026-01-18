@@ -16,7 +16,8 @@ export interface EmergencyVisitPDFData {
   clientName: string;
   clientAddress?: string | null;
   visitDate: string;
-  visitTime: string;
+  visitStartTime: string; // Hora de apertura del formulario
+  visitEndTime: string;   // Hora de cierre
   technicianName: string;
   elevators: EmergencyElevatorInfo[];
   failureDescription: string;
@@ -31,6 +32,8 @@ export interface EmergencyVisitPDFData {
   receiverName: string;
   signatureDataUrl: string;
   completedAt: string;
+  serviceRequestType?: 'repair' | 'parts' | 'support' | null;
+  serviceRequestDescription?: string | null;
 }
 
 // Configuración de página A4
@@ -79,9 +82,9 @@ function formatTime(timeStr: string): string {
 // Etiquetas de causa de falla
 function getFailureCauseLabel(cause: string): string {
   switch (cause) {
-    case 'normal_use': return 'Desgaste por uso normal';
-    case 'third_party': return 'Responsabilidad de terceros';
-    case 'part_lifespan': return 'Vida útil de repuesto';
+    case 'normal_use': return 'Falla por uso';
+    case 'third_party': return 'Daño de terceros';
+    case 'part_lifespan': return 'Vida útil del repuesto';
     default: return 'No especificado';
   }
 }
@@ -114,24 +117,24 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo
+  // Logo PNG sin fondo
   if (logoImg) {
     try {
-      doc.addImage(logoImg, 'PNG', MARGIN, y, 25, 20);
+      doc.addImage(logoImg, 'PNG', MARGIN, y, 30, 20);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
-  // Título principal
+  // Título principal - NEGRO
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(...hexToRgb(COLORS.red)); // Rojo para emergencias
+  doc.setTextColor(0, 0, 0);
   doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH / 2, y + 10, { align: 'center' });
 
-  // Subtítulo
+  // Subtítulo - NEGRO
   doc.setFontSize(14);
-  doc.setTextColor(...hexToRgb(COLORS.black));
+  doc.setTextColor(0, 0, 0);
   doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH / 2, y + 18, { align: 'center' });
 
   // Información de contacto
@@ -148,9 +151,9 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
 function drawGeneralInfo(doc: jsPDF, data: EmergencyVisitPDFData, startY: number): number {
   let y = startY;
   
-  // Barra de título roja
-  const redRgb = hexToRgb(COLORS.red);
-  doc.setFillColor(...redRgb);
+  // Barra de título AZUL
+  const blueRgb = hexToRgb(COLORS.blue);
+  doc.setFillColor(...blueRgb);
   doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
   
   doc.setFont('helvetica', 'bold');
@@ -170,8 +173,8 @@ function drawGeneralInfo(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
   const drawField = (label: string, value: string, x: number, yPos: number, width?: number) => {
     const fieldWidth = width || ((PAGE_WIDTH / 2) - MARGIN - labelWidth);
     
-    // Label (rojo para emergencias)
-    doc.setFillColor(...redRgb);
+    // Label (AZUL)
+    doc.setFillColor(...blueRgb);
     doc.setTextColor(255, 255, 255);
     doc.rect(x, yPos, labelWidth, fieldHeight, 'F');
     doc.setFont('helvetica', 'bold');
@@ -180,7 +183,7 @@ function drawGeneralInfo(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
 
     // Value
     doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(...redRgb);
+    doc.setDrawColor(...blueRgb);
     doc.setLineWidth(0.3);
     doc.rect(x + labelWidth, yPos, fieldWidth, fieldHeight);
     doc.setTextColor(0, 0, 0);
@@ -189,18 +192,19 @@ function drawGeneralInfo(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
     doc.text(value, x + labelWidth + 2, yPos + 4.2);
   };
 
-  // Fila 1: Cliente | Fecha
-  drawField('Cliente:', data.clientName || '', leftCol, y);
+  // Fila 1: Edificio | Fecha
+  drawField('Edificio:', data.clientName || '', leftCol, y);
   drawField('Fecha:', formatDate(data.visitDate), rightCol, y);
   y += fieldHeight + 1.5;
 
-  // Fila 2: Dirección | Hora
+  // Fila 2: Dirección | Hora Inicio
   drawField('Dirección:', data.clientAddress || 'No especificada', leftCol, y);
-  drawField('Hora:', formatTime(data.visitTime), rightCol, y);
+  drawField('Hora Inicio:', formatTime(data.visitStartTime), rightCol, y);
   y += fieldHeight + 1.5;
 
-  // Fila 3: Técnico
+  // Fila 3: Técnico | Hora Cierre
   drawField('Técnico:', data.technicianName || '', leftCol, y);
+  drawField('Hora Cierre:', formatTime(data.visitEndTime), rightCol, y);
   y += fieldHeight + 1.5;
 
   return y + 3;
@@ -210,9 +214,20 @@ function drawGeneralInfo(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
 function drawElevators(doc: jsPDF, data: EmergencyVisitPDFData, startY: number): number {
   let y = startY;
 
-  // Barra de título
-  const redRgb = hexToRgb(COLORS.red);
-  doc.setFillColor(...redRgb);
+  // Determinar color de barra según estado final predominante
+  let barColor = COLORS.green; // Verde por defecto (operativo)
+  const hasObservation = data.elevators.some(e => e.final_status === 'observation');
+  const hasStopped = data.elevators.some(e => e.final_status === 'stopped');
+  
+  if (hasStopped) {
+    barColor = COLORS.red; // Rojo si hay detenidos
+  } else if (hasObservation) {
+    barColor = COLORS.yellow; // Amarillo si hay en observación
+  }
+
+  // Barra de título con color dinámico
+  const barRgb = hexToRgb(barColor);
+  doc.setFillColor(...barRgb);
   doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
   
   doc.setFont('helvetica', 'bold');
@@ -224,17 +239,17 @@ function drawElevators(doc: jsPDF, data: EmergencyVisitPDFData, startY: number):
 
   // Tabla de ascensores
   const tableStart = MARGIN;
-  const colWidths = [15, 45, 35, 35, 35]; // N°, Marca/Modelo, Ubicación, Estado Inicial, Estado Final
+  const colWidths = [45, 40, 40, 65]; // Ascensor N°, Estado Inicial, Estado Final, Clasificación
   const rowHeight = 7;
 
   // Encabezados
   doc.setFillColor(220, 220, 220);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   
   let x = tableStart;
-  const headers = ['N°', 'Marca / Modelo', 'Ubicación', 'Estado Inicial', 'Estado Final'];
+  const headers = ['Ascensor N°', 'Estado Inicial', 'Estado Final', 'Clasificación de la Falla'];
   headers.forEach((header, i) => {
     doc.rect(x, y, colWidths[i], rowHeight);
     doc.text(header, x + colWidths[i] / 2, y + 4.5, { align: 'center' });
@@ -248,45 +263,43 @@ function drawElevators(doc: jsPDF, data: EmergencyVisitPDFData, startY: number):
   data.elevators.forEach((elevator) => {
     x = tableStart;
     
-    // N°
+    // Ascensor N°
     doc.rect(x, y, colWidths[0], rowHeight);
-    doc.text(String(elevator.elevator_number), x + colWidths[0] / 2, y + 4.5, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text(`Ascensor N° ${elevator.elevator_number}`, x + colWidths[0] / 2, y + 4.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
     x += colWidths[0];
     
-    // Marca/Modelo
-    doc.rect(x, y, colWidths[1], rowHeight);
-    const brandModel = `${elevator.brand} ${elevator.model}`.substring(0, 25);
-    doc.text(brandModel, x + 2, y + 4.5);
-    x += colWidths[1];
-    
-    // Ubicación
-    doc.rect(x, y, colWidths[2], rowHeight);
-    const location = elevator.location_name.substring(0, 20);
-    doc.text(location, x + 2, y + 4.5);
-    x += colWidths[2];
-    
     // Estado Inicial
-    doc.rect(x, y, colWidths[3], rowHeight);
+    doc.rect(x, y, colWidths[1], rowHeight);
     const initialLabel = elevator.initial_status === 'operational' ? 'Operativo' : 'Detenido';
     const initialColor = elevator.initial_status === 'operational' ? COLORS.green : COLORS.red;
     doc.setTextColor(...hexToRgb(initialColor));
     doc.setFont('helvetica', 'bold');
-    doc.text(initialLabel, x + colWidths[3] / 2, y + 4.5, { align: 'center' });
+    doc.text(initialLabel, x + colWidths[1] / 2, y + 4.5, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    x += colWidths[3];
+    x += colWidths[1];
     
     // Estado Final
-    doc.rect(x, y, colWidths[4], rowHeight);
+    doc.rect(x, y, colWidths[2], rowHeight);
     const finalLabel = getStatusLabel(elevator.final_status);
     let finalColor = COLORS.green;
     if (elevator.final_status === 'observation') finalColor = COLORS.yellow;
     if (elevator.final_status === 'stopped') finalColor = COLORS.red;
     doc.setTextColor(...hexToRgb(finalColor));
     doc.setFont('helvetica', 'bold');
-    doc.text(finalLabel, x + colWidths[4] / 2, y + 4.5, { align: 'center' });
+    doc.text(finalLabel, x + colWidths[2] / 2, y + 4.5, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
+    x += colWidths[2];
+    
+    // Clasificación de la Falla
+    doc.rect(x, y, colWidths[3], rowHeight);
+    doc.setFontSize(7);
+    doc.text(getFailureCauseLabel(data.failureCause), x + 2, y + 4.5);
+    doc.setFontSize(8);
     
     y += rowHeight;
   });
@@ -294,12 +307,12 @@ function drawElevators(doc: jsPDF, data: EmergencyVisitPDFData, startY: number):
   return y + 5;
 }
 
-// DESCRIPCIÓN DE FALLA
-function drawFailureDescription(doc: jsPDF, data: EmergencyVisitPDFData, startY: number, failurePhoto1?: HTMLImageElement | null, failurePhoto2?: HTMLImageElement | null): number {
+// DESCRIPCIÓN DE FALLA (sin fotos)
+function drawFailureDescription(doc: jsPDF, data: EmergencyVisitPDFData, startY: number): number {
   let y = startY;
 
   // Verificar si necesitamos nueva página
-  if (y > PAGE_HEIGHT - 80) {
+  if (y > PAGE_HEIGHT - 50) {
     doc.addPage();
     y = MARGIN;
   }
@@ -332,53 +345,15 @@ function drawFailureDescription(doc: jsPDF, data: EmergencyVisitPDFData, startY:
     y += 5;
   });
 
-  y += 3;
-
-  // Fotos de la falla
-  if (failurePhoto1 || failurePhoto2) {
-    // Verificar espacio para fotos
-    if (y > PAGE_HEIGHT - 70) {
-      doc.addPage();
-      y = MARGIN;
-    }
-
-    const photoWidth = 85;
-    const photoHeight = 60;
-    let x = MARGIN;
-
-    if (failurePhoto1) {
-      try {
-        doc.addImage(failurePhoto1, 'JPEG', x, y, photoWidth, photoHeight);
-        doc.setFontSize(7);
-        doc.text('Foto 1 - Falla', x, y + photoHeight + 3);
-      } catch (e) {
-        console.error('Error al agregar foto 1 de falla:', e);
-      }
-      x += photoWidth + 5;
-    }
-
-    if (failurePhoto2) {
-      try {
-        doc.addImage(failurePhoto2, 'JPEG', x, y, photoWidth, photoHeight);
-        doc.setFontSize(7);
-        doc.text('Foto 2 - Falla', x, y + photoHeight + 3);
-      } catch (e) {
-        console.error('Error al agregar foto 2 de falla:', e);
-      }
-    }
-
-    y += photoHeight + 8;
-  }
-
-  return y;
+  return y + 5;
 }
 
-// RESOLUCIÓN
-function drawResolution(doc: jsPDF, data: EmergencyVisitPDFData, startY: number, resolutionPhoto1?: HTMLImageElement | null, resolutionPhoto2?: HTMLImageElement | null): number {
+// RESOLUCIÓN (sin fotos)
+function drawResolution(doc: jsPDF, data: EmergencyVisitPDFData, startY: number): number {
   let y = startY;
 
   // Verificar si necesitamos nueva página
-  if (y > PAGE_HEIGHT - 80) {
+  if (y > PAGE_HEIGHT - 50) {
     doc.addPage();
     y = MARGIN;
   }
@@ -411,54 +386,7 @@ function drawResolution(doc: jsPDF, data: EmergencyVisitPDFData, startY: number,
     y += 5;
   });
 
-  y += 3;
-
-  // Clasificación de la falla
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('Clasificación de la falla:', MARGIN, y);
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.text(getFailureCauseLabel(data.failureCause), MARGIN + 5, y);
-  y += 8;
-
-  // Fotos de resolución
-  if (resolutionPhoto1 || resolutionPhoto2) {
-    // Verificar espacio para fotos
-    if (y > PAGE_HEIGHT - 70) {
-      doc.addPage();
-      y = MARGIN;
-    }
-
-    const photoWidth = 85;
-    const photoHeight = 60;
-    let x = MARGIN;
-
-    if (resolutionPhoto1) {
-      try {
-        doc.addImage(resolutionPhoto1, 'JPEG', x, y, photoWidth, photoHeight);
-        doc.setFontSize(7);
-        doc.text('Foto 1 - Resolución', x, y + photoHeight + 3);
-      } catch (e) {
-        console.error('Error al agregar foto 1 de resolución:', e);
-      }
-      x += photoWidth + 5;
-    }
-
-    if (resolutionPhoto2) {
-      try {
-        doc.addImage(resolutionPhoto2, 'JPEG', x, y, photoWidth, photoHeight);
-        doc.setFontSize(7);
-        doc.text('Foto 2 - Resolución', x, y + photoHeight + 3);
-      } catch (e) {
-        console.error('Error al agregar foto 2 de resolución:', e);
-      }
-    }
-
-    y += photoHeight + 8;
-  }
-
-  return y;
+  return y + 5;
 }
 
 // ESTADO FINAL Y OBSERVACIONES
@@ -509,65 +437,175 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
     y += 12;
   }
 
-  // Si quedó detenido
-  if (data.finalStatus === 'stopped') {
+  // Si quedó detenido - mostrar detalle de solicitud
+  if (data.finalStatus === 'stopped' && data.serviceRequestType) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...hexToRgb(COLORS.red));
-    doc.text('⚠ ASCENSOR DETENIDO - REQUIERE REPARACIÓN', MARGIN, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Se ha generado una solicitud de servicio con prioridad CRÍTICA.', MARGIN, y + 5);
+    doc.text('⚠ ASCENSOR DETENIDO - REQUIERE ATENCIÓN', MARGIN, y);
+    y += 6;
+    
+    doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
-    y += 12;
+    doc.text('Siguiente Paso:', MARGIN, y);
+    y += 5;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    
+    // Detalle según tipo de solicitud
+    if (data.serviceRequestType === 'parts') {
+      const partDescription = data.serviceRequestDescription || 'No especificado';
+      doc.text(`Se ha creado solicitud de Repuestos. ${partDescription}`, MARGIN, y);
+      y += 5;
+      doc.text('El supervisor coordinará la adquisición e instalación.', MARGIN, y);
+    } else if (data.serviceRequestType === 'support') {
+      doc.text('Se ha creado solicitud de Soporte Técnico.', MARGIN, y);
+      y += 5;
+      doc.text('Se requiere segunda opinión especializada.', MARGIN, y);
+    } else if (data.serviceRequestType === 'repair') {
+      doc.text('Se ha creado solicitud de Reparación.', MARGIN, y);
+      y += 5;
+      doc.text('El supervisor asignará técnico para realizar la reparación.', MARGIN, y);
+    }
+    
+    doc.setTextColor(0, 0, 0);
+    y += 8;
   }
 
   return y + 3;
 }
 
-// FIRMA
-function drawSignature(doc: jsPDF, data: EmergencyVisitPDFData, startY: number, signatureImg?: HTMLImageElement | null): number {
-  let y = startY;
+// PÁGINA 2: EVIDENCIA FOTOGRÁFICA Y FIRMA
+function drawPhotosAndSignaturePage(
+  doc: jsPDF, 
+  data: EmergencyVisitPDFData,
+  failurePhoto1?: HTMLImageElement | null,
+  failurePhoto2?: HTMLImageElement | null, 
+  resolutionPhoto1?: HTMLImageElement | null,
+  resolutionPhoto2?: HTMLImageElement | null,
+  signatureImg?: HTMLImageElement | null
+): void {
+  doc.addPage();
+  let y = MARGIN + 5;
 
-  // Verificar espacio
-  if (y > PAGE_HEIGHT - 50) {
-    doc.addPage();
-    y = MARGIN;
+  // Título de sección: ESTADO INICIAL
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.text('REGISTRO FOTOGRÁFICO - ESTADO INICIAL', PAGE_WIDTH / 2, y, { align: 'center' });
+  y += 10;
+
+  // Fotos iniciales (2 fotos, mismo tamaño forzado)
+  const photoWidth = 85;
+  const photoHeight = 65;
+  const spacing = 10;
+  const startX = (PAGE_WIDTH - (2 * photoWidth + spacing)) / 2;
+
+  // Foto 1 - Estado Inicial
+  if (failurePhoto1) {
+    try {
+      doc.addImage(failurePhoto1, 'JPEG', startX, y, photoWidth, photoHeight);
+    } catch (e) {
+      console.error('Error al agregar foto 1 inicial:', e);
+    }
+  } else {
+    // Placeholder si no hay foto
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(startX, y, photoWidth, photoHeight);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Sin foto', startX + photoWidth / 2, y + photoHeight / 2, { align: 'center' });
   }
 
-  // Barra de título
-  const blueRgb = hexToRgb(COLORS.blue);
-  doc.setFillColor(...blueRgb);
-  doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
-  
+  // Foto 2 - Estado Inicial
+  if (failurePhoto2) {
+    try {
+      doc.addImage(failurePhoto2, 'JPEG', startX + photoWidth + spacing, y, photoWidth, photoHeight);
+    } catch (e) {
+      console.error('Error al agregar foto 2 inicial:', e);
+    }
+  } else {
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(startX + photoWidth + spacing, y, photoWidth, photoHeight);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Sin foto', startX + photoWidth + spacing + photoWidth / 2, y + photoHeight / 2, { align: 'center' });
+  }
+
+  y += photoHeight + 15;
+
+  // Título de sección: ESTADO FINAL
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.text('REGISTRO FOTOGRÁFICO - ESTADO FINAL', PAGE_WIDTH / 2, y, { align: 'center' });
+  y += 10;
+
+  // Fotos finales (2 fotos, mismo tamaño forzado)
+  // Foto 1 - Estado Final
+  if (resolutionPhoto1) {
+    try {
+      doc.addImage(resolutionPhoto1, 'JPEG', startX, y, photoWidth, photoHeight);
+    } catch (e) {
+      console.error('Error al agregar foto 1 final:', e);
+    }
+  } else {
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(startX, y, photoWidth, photoHeight);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Sin foto', startX + photoWidth / 2, y + photoHeight / 2, { align: 'center' });
+  }
+
+  // Foto 2 - Estado Final
+  if (resolutionPhoto2) {
+    try {
+      doc.addImage(resolutionPhoto2, 'JPEG', startX + photoWidth + spacing, y, photoWidth, photoHeight);
+    } catch (e) {
+      console.error('Error al agregar foto 2 final:', e);
+    }
+  } else {
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(startX + photoWidth + spacing, y, photoWidth, photoHeight);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Sin foto', startX + photoWidth + spacing + photoWidth / 2, y + photoHeight / 2, { align: 'center' });
+  }
+
+  y += photoHeight + 20;
+
+  // FIRMA CENTRADA
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text('FIRMA Y RECEPCIÓN', MARGIN + 3, y + 5.5);
-
-  y += 12;
-
-  // Nombre
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  doc.text('Recibido por:', MARGIN, y);
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.text(data.receiverName || 'No especificado', MARGIN, y);
+  doc.text('FIRMA Y RECEPCIÓN DEL SERVICIO', PAGE_WIDTH / 2, y, { align: 'center' });
   y += 8;
 
-  // Firma
+  // Nombre del receptor centrado
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(data.receiverName || 'No especificado', PAGE_WIDTH / 2, y, { align: 'center' });
+  y += 8;
+
+  // Firma centrada
   if (signatureImg) {
     try {
       const sigWidth = 60;
       const sigHeight = 30;
-      doc.addImage(signatureImg, 'PNG', MARGIN, y, sigWidth, sigHeight);
+      const sigX = (PAGE_WIDTH - sigWidth) / 2;
+      doc.addImage(signatureImg, 'PNG', sigX, y, sigWidth, sigHeight);
       y += sigHeight + 2;
+      
+      // Línea de firma
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
-      doc.line(MARGIN, y, MARGIN + sigWidth, y);
-      doc.setFontSize(7);
-      doc.text('Firma', MARGIN, y + 3);
+      doc.line(sigX, y, sigX + sigWidth, y);
+      y += 4;
+      
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Firma del Receptor', PAGE_WIDTH / 2, y, { align: 'center' });
     } catch (e) {
       console.error('Error al agregar firma:', e);
     }
@@ -575,11 +613,10 @@ function drawSignature(doc: jsPDF, data: EmergencyVisitPDFData, startY: number, 
 
   y += 8;
 
-  // Fecha de completado
+  // Fecha del servicio centrada
   doc.setFontSize(8);
-  doc.text(`Fecha de servicio: ${formatDate(data.completedAt)}`, MARGIN, y);
-
-  return y + 5;
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Fecha de Servicio: ${formatDate(data.completedAt)}`, PAGE_WIDTH / 2, y, { align: 'center' });
 }
 
 // PIE DE PÁGINA
@@ -605,7 +642,7 @@ export async function generateEmergencyVisitPDF(data: EmergencyVisitPDFData): Pr
     format: 'a4'
   });
 
-  // Cargar logo (ajusta la ruta según tu proyecto)
+  // Cargar logo PNG sin fondo
   const logoImg = await loadImage('/logo.png');
 
   // Cargar fotos si existen
@@ -615,21 +652,22 @@ export async function generateEmergencyVisitPDF(data: EmergencyVisitPDFData): Pr
   const resolutionPhoto2 = data.resolutionPhoto2Url ? await loadImage(data.resolutionPhoto2Url) : null;
   const signatureImg = data.signatureDataUrl ? await loadImage(data.signatureDataUrl) : null;
 
-  // Generar contenido
+  // ============ PÁGINA 1: INFORMACIÓN COMPLETA ============
   let y = drawHeader(doc, logoImg);
   y = drawGeneralInfo(doc, data, y);
   y = drawElevators(doc, data, y);
-  y = drawFailureDescription(doc, data, y, failurePhoto1, failurePhoto2);
-  y = drawResolution(doc, data, y, resolutionPhoto1, resolutionPhoto2);
+  y = drawFailureDescription(doc, data, y);
+  y = drawResolution(doc, data, y);
   y = drawFinalStatus(doc, data, y);
-  y = drawSignature(doc, data, y, signatureImg);
 
-  // Pie de página en todas las páginas
-  const totalPages = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    drawFooter(doc, i, totalPages);
-  }
+  // Pie de página 1
+  drawFooter(doc, 1, 2);
+
+  // ============ PÁGINA 2: FOTOS Y FIRMA ============
+  drawPhotosAndSignaturePage(doc, data, failurePhoto1, failurePhoto2, resolutionPhoto1, resolutionPhoto2, signatureImg);
+  
+  // Pie de página 2
+  drawFooter(doc, 2, 2);
 
   // Retornar blob
   return doc.output('blob');
