@@ -118,10 +118,20 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo PNG sin fondo
+  // Logo PNG sin fondo ni sombra
   if (logoImg) {
     try {
-      doc.addImage(logoImg, 'PNG', MARGIN, y, 30, 20);
+      // Crear canvas temporal para asegurar transparencia
+      const canvas = document.createElement('canvas');
+      canvas.width = logoImg.width;
+      canvas.height = logoImg.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(logoImg, 0, 0);
+        const dataUrl = canvas.toDataURL('image/png');
+        doc.addImage(dataUrl, 'PNG', MARGIN, y, 30, 20);
+      }
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
@@ -275,25 +285,17 @@ function drawElevators(doc: jsPDF, data: EmergencyVisitPDFData, startY: number):
     // Estado Inicial
     doc.rect(x, y, colWidths[1], rowHeight);
     const initialLabel = elevator.initial_status === 'operational' ? 'Operativo' : 'Detenido';
-    const initialColor = elevator.initial_status === 'operational' ? COLORS.green : COLORS.red;
-    doc.setTextColor(...hexToRgb(initialColor));
-    doc.setFont('helvetica', 'bold');
-    doc.text(initialLabel, x + colWidths[1] / 2, y + 4.5, { align: 'center' });
+    doc.setTextColor(0, 0, 0); // Texto negro
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
+    doc.text(initialLabel, x + colWidths[1] / 2, y + 4.5, { align: 'center' });
     x += colWidths[1];
     
     // Estado Final
     doc.rect(x, y, colWidths[2], rowHeight);
     const finalLabel = getStatusLabel(elevator.final_status);
-    let finalColor = COLORS.green;
-    if (elevator.final_status === 'observation') finalColor = COLORS.yellow;
-    if (elevator.final_status === 'stopped') finalColor = COLORS.red;
-    doc.setTextColor(...hexToRgb(finalColor));
-    doc.setFont('helvetica', 'bold');
-    doc.text(finalLabel, x + colWidths[2] / 2, y + 4.5, { align: 'center' });
+    doc.setTextColor(0, 0, 0); // Texto negro
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
+    doc.text(finalLabel, x + colWidths[2] / 2, y + 4.5, { align: 'center' });
     x += colWidths[2];
     
     // Clasificación de la Falla
@@ -530,12 +532,17 @@ function drawPhotosAndSignaturePage(
   doc.addPage();
   let y = MARGIN + 5;
 
-  // Título de sección: ESTADO INICIAL
+  const blueRgb = hexToRgb(COLORS.blue);
+
+  // Título de sección: ESTADO INICIAL con barra azul
+  doc.setFillColor(...blueRgb);
+  doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text('REGISTRO FOTOGRÁFICO - ESTADO INICIAL', MARGIN + 3, y + 5.5);
   doc.setTextColor(0, 0, 0);
-  doc.text('REGISTRO FOTOGRÁFICO - ESTADO INICIAL', PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 10;
+  y += 12;
 
   // Fotos iniciales (2 fotos, mismo tamaño forzado)
   const photoWidth = 85;
@@ -576,12 +583,15 @@ function drawPhotosAndSignaturePage(
 
   y += photoHeight + 15;
 
-  // Título de sección: ESTADO FINAL
+  // Título de sección: ESTADO FINAL con barra azul
+  doc.setFillColor(...blueRgb);
+  doc.rect(MARGIN, y, PAGE_WIDTH - 2 * MARGIN, 8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text('REGISTRO FOTOGRÁFICO - ESTADO FINAL', MARGIN + 3, y + 5.5);
   doc.setTextColor(0, 0, 0);
-  doc.text('REGISTRO FOTOGRÁFICO - ESTADO FINAL', PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 10;
+  y += 12;
 
   // Fotos finales (2 fotos, mismo tamaño forzado)
   // Foto 1 - Estado Final

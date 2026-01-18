@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, AlertTriangle, Building2, Loader2, Calendar, CheckCircle, FileText } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Building2, Loader2, Calendar, CheckCircle, FileText, FileDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface StoppedEmergency {
@@ -11,6 +11,7 @@ interface StoppedEmergency {
   elevator_numbers: string[];
   service_request_id: string | null;
   days_stopped: number;
+  pdf_url: string | null;
 }
 
 interface StoppedElevatorsProps {
@@ -42,6 +43,7 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
           failure_description,
           client_id,
           service_request_id,
+          pdf_url,
           clients (
             company_name
           )
@@ -84,7 +86,8 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
             client_name: (emergency.clients as any)?.company_name || 'Cliente desconocido',
             elevator_numbers: elevatorNumbers,
             service_request_id: emergency.service_request_id,
-            days_stopped: daysStopped
+            days_stopped: daysStopped,
+            pdf_url: emergency.pdf_url
           };
         })
       );
@@ -248,13 +251,26 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
                       </span>
                     </div>
 
-                    {/* Service request badge */}
-                    {emergency.service_request_id && (
-                      <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 w-fit">
-                        <FileText className="w-4 h-4" />
-                        <span>Solicitud de servicio creada</span>
-                      </div>
-                    )}
+                    {/* Service request badge and PDF button */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {emergency.service_request_id && (
+                        <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 w-fit">
+                          <FileText className="w-4 h-4" />
+                          <span>Solicitud de servicio creada</span>
+                        </div>
+                      )}
+                      {emergency.pdf_url && (
+                        <a
+                          href={emergency.pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-red-700 bg-red-100 px-3 py-2 rounded-lg border border-red-300 hover:bg-red-200 transition-colors font-medium"
+                        >
+                          <FileDown className="w-4 h-4" />
+                          Ver PDF Informe Inicial
+                        </a>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions */}

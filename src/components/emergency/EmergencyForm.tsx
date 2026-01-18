@@ -415,13 +415,22 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         }
       }
 
+      // Obtener dirección del edificio
+      const { data: buildingData } = await supabase
+        .from('elevators')
+        .select('buildings(address)')
+        .eq('id', elevators[0]?.id)
+        .single();
+      
+      const buildingAddress = (buildingData as any)?.buildings?.address || null;
+
       const endTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
 
       // Preparar datos del PDF
       const pdfData: EmergencyVisitPDFData = {
         visitId: visitId!,
         clientName,
-        clientAddress: elevators[0]?.location_name || null,
+        clientAddress: buildingAddress,
         visitDate: new Date().toISOString(),
         visitStartTime: visitStartTime,
         visitEndTime: endTime,
