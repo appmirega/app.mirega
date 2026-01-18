@@ -400,16 +400,18 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       let requestType: 'repair' | 'parts' | 'support' | null = null;
       let requestDescription: string | null = null;
       let requestPriority: 'low' | 'medium' | 'high' | 'critical' | null = null;
+      let requestTitle: string | null = null;
       
       if (serviceRequestId) {
         const { data: requestData } = await supabase
           .from('service_requests')
-          .select('request_type, description, priority')
+          .select('request_type, title, description, priority')
           .eq('id', serviceRequestId)
           .single();
         
         if (requestData) {
           requestType = requestData.request_type as 'repair' | 'parts' | 'support';
+          requestTitle = requestData.title;
           requestDescription = requestData.description;
           requestPriority = requestData.priority as 'low' | 'medium' | 'high' | 'critical';
         }
@@ -459,7 +461,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         completedAt: new Date().toISOString(),
         serviceRequestType: requestType,
         serviceRequestDescription: requestDescription,
-        serviceRequestPriority: requestPriority
+        serviceRequestPriority: requestPriority,
+        serviceRequestTitle: requestTitle
       };
 
       // Generar PDF
@@ -694,12 +697,23 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       {/* Descripción de la falla */}
       <div className="bg-white rounded-xl border-2 border-gray-200 p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">Descripción de la Falla</h2>
-        <textarea
-          value={failureDescription}
-          onChange={(e) => setFailureDescription(e.target.value)}
-          placeholder="Describe detalladamente la falla encontrada..."
-          className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="relative">
+          <textarea
+            value={failureDescription}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value.length <= 500) {
+                setFailureDescription(value);
+              }
+            }}
+            placeholder="Describe detalladamente la falla encontrada..."
+            className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
+            maxLength={500}
+          />
+          <div className="absolute bottom-2 right-2 text-xs text-gray-500">
+            {failureDescription.length}/500
+          </div>
+        </div>
         
         <div className="grid grid-cols-2 gap-4 mt-4">
           <div>
@@ -849,12 +863,23 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       {/* Resolución */}
       <div className="bg-white rounded-xl border-2 border-gray-200 p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">Resumen de Resolución</h2>
-        <textarea
-          value={resolutionSummary}
-          onChange={(e) => setResolutionSummary(e.target.value)}
-          placeholder="Describe lo que se realizó para resolver la falla..."
-          className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 mb-4"
-        />
+        <div className="relative">
+          <textarea
+            value={resolutionSummary}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value.length <= 500) {
+                setResolutionSummary(value);
+              }
+            }}
+            placeholder="Describe lo que se realizó para resolver la falla..."
+            className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 mb-4"
+            maxLength={500}
+          />
+          <div className="absolute top-2 right-2 text-xs text-gray-500">
+            {resolutionSummary.length}/500
+          </div>
+        </div>
         
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>

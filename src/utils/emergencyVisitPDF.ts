@@ -35,6 +35,7 @@ export interface EmergencyVisitPDFData {
   serviceRequestType?: 'repair' | 'parts' | 'support' | null;
   serviceRequestDescription?: string | null;
   serviceRequestPriority?: 'low' | 'medium' | 'high' | 'critical' | null;
+  serviceRequestTitle?: string | null;
 }
 
 // Configuración de página A4
@@ -118,10 +119,14 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo JPG
+  // Logo JPG con aspect ratio correcto
   if (logoImg) {
     try {
-      doc.addImage(logoImg, 'JPEG', MARGIN, y, 30, 20);
+      // Mantener aspect ratio del logo
+      const logoWidth = 35;
+      const aspectRatio = logoImg.width / logoImg.height;
+      const logoHeight = logoWidth / aspectRatio;
+      doc.addImage(logoImg, 'JPEG', MARGIN, y, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
@@ -448,19 +453,30 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
     // Agregar información de solicitud si existe
     if (data.serviceRequestType) {
       message += '\n\n';
+      const priority = getPriorityLabel(data.serviceRequestPriority);
+      
       if (data.serviceRequestType === 'parts') {
-        const priority = getPriorityLabel(data.serviceRequestPriority);
-        message += `Se ha generado una solicitud de repuestos con prioridad ${priority}. `;
+        message += `Se ha generado una solicitud de repuestos con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. ';
         if (data.serviceRequestDescription) {
           message += `${data.serviceRequestDescription}. `;
         }
         message += 'El supervisor coordinará la adquisición e instalación en fecha a definir.';
       } else if (data.serviceRequestType === 'support') {
-        const priority = getPriorityLabel(data.serviceRequestPriority);
-        message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}. Se requiere segunda opinión especializada. El supervisor coordinará la visita del técnico especialista.`;
+        message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. Se requiere segunda opinión especializada. El supervisor coordinará la visita del técnico especialista.';
       } else if (data.serviceRequestType === 'repair') {
-        const priority = getPriorityLabel(data.serviceRequestPriority);
-        message += `Se ha generado una solicitud de reparación con prioridad ${priority}. El supervisor asignará técnico para realizar los trabajos necesarios.`;
+        message += `Se ha generado una solicitud de reparación con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. El supervisor asignará técnico para realizar los trabajos necesarios.';
       }
     }
     
@@ -474,15 +490,26 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
     // Agregar información de solicitud si existe
     if (data.serviceRequestType) {
       message += '\n\n';
+      const priority = getPriorityLabel(data.serviceRequestPriority);
+      
       if (data.serviceRequestType === 'parts') {
-        const priority = getPriorityLabel(data.serviceRequestPriority);
-        message += `Adicionalmente, se ha generado una solicitud de repuestos con prioridad ${priority} para atención preventiva. El supervisor coordinará la instalación durante el periodo de observación.`;
+        message += `Adicionalmente, se ha generado una solicitud de repuestos con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += ' para atención preventiva. El supervisor coordinará la instalación durante el periodo de observación.';
       } else if (data.serviceRequestType === 'support') {
-        const priority = getPriorityLabel(data.serviceRequestPriority);
-        message += `Adicionalmente, se ha generado una solicitud de soporte técnico con prioridad ${priority}. Se requiere una segunda visita con apoyo especializado durante el periodo de observación.`;
+        message += `Adicionalmente, se ha generado una solicitud de soporte técnico con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. Se requiere una segunda visita con apoyo especializado durante el periodo de observación.';
       } else if (data.serviceRequestType === 'repair') {
-        const priority = getPriorityLabel(data.serviceRequestPriority);
-        message += `Adicionalmente, se ha generado una solicitud de reparación con prioridad ${priority}. Los trabajos se realizarán durante el periodo de observación.`;
+        message += `Adicionalmente, se ha generado una solicitud de reparación con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. Los trabajos se realizarán durante el periodo de observación.';
       }
     }
     
@@ -497,15 +524,27 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
       const priority = getPriorityLabel(data.serviceRequestPriority);
       
       if (data.serviceRequestType === 'parts') {
-        message += `Se ha generado una solicitud de repuestos con prioridad ${priority}. `;
+        message += `Se ha generado una solicitud de repuestos con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. ';
         if (data.serviceRequestDescription) {
           message += `${data.serviceRequestDescription}. `;
         }
         message += `El ascensor permanecerá fuera de servicio hasta la instalación y puesta en marcha del equipo.`;
       } else if (data.serviceRequestType === 'support') {
-        message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}. Se requiere segunda opinión especializada para determinar el plan de acción. El ascensor permanecerá fuera de servicio hasta la resolución del diagnóstico.`;
+        message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. Se requiere segunda opinión especializada para determinar el plan de acción. El ascensor permanecerá fuera de servicio hasta la resolución del diagnóstico.';
       } else if (data.serviceRequestType === 'repair') {
-        message += `Se ha generado una solicitud de reparación con prioridad ${priority}. El supervisor asignará técnico especializado. El ascensor permanecerá fuera de servicio hasta completar la reparación.`;
+        message += `Se ha generado una solicitud de reparación con prioridad ${priority}`;
+        if (data.serviceRequestTitle) {
+          message += `: ${data.serviceRequestTitle}`;
+        }
+        message += '. El supervisor asignará técnico especializado. El ascensor permanecerá fuera de servicio hasta completar la reparación.';
       }
     }
   }

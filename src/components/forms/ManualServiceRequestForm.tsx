@@ -127,6 +127,11 @@ export function ManualServiceRequestForm({
     e.preventDefault();
     if (!profile?.id) return;
 
+    if (!formData.title.trim()) {
+      alert('El título es obligatorio');
+      return;
+    }
+
     if (!photo1 || !photo2) {
       alert('Debes subir ambas fotos obligatorias');
       return;
