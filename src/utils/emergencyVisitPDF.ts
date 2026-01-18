@@ -118,20 +118,10 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo PNG sin fondo ni sombra
+  // Logo JPG
   if (logoImg) {
     try {
-      // Crear canvas temporal para asegurar transparencia
-      const canvas = document.createElement('canvas');
-      canvas.width = logoImg.width;
-      canvas.height = logoImg.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(logoImg, 0, 0);
-        const dataUrl = canvas.toDataURL('image/png');
-        doc.addImage(dataUrl, 'PNG', MARGIN, y, 30, 20);
-      }
+      doc.addImage(logoImg, 'JPEG', MARGIN, y, 30, 20);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
@@ -310,7 +300,7 @@ function drawElevators(doc: jsPDF, data: EmergencyVisitPDFData, startY: number):
   return y + 5;
 }
 
-// DESCRIPCIÓN DE FALLA (sin fotos)
+// DESCRIPCIÓN DE FALLA (sin fotos, limitada a espacio disponible)
 function drawFailureDescription(doc: jsPDF, data: EmergencyVisitPDFData, startY: number): number {
   let y = startY;
 
@@ -332,26 +322,35 @@ function drawFailureDescription(doc: jsPDF, data: EmergencyVisitPDFData, startY:
 
   y += 12;
 
-  // Descripción
+  // Descripción con límite de líneas para no exceder página
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   
   const maxWidth = PAGE_WIDTH - 2 * MARGIN;
+  const maxHeight = 35; // Máximo espacio para descripción (7 líneas aprox)
   const lines = doc.splitTextToSize(data.failureDescription || 'Sin descripción', maxWidth);
-  lines.forEach((line: string) => {
-    if (y > PAGE_HEIGHT - 20) {
-      doc.addPage();
-      y = MARGIN;
-    }
+  
+  let lineCount = 0;
+  const maxLines = 7; // Límite de líneas
+  
+  lines.slice(0, maxLines).forEach((line: string) => {
     doc.text(line, MARGIN, y);
     y += 5;
+    lineCount++;
   });
+  
+  if (lines.length > maxLines) {
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(8);
+    doc.text('...', MARGIN, y);
+    y += 5;
+  }
 
-  return y + 5;
+  return y + 3;
 }
 
-// RESOLUCIÓN (sin fotos)
+// RESOLUCIÓN (sin fotos, limitada a espacio disponible)
 function drawResolution(doc: jsPDF, data: EmergencyVisitPDFData, startY: number): number {
   let y = startY;
 
@@ -373,23 +372,29 @@ function drawResolution(doc: jsPDF, data: EmergencyVisitPDFData, startY: number)
 
   y += 12;
 
-  // Resumen de resolución
+  // Resumen de resolución con límite de líneas
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   
   const maxWidth = PAGE_WIDTH - 2 * MARGIN;
   const lines = doc.splitTextToSize(data.resolutionSummary || 'Sin descripción', maxWidth);
-  lines.forEach((line: string) => {
-    if (y > PAGE_HEIGHT - 20) {
-      doc.addPage();
-      y = MARGIN;
-    }
+  
+  const maxLines = 7; // Límite de líneas
+  
+  lines.slice(0, maxLines).forEach((line: string) => {
     doc.text(line, MARGIN, y);
     y += 5;
   });
+  
+  if (lines.length > maxLines) {
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(8);
+    doc.text('...', MARGIN, y);
+    y += 5;
+  }
 
-  return y + 5;
+  return y + 3;
 }
 
 // ESTADO FINAL Y OBSERVACIONES
@@ -523,6 +528,7 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
 function drawPhotosAndSignaturePage(
   doc: jsPDF, 
   data: EmergencyVisitPDFData,
+  logoImg: HTMLImageElement | null,
   failurePhoto1?: HTMLImageElement | null,
   failurePhoto2?: HTMLImageElement | null, 
   resolutionPhoto1?: HTMLImageElement | null,
@@ -530,7 +536,10 @@ function drawPhotosAndSignaturePage(
   signatureImg?: HTMLImageElement | null
 ): void {
   doc.addPage();
-  let y = MARGIN + 5;
+  
+  // Dibujar encabezado completo en página 2
+  let y = drawHeader(doc, logoImg);
+  y += 5;
 
   const blueRgb = hexToRgb(COLORS.blue);
 
@@ -624,26 +633,38 @@ function drawPhotosAndSignaturePage(
     doc.text('Sin foto', startX + photoWidth + spacing + photoWidth / 2, y + photoHeight / 2, { align: 'center' });
   }
 
-  y += photoHeight + 20;
+  y += photoHeight + 25; // Espacio adicional antes de la firma
 
-  // FIRMA CENTRADA
+  // FIRMA CENTRADA - MÁS ABAJO Y CONTROLADA
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('FIRMA Y RECEPCIÓN DEL SERVICIO', PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 8;
+  y += 6;
 
   // Nombre del receptor centrado
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(data.receiverName || 'No especificado', PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 8;
+  y += 6;
 
-  // Firma centrada
+  // Firma centrada con tamaño controlado (más pequeña)
   if (signatureImg) {
     try {
-      const sigWidth = 60;
-      const sigHeight = 30;
+      // Tamaño fijo controlado para la firma
+      const maxSigWidth = 50;
+      const maxSigHeight = 20;
+      
+      // Calcular tamaño manteniendo aspect ratio
+      const aspectRatio = signatureImg.width / signatureImg.height;
+      let sigWidth = maxSigWidth;
+      let sigHeight = maxSigWidth / aspectRatio;
+      
+      if (sigHeight > maxSigHeight) {
+        sigHeight = maxSigHeight;
+        sigWidth = maxSigHeight * aspectRatio;
+      }
+      
       const sigX = (PAGE_WIDTH - sigWidth) / 2;
       doc.addImage(signatureImg, 'PNG', sigX, y, sigWidth, sigHeight);
       y += sigHeight + 2;
@@ -651,7 +672,9 @@ function drawPhotosAndSignaturePage(
       // Línea de firma
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
-      doc.line(sigX, y, sigX + sigWidth, y);
+      const lineWidth = 60;
+      const lineX = (PAGE_WIDTH - lineWidth) / 2;
+      doc.line(lineX, y, lineX + lineWidth, y);
       y += 4;
       
       doc.setFontSize(8);
@@ -662,7 +685,7 @@ function drawPhotosAndSignaturePage(
     }
   }
 
-  y += 8;
+  y += 6;
 
   // Fecha del servicio centrada
   doc.setFontSize(8);
@@ -693,8 +716,8 @@ export async function generateEmergencyVisitPDF(data: EmergencyVisitPDFData): Pr
     format: 'a4'
   });
 
-  // Cargar logo PNG sin fondo
-  const logoImg = await loadImage('/logo.png');
+  // Cargar logo JPG
+  const logoImg = await loadImage('/logo_fondo_1.jpg');
 
   // Cargar fotos si existen
   const failurePhoto1 = data.failurePhoto1Url ? await loadImage(data.failurePhoto1Url) : null;
@@ -715,7 +738,7 @@ export async function generateEmergencyVisitPDF(data: EmergencyVisitPDFData): Pr
   drawFooter(doc, 1, 2);
 
   // ============ PÁGINA 2: FOTOS Y FIRMA ============
-  drawPhotosAndSignaturePage(doc, data, failurePhoto1, failurePhoto2, resolutionPhoto1, resolutionPhoto2, signatureImg);
+  drawPhotosAndSignaturePage(doc, data, logoImg, failurePhoto1, failurePhoto2, resolutionPhoto1, resolutionPhoto2, signatureImg);
   
   // Pie de página 2
   drawFooter(doc, 2, 2);

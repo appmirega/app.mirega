@@ -415,14 +415,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         }
       }
 
-      // Obtener dirección del edificio
-      const { data: buildingData } = await supabase
-        .from('elevators')
-        .select('buildings(address)')
-        .eq('id', elevators[0]?.id)
+      // Obtener dirección del cliente desde la tabla clients
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('address')
+        .eq('id', clientId)
         .single();
       
-      const buildingAddress = (buildingData as any)?.buildings?.address || null;
+      const clientAddress = clientData?.address || null;
 
       const endTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -430,7 +430,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       const pdfData: EmergencyVisitPDFData = {
         visitId: visitId!,
         clientName,
-        clientAddress: buildingAddress,
+        clientAddress: clientAddress,
         visitDate: new Date().toISOString(),
         visitStartTime: visitStartTime,
         visitEndTime: endTime,
