@@ -119,11 +119,11 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo JPG con aspect ratio correcto
+  // Logo JPG con aspect ratio correcto - posicionado a la izquierda
   if (logoImg) {
     try {
       // Mantener aspect ratio del logo
-      const logoWidth = 35;
+      const logoWidth = 30;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
       doc.addImage(logoImg, 'JPEG', MARGIN, y, logoWidth, logoHeight);
@@ -132,13 +132,13 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
     }
   }
 
-  // Título principal - NEGRO
+  // Título principal - NEGRO (centrado)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(0, 0, 0);
   doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH / 2, y + 10, { align: 'center' });
 
-  // Subtítulo - NEGRO
+  // Subtítulo - NEGRO (centrado)
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH / 2, y + 18, { align: 'center' });
@@ -150,7 +150,7 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const contactInfo = 'MIREGA ASCENSORES LTDA. | Pedro de Valdivia N°255 – Of. 202, Providencia | +56956087972 | contacto@mirega.cl | www.mirega.cl';
   doc.text(contactInfo, PAGE_WIDTH / 2, y, { align: 'center' });
 
-  return y + 8;
+  return y + 10; // Aumentar espacio después del header
 }
 
 // INFORMACIÓN GENERAL
@@ -460,11 +460,7 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
         if (data.serviceRequestTitle) {
           message += `: ${data.serviceRequestTitle}`;
         }
-        message += '. ';
-        if (data.serviceRequestDescription) {
-          message += `${data.serviceRequestDescription}. `;
-        }
-        message += 'El supervisor coordinará la adquisición e instalación en fecha a definir.';
+        message += '. El supervisor coordinará la adquisición e instalación en fecha a definir.';
       } else if (data.serviceRequestType === 'support') {
         message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}`;
         if (data.serviceRequestTitle) {
@@ -528,11 +524,7 @@ function drawFinalStatus(doc: jsPDF, data: EmergencyVisitPDFData, startY: number
         if (data.serviceRequestTitle) {
           message += `: ${data.serviceRequestTitle}`;
         }
-        message += '. ';
-        if (data.serviceRequestDescription) {
-          message += `${data.serviceRequestDescription}. `;
-        }
-        message += `El ascensor permanecerá fuera de servicio hasta la instalación y puesta en marcha del equipo.`;
+        message += '. El ascensor permanecerá fuera de servicio hasta la instalación y puesta en marcha del equipo.';
       } else if (data.serviceRequestType === 'support') {
         message += `Se ha generado una solicitud de soporte técnico con prioridad ${priority}`;
         if (data.serviceRequestTitle) {
