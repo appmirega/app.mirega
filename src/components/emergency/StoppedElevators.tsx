@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, AlertTriangle, Building2, Loader2, Calendar } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Building2, Loader2, Calendar, CheckCircle, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-interface StoppedElevator {
+interface StoppedEmergency {
   id: string;
-  elevator_number: string;
-  client_name: string;
   visit_date: string;
   failure_description: string;
-  emergency_visit_id: string;
+  client_id: string;
+  client_name: string;
+  elevator_numbers: string[];
+  service_request_id: string | null;
+  days_stopped: number;
 }
 
 interface StoppedElevatorsProps {
@@ -16,8 +18,12 @@ interface StoppedElevatorsProps {
 }
 
 export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
-  const [elevators, setElevators] = useState<StoppedElevator[]>([]);
+  const [emergencies, setEmergencies] = useState<StoppedEmergency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEmergency, setSelectedEmergency] = useState<StoppedEmergency | null>(null);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [reactivationNotes, setReactivationNotes] = useState('');
+  const [reactivating, setReactivating] = useState(false);
 
   useEffect(() => {
     loadStoppedElevators();
@@ -27,47 +33,108 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
     try {
       setLoading(true);
 
-      // Get emergency visit elevators with stopped status
+      // Get emergency visits with stopped status and not reactivated
       const { data, error } = await supabase
-        .from('emergency_visit_elevators')
+        .from('emergency_visits')
         .select(`
           id,
-          emergency_visit_id,
-          elevator_id,
-          elevators (
-            elevator_number,
-            client_id,
-            clients (
-              business_name
-            )
-          ),
-          emergency_visits (
-            visit_date,
-            failure_description
+          visit_date,
+          failure_description,
+          client_id,
+          service_request_id,
+          clients (
+            company_name
           )
         `)
         .eq('final_status', 'stopped')
-        .order('created_at', { ascending: false });
+        .is('reactivation_date', null)
+        .eq('status', 'completed')
+        .order('visit_date', { ascending: false });
 
       if (error) {
-        console.error('Error loading stopped elevators:', error);
+        console.error('Error loading stopped emergencies:', error);
         return;
       }
 
-      const formattedElevators = (data || []).map((item) => ({
-        id: item.id,
-        elevator_number: (item.elevators as any)?.elevator_number || 'N/A',
-        client_name: (item.elevators as any)?.clients?.business_name || 'Cliente desconocido',
-        visit_date: (item.emergency_visits as any)?.visit_date || '',
-        failure_description: (item.emergency_visits as any)?.failure_description || 'Sin descripción',
-        emergency_visit_id: item.emergency_visit_id
-      }));
+      if (!data) {
+        setEmergencies([]);
+        return;
+      }
 
-      setElevators(formattedElevators);
+      // Get elevator numbers for each emergency
+      const emergenciesWithElevators = await Promise.all(
+        data.map(async (emergency) => {
+          const { data: elevatorData } = await supabase
+            .from('emergency_visit_elevators')
+            .select('elevators(elevator_number)')
+            .eq('emergency_visit_id', emergency.id);
+
+          const elevatorNumbers = elevatorData?.map(e => (e.elevators as any)?.elevator_number).filter(Boolean) || [];
+          
+          // Calculate days stopped
+          const visitDate = new Date(emergency.visit_date);
+          const today = new Date();
+          const daysStopped = Math.floor((today.getTime() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          return {
+            id: emergency.id,
+            visit_date: emergency.visit_date,
+            failure_description: emergency.failure_description || 'Sin descripción',
+            client_id: emergency.client_id,
+            client_name: (emergency.clients as any)?.company_name || 'Cliente desconocido',
+            elevator_numbers: elevatorNumbers,
+            service_request_id: emergency.service_request_id,
+            days_stopped: daysStopped
+          };
+        })
+      );
+
+      setEmergencies(emergenciesWithElevators);
     } catch (error) {
-      console.error('Error loading stopped elevators:', error);
+      console.error('Error loading stopped emergencies:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReactivate = (emergency: StoppedEmergency) => {
+    setSelectedEmergency(emergency);
+    setShowReactivateModal(true);
+    setReactivationNotes('');
+  };
+
+  const confirmReactivation = async () => {
+    if (!selectedEmergency || !reactivationNotes.trim()) {
+      alert('Debes ingresar notas sobre la reactivación');
+      return;
+    }
+
+    try {
+      setReactivating(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuario no autenticado');
+
+      const { error } = await supabase
+        .from('emergency_visits')
+        .update({
+          reactivation_date: new Date().toISOString(),
+          reactivation_notes: reactivationNotes,
+          reactivated_by: user.id
+        })
+        .eq('id', selectedEmergency.id);
+
+      if (error) throw error;
+
+      alert('✅ Ascensor dado de alta correctamente');
+      setShowReactivateModal(false);
+      setSelectedEmergency(null);
+      loadStoppedElevators(); // Reload list
+    } catch (error) {
+      console.error('Error reactivating:', error);
+      alert('Error al dar de alta el ascensor');
+    } finally {
+      setReactivating(false);
     }
   };
 
@@ -104,10 +171,10 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
         </div>
 
         {/* Count badge */}
-        {!loading && elevators.length > 0 && (
+        {!loading && emergencies.length > 0 && (
           <div className="mb-6 inline-flex items-center gap-2 bg-red-100 border-2 border-red-300 text-red-900 px-4 py-2 rounded-lg font-bold">
             <AlertTriangle className="w-5 h-5" />
-            {elevators.length} ascensor{elevators.length !== 1 ? 'es' : ''} detenido{elevators.length !== 1 ? 's' : ''}
+            {emergencies.length} ascensor{emergencies.length !== 1 ? 'es' : ''} detenido{emergencies.length !== 1 ? 's' : ''}
           </div>
         )}
 
@@ -119,9 +186,9 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
         )}
 
         {/* Empty state */}
-        {!loading && elevators.length === 0 && (
+        {!loading && emergencies.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <AlertTriangle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               No hay ascensores detenidos
             </h3>
@@ -130,13 +197,17 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
             </p>
           </div>
         )}
+              Todos los ascensores están operativos
+            </p>
+          </div>
+        )}
 
         {/* List */}
-        {!loading && elevators.length > 0 && (
+        {!loading && emergencies.length > 0 && (
           <div className="space-y-4">
-            {elevators.map((elevator) => (
+            {emergencies.map((emergency) => (
               <div
-                key={elevator.id}
+                key={emergency.id}
                 className="bg-red-50 rounded-xl border-2 border-red-300 p-6 shadow-md hover:shadow-lg transition-shadow"
               >
                 <div className="flex items-start gap-4">
@@ -151,39 +222,126 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="w-5 h-5 text-red-700" />
                       <h3 className="text-lg font-bold text-red-900">
-                        {elevator.client_name}
+                        {emergency.client_name}
                       </h3>
                     </div>
 
-                    {/* Elevator number */}
+                    {/* Elevator numbers */}
                     <p className="text-base font-semibold text-red-800 mb-3">
-                      Ascensor N° {elevator.elevator_number}
+                      {emergency.elevator_numbers.length > 0 
+                        ? `Ascensor${emergency.elevator_numbers.length > 1 ? 'es' : ''} N° ${emergency.elevator_numbers.join(', ')}`
+                        : 'Sin ascensores asignados'}
                     </p>
 
                     {/* Failure description */}
                     <div className="bg-white rounded-lg p-3 mb-3 border border-red-200">
                       <p className="text-sm text-gray-700">
                         <span className="font-semibold text-red-900">Falla:</span>{' '}
-                        {elevator.failure_description}
+                        {emergency.failure_description}
                       </p>
                     </div>
 
-                    {/* Date */}
-                    <div className="flex items-center gap-2 text-sm text-red-700">
-                      <Calendar className="w-4 h-4" />
-                      <span>Detenido desde: {formatDate(elevator.visit_date)}</span>
+                    {/* Date and days */}
+                    <div className="flex items-center gap-4 text-sm text-red-700 mb-3">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>Detenido desde: {formatDate(emergency.visit_date)}</span>
+                      </div>
+                      <span className="font-bold">
+                        ({emergency.days_stopped} día{emergency.days_stopped !== 1 ? 's' : ''})
+                      </span>
                     </div>
+
+                    {/* Service request badge */}
+                    {emergency.service_request_id && (
+                      <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 w-fit">
+                        <FileText className="w-4 h-4" />
+                        <span>Solicitud de servicio creada</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Status badge */}
-                  <div className="flex-shrink-0">
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2">
                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-600 text-white text-sm font-bold rounded-full">
                       DETENIDO
                     </span>
+                    <button
+                      onClick={() => handleReactivate(emergency)}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Dar de Alta
+                    </button>
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Reactivation Modal */}
+        {showReactivateModal && selectedEmergency && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Dar de Alta Ascensor
+              </h2>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-semibold">Cliente:</span> {selectedEmergency.client_name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-semibold">Ascensor(es):</span> N° {selectedEmergency.elevator_numbers.join(', ')}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notas de Reactivación *
+                </label>
+                <textarea
+                  value={reactivationNotes}
+                  onChange={(e) => setReactivationNotes(e.target.value)}
+                  placeholder="Describe qué se realizó para poner el ascensor operativo nuevamente..."
+                  className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Ejemplo: "Repuesto instalado correctamente, ascensor probado y funcionando"
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowReactivateModal(false);
+                    setSelectedEmergency(null);
+                  }}
+                  disabled={reactivating}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmReactivation}
+                  disabled={reactivating || !reactivationNotes.trim()}
+                  className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {reactivating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Confirmar Alta
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

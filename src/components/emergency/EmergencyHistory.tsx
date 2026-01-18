@@ -12,6 +12,9 @@ interface EmergencyVisit {
   client_name?: string;
   elevator_numbers?: string[];
   final_status?: string;
+  pdf_url?: string;
+  reactivation_date?: string;
+  reactivation_notes?: string;
 }
 
 interface EmergencyHistoryProps {
@@ -57,6 +60,8 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
           status,
           final_status,
           pdf_url,
+          reactivation_date,
+          reactivation_notes,
           clients (
             company_name
           )
@@ -95,7 +100,9 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
             client_name: (visit.clients as any)?.company_name,
             elevator_numbers: elevatorsData?.map(e => (e.elevators as any)?.elevator_number).filter(Boolean),
             final_status: visit.final_status || elevatorsData?.[0]?.final_status,
-            pdf_url: visit.pdf_url
+            pdf_url: visit.pdf_url,
+            reactivation_date: visit.reactivation_date,
+            reactivation_notes: visit.reactivation_notes
           };
         })
       );
@@ -297,6 +304,18 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
                       {visit.resolution_description || 'Sin descripción'}
                     </p>
                   </div>
+
+                  {/* Reactivation info if exists */}
+                  {visit.reactivation_date && visit.reactivation_notes && (
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                      <p className="text-xs font-semibold text-blue-900 mb-1">
+                        REACTIVADO - {formatDate(visit.reactivation_date)}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {visit.reactivation_notes}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* PDF Actions */}
