@@ -25,7 +25,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
     pending: 0,
     emergencies: 0,
     checklistsThisMonth: 0,
-    checklistsInProgress: 0,
+    totalChecklistsMonth: 0,
     stoppedElevators: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         .eq('assigned_technician_id', profile?.id)
         .in('status', ['assigned', 'in_progress']);
 
-      // Cargar checklists del mes actual
+      // Cargar checklists del mes actual (completados)
       const { count: checklistsCount } = await supabase
         .from('mnt_checklists')
         .select('id', { count: 'exact', head: true })
@@ -89,12 +89,13 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         .eq('year', currentYear)
         .eq('status', 'completed');
 
-      // Cargar checklists en progreso
-      const { count: inProgressCount } = await supabase
+      // Cargar total de checklists del mes (todos los asignados)
+      const { count: totalChecklistsCount } = await supabase
         .from('mnt_checklists')
         .select('id', { count: 'exact', head: true })
         .eq('technician_id', profile?.id)
-        .eq('status', 'in_progress');
+        .eq('month', currentMonth)
+        .eq('year', currentYear);
 
       // Cargar ascensores detenidos
       const { count: stoppedCount } = await supabase
@@ -110,7 +111,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         pending,
         emergencies: emergencyCount || 0,
         checklistsThisMonth: checklistsCount || 0,
-        checklistsInProgress: inProgressCount || 0,
+        totalChecklistsMonth: totalChecklistsCount || 0,
         stoppedElevators: stoppedCount || 0,
       });
     } catch (error) {
@@ -146,49 +147,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <Calendar className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.scheduledToday}</h3>
-          <p className="text-sm text-slate-600">Programados Hoy</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-green-500 p-3 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.completed}</h3>
-          <p className="text-sm text-slate-600">Completados Hoy</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-orange-500 p-3 rounded-lg">
-              <Clock className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pending}</h3>
-          <p className="text-sm text-slate-600">Pendientes Hoy</p>
-        </div>
-
-        <div 
-          className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('emergency-history-complete')}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-red-500 p-3 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergencies}</h3>
-          <p className="text-sm text-slate-600">Emergencias Hoy</p>
-        </div>
-
+        {/* Ascensores Detenidos - PRIMERO y destacado */}
         <div 
           className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg border-2 border-red-700 p-6 cursor-pointer hover:shadow-xl transition-all transform hover:scale-105"
           onClick={() => onNavigate?.('stopped-elevators')}
@@ -207,30 +166,70 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
           <p className="text-sm text-white/90 font-medium">🚨 Ascensores Detenidos</p>
         </div>
 
+        {/* Mantenimientos del Mes */}
         <div 
           className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('checklists')}
+          onClick={() => onNavigate?.('maintenance-complete')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-white bg-opacity-20 p-3 rounded-lg">
               <ClipboardList className="w-6 h-6 text-white" />
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-white mb-1">{stats.checklistsThisMonth}</h3>
-          <p className="text-sm text-purple-100">Checklists este Mes</p>
+          <h3 className="text-2xl font-bold text-white mb-1">
+            {stats.checklistsThisMonth} / {stats.totalChecklistsMonth}
+          </h3>
+          <p className="text-sm text-purple-100">Mantenimientos del Mes</p>
         </div>
 
+        {/* Emergencias del Día */}
         <div 
-          className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('maintenance-checklist')}
+          className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
+          onClick={() => onNavigate?.('emergency-history-complete')}
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-              <ClipboardList className="w-6 h-6 text-white" />
+            <div className="bg-red-500 p-3 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-white" />
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-white mb-1">{stats.checklistsInProgress}</h3>
-          <p className="text-sm text-amber-100">Checklists en Progreso</p>
+          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergencies}</h3>
+          <p className="text-sm text-slate-600">Emergencias del Día</p>
+        </div>
+
+        {/* Calendario Mensual */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-blue-500 p-3 rounded-lg">
+              <Calendar className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.scheduledToday}</h3>
+          <p className="text-sm text-slate-600">Calendario Mensual</p>
+        </div>
+
+        {/* Órdenes de Trabajo */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-green-500 p-3 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.completed}</h3>
+          <p className="text-sm text-slate-600">Órdenes de Trabajo</p>
+        </div>
+
+        {/* Solicitudes de Servicio */}
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
+          onClick={() => onNavigate?.('service-requests')}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-orange-500 p-3 rounded-lg">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pending}</h3>
+          <p className="text-sm text-slate-600">Solicitudes de Servicio</p>
         </div>
       </div>
 

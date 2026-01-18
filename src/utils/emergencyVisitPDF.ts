@@ -119,35 +119,39 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo JPG con aspect ratio correcto - a la izquierda del título
+  // Rectángulo azul oscuro a la izquierda (como en PDF mantenimiento)
+  const darkBlue = [31, 49, 107];
+  doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+  doc.rect(MARGIN, y, 60, 25, 'F');
+
+  // Logo dentro del rectángulo azul
   if (logoImg) {
     try {
-      // Logo más pequeño
-      const logoWidth = 20;
+      // Logo centrado en el rectángulo azul
+      const logoWidth = 40;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
-      // Posicionar logo a la izquierda
-      doc.addImage(logoImg, 'JPEG', MARGIN, y, logoWidth, logoHeight);
+      const logoX = MARGIN + 10;
+      const logoY = y + (25 - logoHeight) / 2;
+      doc.addImage(logoImg, 'JPEG', logoX, logoY, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
-  // Títulos a la derecha del logo, empezando justo después del logo
-  const titleStartX = MARGIN + 23; // Pegado al logo de 20mm
-  const titleAreaWidth = PAGE_WIDTH - titleStartX - MARGIN;
-  const titleCenterX = titleStartX + (titleAreaWidth / 2);
+  // Títulos a la derecha del rectángulo azul
+  const titleStartX = MARGIN + 65;
 
   // Título principal - NEGRO
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(0, 0, 0);
-  doc.text('REPORTE DE EMERGENCIA', titleCenterX, y + 8, { align: 'center' });
+  doc.text('REPORTE DE EMERGENCIA', titleStartX, y + 8);
 
   // Subtítulo - NEGRO
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text('SERVICIO DE ATENCIÓN', titleCenterX, y + 16, { align: 'center' });
+  doc.text('SERVICIO DE ATENCIÓN', titleStartX, y + 16);
 
   // Información de contacto (centrada en toda la página, debajo del logo y títulos)
   y += 22;
