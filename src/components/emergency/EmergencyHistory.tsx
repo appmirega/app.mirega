@@ -29,10 +29,10 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
   useEffect(() => {
     loadHistory();
     
-    // Recargar cada 10 segundos para mantener actualizado
+    // Recargar cada 3 segundos para detectar cambios más rápido
     const interval = setInterval(() => {
       loadHistory();
-    }, 10000);
+    }, 3000);
     
     return () => clearInterval(interval);
   }, [filterStatus]);
@@ -62,13 +62,16 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
           pdf_url,
           reactivation_date,
           reactivation_notes,
+          completed_at,
+          created_at,
           clients (
             company_name
           )
         `)
         .eq('technician_id', user.id)
         .in('status', ['completed', 'closed'])
-        .order('visit_date', { ascending: false });
+        .order('completed_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
 
       // Apply status filter
       if (filterStatus !== 'all') {
@@ -80,6 +83,11 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
       if (visitsError) {
         console.error('Error loading history:', visitsError);
         return;
+      }
+
+      console.log(`📋 Historial: ${visitsData?.length || 0} emergencias cargadas`);
+      if (visitsData && visitsData.length > 0) {
+        console.log('Última emergencia:', visitsData[0].completed_at, visitsData[0].status);
       }
 
       // Get elevator information for each visit

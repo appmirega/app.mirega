@@ -556,7 +556,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       }
       
       // Actualizar visita
-      await supabase
+      const completedAt = new Date().toISOString();
+      const { error: updateError } = await supabase
         .from('emergency_visits')
         .update({
           failure_description: failureDescription,
@@ -572,9 +573,15 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
           observation_until: observationUntil,
           service_request_id: serviceRequestId,
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: completedAt
         })
         .eq('id', visitId);
+      
+      if (updateError) {
+        throw new Error(`Error actualizando visita: ${updateError.message}`);
+      }
+      
+      console.log('✅ Emergencia actualizada:', visitId, 'Status: completed, Time:', completedAt);
       
       // Actualizar estado final de ascensores
       for (const elevatorId of elevatorIds) {
