@@ -119,34 +119,38 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo JPG con aspect ratio correcto - posicionado a la izquierda y centrado verticalmente
+  // Logo JPG con aspect ratio correcto - a la izquierda del título
   if (logoImg) {
     try {
       // Mantener aspect ratio del logo
-      const logoWidth = 25;
+      const logoWidth = 30;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
-      // Centrar verticalmente el logo con respecto al área del título
-      const logoY = y + 5;
-      doc.addImage(logoImg, 'JPEG', MARGIN, logoY, logoWidth, logoHeight);
+      // Posicionar logo a la izquierda, alineado con los títulos
+      doc.addImage(logoImg, 'JPEG', MARGIN, y, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
-  // Título principal - NEGRO (centrado)
+  // Títulos a la derecha del logo, centrados en el espacio disponible
+  const titleStartX = MARGIN + 35; // Después del logo
+  const titleAreaWidth = PAGE_WIDTH - titleStartX - MARGIN;
+  const titleCenterX = titleStartX + (titleAreaWidth / 2);
+
+  // Título principal - NEGRO
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(0, 0, 0);
-  doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH / 2, y + 12, { align: 'center' });
+  doc.text('REPORTE DE EMERGENCIA', titleCenterX, y + 8, { align: 'center' });
 
-  // Subtítulo - NEGRO (centrado)
+  // Subtítulo - NEGRO
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH / 2, y + 20, { align: 'center' });
+  doc.text('SERVICIO DE ATENCIÓN', titleCenterX, y + 16, { align: 'center' });
 
-  // Información de contacto
-  y += 28;
+  // Información de contacto (centrada en toda la página, debajo del logo y títulos)
+  y += 22;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   const contactInfo = 'MIREGA ASCENSORES LTDA. | Pedro de Valdivia N°255 – Of. 202, Providencia | +56956087972 | contacto@mirega.cl | www.mirega.cl';
