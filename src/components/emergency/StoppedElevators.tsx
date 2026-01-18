@@ -197,10 +197,6 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
             </p>
           </div>
         )}
-              Todos los ascensores están operativos
-            </p>
-          </div>
-        )}
 
         {/* List */}
         {!loading && emergencies.length > 0 && (
