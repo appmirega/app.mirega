@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 interface StoppedEmergency {
   id: string;
   visit_date: string;
+  completed_at?: string;
   failure_description: string;
   client_id: string;
   client_name: string;
@@ -40,6 +41,7 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
         .select(`
           id,
           visit_date,
+          completed_at,
           failure_description,
           client_id,
           service_request_id,
@@ -51,7 +53,7 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
         .eq('final_status', 'stopped')
         .is('reactivation_date', null)
         .eq('status', 'completed')
-        .order('visit_date', { ascending: false });
+        .order('completed_at', { ascending: false, nullsFirst: false });
 
       if (error) {
         console.error('Error loading stopped emergencies:', error);
@@ -73,14 +75,15 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
 
           const elevatorNumbers = elevatorData?.map(e => (e.elevators as any)?.elevator_number).filter(Boolean) || [];
           
-          // Calculate days stopped
-          const visitDate = new Date(emergency.visit_date);
+          // Calculate days stopped desde la fecha de completado
+          const completedDate = new Date(emergency.completed_at || emergency.visit_date);
           const today = new Date();
-          const daysStopped = Math.floor((today.getTime() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
+          const daysStopped = Math.floor((today.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24));
 
           return {
             id: emergency.id,
             visit_date: emergency.visit_date,
+            completed_at: emergency.completed_at,
             failure_description: emergency.failure_description || 'Sin descripción',
             client_id: emergency.client_id,
             client_name: (emergency.clients as any)?.company_name || 'Cliente desconocido',
@@ -244,7 +247,7 @@ export function StoppedElevators({ onBack }: StoppedElevatorsProps) {
                     <div className="flex items-center gap-4 text-sm text-red-700 mb-3">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        <span>Detenido desde: {formatDate(emergency.visit_date)}</span>
+                        <span>Detenido desde: {formatDate(emergency.completed_at || emergency.visit_date)}</span>
                       </div>
                       <span className="font-bold">
                         ({emergency.days_stopped} día{emergency.days_stopped !== 1 ? 's' : ''})

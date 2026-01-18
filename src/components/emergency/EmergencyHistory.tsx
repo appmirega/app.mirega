@@ -6,6 +6,7 @@ interface EmergencyVisit {
   id: string;
   client_id: string;
   visit_date: string;
+  completed_at?: string;
   failure_description: string;
   resolution_description: string;
   status: string;
@@ -28,13 +29,6 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
 
   useEffect(() => {
     loadHistory();
-    
-    // Recargar cada 3 segundos para detectar cambios más rápido
-    const interval = setInterval(() => {
-      loadHistory();
-    }, 3000);
-    
-    return () => clearInterval(interval);
   }, [filterStatus]);
 
   const loadHistory = async () => {
@@ -102,6 +96,7 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
             id: visit.id,
             client_id: visit.client_id,
             visit_date: visit.visit_date,
+            completed_at: visit.completed_at,
             failure_description: visit.failure_description,
             resolution_description: visit.resolution_summary,
             status: visit.status,
@@ -294,7 +289,7 @@ export function EmergencyHistory({ onBack }: EmergencyHistoryProps) {
                 {/* Date */}
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
                   <Calendar className="w-4 h-4" />
-                  <span>{formatDate(visit.visit_date)}</span>
+                  <span>{formatDate(visit.completed_at || visit.visit_date)}</span>
                 </div>
 
                 {/* Descriptions */}
