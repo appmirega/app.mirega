@@ -119,14 +119,16 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Logo JPG con aspect ratio correcto - posicionado a la izquierda
+  // Logo JPG con aspect ratio correcto - posicionado a la izquierda y centrado verticalmente
   if (logoImg) {
     try {
       // Mantener aspect ratio del logo
-      const logoWidth = 30;
+      const logoWidth = 25;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
-      doc.addImage(logoImg, 'JPEG', MARGIN, y, logoWidth, logoHeight);
+      // Centrar verticalmente el logo con respecto al área del título
+      const logoY = y + 5;
+      doc.addImage(logoImg, 'JPEG', MARGIN, logoY, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
@@ -136,21 +138,21 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(0, 0, 0);
-  doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH / 2, y + 10, { align: 'center' });
+  doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH / 2, y + 12, { align: 'center' });
 
   // Subtítulo - NEGRO (centrado)
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH / 2, y + 18, { align: 'center' });
+  doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH / 2, y + 20, { align: 'center' });
 
   // Información de contacto
-  y += 25;
+  y += 28;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   const contactInfo = 'MIREGA ASCENSORES LTDA. | Pedro de Valdivia N°255 – Of. 202, Providencia | +56956087972 | contacto@mirega.cl | www.mirega.cl';
   doc.text(contactInfo, PAGE_WIDTH / 2, y, { align: 'center' });
 
-  return y + 10; // Aumentar espacio después del header
+  return y + 8;
 }
 
 // INFORMACIÓN GENERAL
