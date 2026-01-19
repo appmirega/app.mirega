@@ -42,6 +42,7 @@ import { ElevatorsCompleteView } from './components/views/ElevatorsCompleteView'
 import { ClientTechnicalInfoView } from './components/views/ClientTechnicalInfoView';
 import { DeveloperPermissionsPanel } from './components/views/DeveloperPermissionsPanel';
 import { AdminPermissionsPanel } from './components/views/AdminPermissionsPanel';
+import { StoppedElevators } from './components/emergency/StoppedElevators';
 
 interface DashboardRouterProps {
   onNavigate?: (path: string) => void;
@@ -113,8 +114,14 @@ function AppContent() {
         return <TechnicianMaintenanceChecklistView />;
       case 'maintenance-complete':
         return <MaintenanceCompleteView />;
+      case 'maintenance-complete-view':
+        return <MaintenanceCompleteView />;
       case 'emergency-history':
         return <EmergencyHistoryCompleteView />;
+      case 'emergency-history-complete':
+        return <EmergencyHistoryCompleteView />;
+      case 'stopped-elevators':
+        return <StoppedElevators />;
       case 'qr-codes-complete':
         return <QRCodesCompleteView />;
       case 'certifications':

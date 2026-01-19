@@ -177,7 +177,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         {/* Mantenimientos del Mes */}
         <div 
           className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('maintenance-complete-view')}
+          onClick={() => onNavigate?.('maintenance-complete')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-white bg-opacity-20 p-3 rounded-lg">
@@ -193,7 +193,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         {/* Emergencias del Día */}
         <div 
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('emergency-history-complete')}
+          onClick={() => onNavigate?.('emergency-history')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-red-500 p-3 rounded-lg">

@@ -119,28 +119,22 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   let y = MARGIN;
 
-  // Rectángulo azul oscuro a la izquierda (como en PDF mantenimiento)
-  const darkBlue = [31, 49, 107];
-  doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-  doc.rect(MARGIN, y, 60, 25, 'F');
-
-  // Logo dentro del rectángulo azul
+  // Logo a la izquierda sin rectángulo
   if (logoImg) {
     try {
-      // Logo centrado en el rectángulo azul
       const logoWidth = 40;
       const aspectRatio = logoImg.width / logoImg.height;
       const logoHeight = logoWidth / aspectRatio;
-      const logoX = MARGIN + 10;
-      const logoY = y + (25 - logoHeight) / 2;
+      const logoX = MARGIN;
+      const logoY = y;
       doc.addImage(logoImg, 'JPEG', logoX, logoY, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
-  // Títulos a la derecha del rectángulo azul
-  const titleStartX = MARGIN + 65;
+  // Títulos a la derecha del logo
+  const titleStartX = MARGIN + 45;
 
   // Título principal - NEGRO
   doc.setFont('helvetica', 'bold');
