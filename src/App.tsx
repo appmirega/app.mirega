@@ -27,6 +27,7 @@ import { CarpetaCeroView } from './components/views/CarpetaCeroView';
 import { RescueTrainingView } from './components/views/RescueTrainingView';
 import { MaintenanceCompleteView } from './components/views/MaintenanceCompleteView';
 import { EmergencyHistoryCompleteView } from './components/views/EmergencyHistoryCompleteView';
+import { EmergencyHistory } from './components/emergency/EmergencyHistory';
 import { QRCodesCompleteView } from './components/views/QRCodesCompleteView';
 import { AdminRescueTrainingView } from './components/views/AdminRescueTrainingView';
 import { TechnicianMaintenanceChecklistView } from './components/views/TechnicianMaintenanceChecklistView';
@@ -114,9 +115,9 @@ function AppContent() {
       case 'maintenance-complete-view':
         return <MaintenanceCompleteView onNavigate={setCurrentView} />;
       case 'emergency-history':
-        return <EmergencyHistoryCompleteView onNavigate={setCurrentView} />;
+        return <EmergencyHistory onBack={() => setCurrentView('dashboard')} />;
       case 'emergency-history-complete':
-        return <EmergencyHistoryCompleteView onNavigate={setCurrentView} />;
+        return <EmergencyHistory onBack={() => setCurrentView('dashboard')} />;
       case 'stopped-elevators':
         return <StoppedElevators onBack={() => setCurrentView('dashboard')} />;
       case 'qr-codes-complete':
