@@ -115,16 +115,16 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO
+// ENCABEZADO - COPIA EXACTA DEL PDF DE MANTENIMIENTO
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
-  let y = MARGIN;
-
-  // Rectángulo azul oscuro igual que en PDF mantenimiento
   const darkBlue = [31, 49, 107];
+  const lightBlue = [63, 104, 184];
+
+  // Rectángulo azul oscuro (IGUAL que mantenimiento)
   doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.rect(0, 0, 70, 35, 'F');
 
-  // Texto MIREGA dentro del rectángulo
+  // Texto MIREGA ASCENSORES dentro del rectángulo (IGUAL que mantenimiento)
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
@@ -132,17 +132,17 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   doc.setFontSize(8);
   doc.text('ASCENSORES', 35, 20, { align: 'center' });
 
-  // Títulos a la derecha del rectángulo
+  // Títulos a la derecha (IGUAL que mantenimiento)
   doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
   doc.text('REPORTE DE EMERGENCIA', 105, 18);
 
-  doc.setFontSize(14);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   doc.text('SERVICIO DE ATENCIÓN', 105, 25);
 
-  // Información de contacto igual que en PDF mantenimiento
+  // Información de contacto (IGUAL que mantenimiento)
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', 105, 31);

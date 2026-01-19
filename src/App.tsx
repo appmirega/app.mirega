@@ -9,7 +9,6 @@ import { TechnicianDashboard } from './components/dashboards/TechnicianDashboard
 import { ClientDashboard } from './components/dashboards/ClientDashboard';
 import { UserProfile } from './components/UserProfile';
 import { ManualsView } from './components/views/ManualsView';
-import { MaintenanceView } from './components/views/MaintenanceView';
 import { EmergencyView } from './components/views/EmergencyView';
 import { EmergencyV2View } from './components/views/EmergencyV2View';
 import { WorkOrdersView } from './components/views/WorkOrdersView';
@@ -90,8 +89,6 @@ function AppContent() {
         return <UserProfile />;
       case 'manuals':
         return <ManualsView />;
-      case 'maintenance':
-        return <MaintenanceView />;
       case 'emergencies':
         return profile?.role === 'technician' ? <TechnicianEmergencyView /> : <EmergencyV2View />;
       case 'client-emergencies':
