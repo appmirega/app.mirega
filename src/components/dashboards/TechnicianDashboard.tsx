@@ -74,13 +74,16 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const pending = schedules?.filter(s => s.status === 'pending').length || 0;
 
       // Cargar emergencias del día (completadas hoy)
+      const startOfDay = `${today}T00:00:00.000-03:00`;
+      const endOfDay = `${today}T23:59:59.999-03:00`;
+      
       const { count: emergencyCount } = await supabase
         .from('emergency_visits')
         .select('id', { count: 'exact', head: true })
         .eq('assigned_technician_id', profile?.id)
         .eq('status', 'completed')
-        .gte('completed_at', `${today}T00:00:00`)
-        .lte('completed_at', `${today}T23:59:59`);
+        .gte('completed_at', startOfDay)
+        .lte('completed_at', endOfDay);
 
       // Cargar solicitudes de servicio del técnico
       const { count: requestsCount } = await supabase
@@ -193,7 +196,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         {/* Emergencias del Día */}
         <div 
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('emergency-history')}
+          onClick={() => onNavigate?.('emergency-history-complete')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-red-500 p-3 rounded-lg">
