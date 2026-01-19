@@ -43,7 +43,11 @@ type ViewTab = 'list' | 'stats' | 'pdfs';
 
 const COLORS = ['#ef4444', '#f97316', '#3b82f6'];
 
-export function EmergencyHistoryCompleteView() {
+interface EmergencyHistoryCompleteViewProps {
+  onNavigate?: (path: string) => void;
+}
+
+export function EmergencyHistoryCompleteView({ onNavigate }: EmergencyHistoryCompleteViewProps = {}) {
   const [activeTab, setActiveTab] = useState<ViewTab>('list');
   const [emergencies, setEmergencies] = useState<EmergencyVisit[]>([]);
   const [filteredEmergencies, setFilteredEmergencies] = useState<EmergencyVisit[]>([]);

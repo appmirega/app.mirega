@@ -113,15 +113,15 @@ function AppContent() {
       case 'maintenance-checklist':
         return <TechnicianMaintenanceChecklistView />;
       case 'maintenance-complete':
-        return <MaintenanceCompleteView />;
+        return <MaintenanceCompleteView onNavigate={setCurrentView} />;
       case 'maintenance-complete-view':
-        return <MaintenanceCompleteView />;
+        return <MaintenanceCompleteView onNavigate={setCurrentView} />;
       case 'emergency-history':
-        return <EmergencyHistoryCompleteView />;
+        return <EmergencyHistoryCompleteView onNavigate={setCurrentView} />;
       case 'emergency-history-complete':
-        return <EmergencyHistoryCompleteView />;
+        return <EmergencyHistoryCompleteView onNavigate={setCurrentView} />;
       case 'stopped-elevators':
-        return <StoppedElevators />;
+        return <StoppedElevators onBack={() => setCurrentView('dashboard')} />;
       case 'qr-codes-complete':
         return <QRCodesCompleteView />;
       case 'certifications':
