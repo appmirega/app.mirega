@@ -10,6 +10,8 @@ import {
   Clock,
   Navigation,
   Phone,
+  FileText,
+  Wrench,
 } from 'lucide-react';
 
 interface TechnicianDashboardProps {
@@ -77,13 +79,17 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const startOfDay = `${today}T00:00:00.000-03:00`;
       const endOfDay = `${today}T23:59:59.999-03:00`;
       
-      const { count: emergencyCount } = await supabase
+      console.log('🔍 Buscando emergencias del día:', { today, startOfDay, endOfDay, technicianId: profile?.id });
+      
+      const { count: emergencyCount, error: emergencyError } = await supabase
         .from('emergency_visits')
         .select('id', { count: 'exact', head: true })
         .eq('assigned_technician_id', profile?.id)
         .eq('status', 'completed')
         .gte('completed_at', startOfDay)
         .lte('completed_at', endOfDay);
+      
+      console.log('✅ Emergencias encontradas:', emergencyCount, emergencyError);
 
       // Cargar solicitudes de servicio del técnico
       const { count: requestsCount } = await supabase
@@ -222,7 +228,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="bg-green-500 p-3 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-white" />
+              <Wrench className="w-6 h-6 text-white" />
             </div>
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.completed}</h3>
@@ -236,7 +242,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-orange-500 p-3 rounded-lg">
-              <Clock className="w-6 h-6 text-white" />
+              <FileText className="w-6 h-6 text-white" />
             </div>
           </div>
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pending}</h3>

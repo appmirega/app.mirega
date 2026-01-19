@@ -50,7 +50,7 @@ type ViewMode = 'main' | 'client-selection' | 'elevator-selection' | 'checklist-
 
 export const TechnicianMaintenanceChecklistView = () => {
   const { profile } = useAuth();
-  const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [viewMode, setViewMode] = useState<ViewMode>('history');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
