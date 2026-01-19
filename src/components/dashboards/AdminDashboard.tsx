@@ -250,8 +250,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Panel de Administración</h1>
-          <p className="text-slate-600 mt-1">Gestión completa de operaciones y personal</p>
+          <h1 className="text-3xl font-bold text-slate-900">Atajos Rápidos</h1>
+          <p className="text-slate-600 mt-1">Acceso rápido a información reciente y tareas prioritarias</p>
         </div>
         <div className="flex gap-3">
           <button

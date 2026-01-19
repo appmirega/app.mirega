@@ -124,8 +124,8 @@ export function ClientDashboard({ onNavigate }: ClientDashboardProps = {}) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Bienvenido, {clientData?.company_name}</h1>
-        <p className="text-slate-600 mt-1">Gestión y monitoreo de sus ascensores</p>
+        <h1 className="text-3xl font-bold text-slate-900">Atajos Rápidos</h1>
+        <p className="text-slate-600 mt-1">{clientData?.company_name} - Acceso rápido a información de sus ascensores</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
