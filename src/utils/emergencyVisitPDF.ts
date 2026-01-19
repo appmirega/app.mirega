@@ -115,7 +115,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO - COPIA EXACTA DEL PDF DE MANTENIMIENTO
+// ENCABEZADO - COPIA EXACTA DEL PDF DE MANTENIMIENTO - v2.0
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const lightBlue = [63, 104, 184];
