@@ -115,38 +115,54 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO - COPIA EXACTA DEL PDF DE MANTENIMIENTO - v2.0
+// ENCABEZADO - CON LOGO IMAGEN REAL
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
-  const lightBlue = [63, 104, 184];
-
-  // Rectángulo azul oscuro (IGUAL que mantenimiento)
+  
+  // Fondo azul completo en la parte superior
   doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-  doc.rect(0, 0, 70, 35, 'F');
+  doc.rect(0, 0, PAGE_WIDTH, 40, 'F');
 
-  // Texto MIREGA ASCENSORES dentro del rectángulo (IGUAL que mantenimiento)
+  // Logo imagen a la izquierda
+  if (logoImg) {
+    try {
+      // Logo con aspecto ratio preservado, posición izquierda
+      doc.addImage(logoImg, 'JPEG', 15, 8, 50, 25);
+    } catch (e) {
+      console.error('Error al cargar logo:', e);
+      // Fallback: texto si falla la imagen
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MIREGA', 35, 15);
+      doc.setFontSize(8);
+      doc.text('ASCENSORES', 35, 22);
+    }
+  } else {
+    // Fallback: texto si no hay logo
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MIREGA', 35, 15);
+    doc.setFontSize(8);
+    doc.text('ASCENSORES', 35, 22);
+  }
+
+  // Títulos a la derecha (sobre el fondo azul, en blanco)
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('MIREGA', 35, 15, { align: 'center' });
-  doc.setFontSize(8);
-  doc.text('ASCENSORES', 35, 20, { align: 'center' });
-
-  // Títulos a la derecha (IGUAL que mantenimiento)
-  doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('REPORTE DE EMERGENCIA', 105, 18);
+  doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH - 15, 18, { align: 'right' });
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
-  doc.text('SERVICIO DE ATENCIÓN', 105, 25);
+  doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH - 15, 26, { align: 'right' });
 
-  // Información de contacto (IGUAL que mantenimiento)
+  // Información de contacto (debajo del fondo azul, en gris)
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', 105, 31);
-  doc.text('+56956087972  contacto@mirega.cl', 105, 35);
+  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', PAGE_WIDTH / 2, 36, { align: 'center' });
+  doc.text('+56956087972  contacto@mirega.cl', PAGE_WIDTH / 2, 39, { align: 'center' });
 
   return 45;
 }
