@@ -120,24 +120,13 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Logo imagen a la IZQUIERDA (arriba)
-  if (logoImg) {
-    try {
-      const logoWidth = 38;
-      const logoHeight = (logoWidth * logoImg.height) / logoImg.width;
-      const logoX = 12; // Más cerca del borde izquierdo
-      const logoY = 6; // Mucho más arriba
-      doc.addImage(logoImg, 'JPEG', logoX, logoY, logoWidth, logoHeight);
-    } catch (e) {
-      console.error('Error al cargar logo:', e);
-    }
-  }
-
-  // TÍTULO CENTRADO en la página (más abajo para no cortarse)
+  // TÍTULO CENTRADO en la página
   doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-  doc.setFontSize(20); // Reducido de 22 a 20
+  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   const title = 'REPORTE DE EMERGENCIA';
+  const titleWidth = doc.getTextWidth(title);
+  const titleStartX = (pageWidth - titleWidth) / 2;
   doc.text(title, pageWidth / 2, 16, { align: 'center' });
 
   // SUBTÍTULO CENTRADO debajo del título
@@ -145,6 +134,20 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   doc.setFont('helvetica', 'normal');
   const subtitle = 'SERVICIO DE ATENCIÓN';
   doc.text(subtitle, pageWidth / 2, 22, { align: 'center' });
+
+  // Logo centrado HORIZONTALMENTE con el título/subtítulo (a la izquierda del bloque)
+  if (logoImg) {
+    try {
+      const logoWidth = 38;
+      const logoHeight = (logoWidth * logoImg.height) / logoImg.width;
+      // Calcular X para que el logo quede centrado horizontalmente con el título
+      const logoX = titleStartX + (titleWidth / 2) - (logoWidth / 2) - titleWidth / 2 - 5; // A la izquierda del título
+      const logoY = 6;
+      doc.addImage(logoImg, 'JPEG', logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error('Error al cargar logo:', e);
+    }
+  }
 
   // Información de contacto centrada
   doc.setFontSize(7);

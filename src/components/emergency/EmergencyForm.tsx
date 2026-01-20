@@ -73,6 +73,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   // Firma (Paso 8)
   const [receiverName, setReceiverName] = useState('');
   const [signatureRef, setSignatureRef] = useState<SignatureCanvas | null>(null);
+  const [hasSignature, setHasSignature] = useState(false);
   
   // Solicitud
   const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
@@ -400,14 +401,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     // Validación 5: Nombre del receptor
     if (!receiverName || receiverName.trim() === '') return false;
     
-    // Validación 6: Firma (debe existir y NO estar vacía)
-    if (!signatureRef || signatureRef.isEmpty()) return false;
+    // Validación 6: Firma (usando estado hasSignature)
+    if (!hasSignature) return false;
     
     // Validación 7: Si está detenido, requiere solicitud obligatoria
     if (finalStatus === 'stopped' && !serviceRequestId) return false;
     
     return true;
-  }, [failureDescription, resolutionSummary, finalStatus, failureCause, receiverName, signatureRef, serviceRequestId]);
+  }, [failureDescription, resolutionSummary, finalStatus, failureCause, receiverName, hasSignature, serviceRequestId]);
   const generateAndUploadPDF = async (signatureUrl: string | null) => {
     try {
       // Obtener tipo y descripción de solicitud si existe
@@ -1034,10 +1035,19 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
               canvasProps={{
                 className: 'w-full h-48 cursor-crosshair'
               }}
+              onEnd={() => {
+                // Actualizar estado cuando se termina de dibujar
+                if (signatureRef && !signatureRef.isEmpty()) {
+                  setHasSignature(true);
+                }
+              }}
             />
           </div>
           <button
-            onClick={() => signatureRef?.clear()}
+            onClick={() => {
+              signatureRef?.clear();
+              setHasSignature(false);
+            }}
             className="mt-2 text-sm text-blue-600 hover:text-blue-700"
           >
             Limpiar firma
