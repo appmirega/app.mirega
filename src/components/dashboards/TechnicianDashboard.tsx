@@ -75,27 +75,25 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const completed = schedules?.filter(s => s.status === 'completed').length || 0;
       const pending = schedules?.filter(s => s.status === 'pending').length || 0;
 
-      // Cargar emergencias del día (completadas hoy)
-      const startOfDay = `${today}T00:00:00.000-03:00`;
-      const endOfDay = `${today}T23:59:59.999-03:00`;
+      // Cargar emergencias del día (completadas hoy) - SIN timezone, usar solo fecha
+      console.log('🔍 Dashboard: Buscando emergencias del día:', { today, techId: profile?.id });
       
-      console.log('🔍 Buscando emergencias del día:', { today, startOfDay, endOfDay, technicianId: profile?.id });
-      
-      const { count: emergencyCount, error: emergencyError } = await supabase
+      // Intentar con completed_at usando LIKE para buscar cualquier hora del día
+      const { count: emergencyCount, error: emergencyError, data: emergencyData } = await supabase
         .from('emergency_visits')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
         .eq('assigned_technician_id', profile?.id)
         .eq('status', 'completed')
-        .gte('completed_at', startOfDay)
-        .lte('completed_at', endOfDay);
+        .like('completed_at', `${today}%`);
       
-      console.log('✅ Emergencias encontradas:', emergencyCount, emergencyError);
+      console.log('✅ Dashboard: Emergencias encontradas:', { count: emergencyCount, error: emergencyError, sample: emergencyData?.slice(0, 2) });
 
-      // Cargar solicitudes de servicio del técnico
-      const { count: requestsCount } = await supabase
+      // Cargar solicitudes de servicio (TODAS, no solo del técnico)
+      const { count: requestsCount, error: requestsError } = await supabase
         .from('service_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('created_by_id', profile?.id);
+        .select('id', { count: 'exact', head: true });
+      
+      console.log('📋 Solicitudes de servicio encontradas:', requestsCount, requestsError);
 
       // Cargar checklists del mes actual (completados)
       const { count: checklistsCount } = await supabase
@@ -186,7 +184,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         {/* Mantenimientos del Mes */}
         <div 
           className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => onNavigate?.('maintenance-checklist')}
+          onClick={() => onNavigate?.('maintenance-history')}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="bg-white bg-opacity-20 p-3 rounded-lg">

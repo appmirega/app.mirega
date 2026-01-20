@@ -115,54 +115,58 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO - CON LOGO IMAGEN REAL
+// ENCABEZADO - EXACTAMENTE IGUAL AL PDF DE MANTENIMIENTO
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
-  
-  // Fondo azul completo en la parte superior
-  doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-  doc.rect(0, 0, PAGE_WIDTH, 40, 'F');
 
-  // Logo imagen a la izquierda
+  // Rectángulo azul izquierdo (IGUAL que mantenimiento)
+  doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+  doc.rect(0, 0, 70, 35, 'F');
+
+  // Logo imagen dentro del rectángulo azul (IGUAL que mantenimiento)
   if (logoImg) {
     try {
-      // Logo con aspecto ratio preservado, posición izquierda
-      doc.addImage(logoImg, 'JPEG', 15, 8, 50, 25);
+      // Logo pequeño dentro del rectángulo azul, centrado
+      const logoW = 50;
+      const logoH = 25;
+      const logoX = 10;
+      const logoY = 5;
+      doc.addImage(logoImg, 'JPEG', logoX, logoY, logoW, logoH);
     } catch (e) {
       console.error('Error al cargar logo:', e);
       // Fallback: texto si falla la imagen
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('MIREGA', 35, 15);
+      doc.text('MIREGA', 35, 15, { align: 'center' });
       doc.setFontSize(8);
-      doc.text('ASCENSORES', 35, 22);
+      doc.text('ASCENSORES', 35, 20, { align: 'center' });
     }
   } else {
     // Fallback: texto si no hay logo
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('MIREGA', 35, 15);
+    doc.text('MIREGA', 35, 15, { align: 'center' });
     doc.setFontSize(8);
-    doc.text('ASCENSORES', 35, 22);
+    doc.text('ASCENSORES', 35, 20, { align: 'center' });
   }
 
-  // Títulos a la derecha (sobre el fondo azul, en blanco)
-  doc.setTextColor(255, 255, 255);
+  // Títulos a la derecha (IGUAL que mantenimiento)
+  doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('REPORTE DE EMERGENCIA', PAGE_WIDTH - 15, 18, { align: 'right' });
+  doc.text('REPORTE DE EMERGENCIA', 105, 18);
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
-  doc.text('SERVICIO DE ATENCIÓN', PAGE_WIDTH - 15, 26, { align: 'right' });
+  doc.text('SERVICIO DE ATENCIÓN', 105, 25);
 
-  // Información de contacto (debajo del fondo azul, en gris)
+  // Información de contacto (IGUAL que mantenimiento)
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', PAGE_WIDTH / 2, 36, { align: 'center' });
-  doc.text('+56956087972  contacto@mirega.cl', PAGE_WIDTH / 2, 39, { align: 'center' });
+  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', 105, 31);
+  doc.text('+56956087972  contacto@mirega.cl', 105, 35);
 
   return 45;
 }

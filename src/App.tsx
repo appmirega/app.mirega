@@ -110,6 +110,8 @@ function AppContent() {
         return <AdminRescueTrainingView />;
       case 'maintenance-checklist':
         return <TechnicianMaintenanceChecklistView />;
+      case 'maintenance-history':
+        return <TechnicianMaintenanceChecklistView initialMode="history" />;
       case 'maintenance-complete':
         return <MaintenanceCompleteView onNavigate={setCurrentView} />;
       case 'maintenance-complete-view':

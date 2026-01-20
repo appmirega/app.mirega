@@ -48,9 +48,13 @@ interface ChecklistProgress {
 
 type ViewMode = 'main' | 'client-selection' | 'elevator-selection' | 'checklist-form' | 'history' | 'in-progress';
 
-export const TechnicianMaintenanceChecklistView = () => {
+interface TechnicianMaintenanceChecklistViewProps {
+  initialMode?: ViewMode;
+}
+
+export const TechnicianMaintenanceChecklistView = ({ initialMode = 'main' }: TechnicianMaintenanceChecklistViewProps = {}) => {
   const { profile } = useAuth();
-  const [viewMode, setViewMode] = useState<ViewMode>('history');
+  const [viewMode, setViewMode] = useState<ViewMode>(initialMode);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
