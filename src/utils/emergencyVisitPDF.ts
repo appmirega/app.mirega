@@ -120,39 +120,39 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // TÍTULO CENTRADO en la página
-  doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  const title = 'REPORTE DE EMERGENCIA';
-  doc.text(title, pageWidth / 2, 20, { align: 'center' });
-
-  // SUBTÍTULO CENTRADO debajo del título
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  const subtitle = 'SERVICIO DE ATENCIÓN';
-  doc.text(subtitle, pageWidth / 2, 28, { align: 'center' });
-
-  // Logo imagen a la IZQUIERDA del título y subtítulo (más arriba)
+  // Logo imagen a la IZQUIERDA (arriba)
   if (logoImg) {
     try {
-      const logoWidth = 40;
+      const logoWidth = 38;
       const logoHeight = (logoWidth * logoImg.height) / logoImg.width;
-      const logoX = 15; // Posición fija a la izquierda
-      const logoY = 10; // Subido desde 8 a 10
+      const logoX = 12; // Más cerca del borde izquierdo
+      const logoY = 6; // Mucho más arriba
       doc.addImage(logoImg, 'JPEG', logoX, logoY, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
+  // TÍTULO CENTRADO en la página (más abajo para no cortarse)
+  doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+  doc.setFontSize(20); // Reducido de 22 a 20
+  doc.setFont('helvetica', 'bold');
+  const title = 'REPORTE DE EMERGENCIA';
+  doc.text(title, pageWidth / 2, 16, { align: 'center' });
+
+  // SUBTÍTULO CENTRADO debajo del título
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  const subtitle = 'SERVICIO DE ATENCIÓN';
+  doc.text(subtitle, pageWidth / 2, 22, { align: 'center' });
+
   // Información de contacto centrada
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', pageWidth / 2, 35, { align: 'center' });
-  doc.text('+56956087972  contacto@mirega.cl', pageWidth / 2, 39, { align: 'center' });
+  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', pageWidth / 2, 30, { align: 'center' });
+  doc.text('+56956087972  contacto@mirega.cl', pageWidth / 2, 34, { align: 'center' });
 
-  return 47;
+  return 40;
 }
 
 // INFORMACIÓN GENERAL
