@@ -385,11 +385,25 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   };
 
   const canComplete = useMemo(() => {
-    // Validaciones básicas
-    if (!failureDescription || !resolutionSummary || !finalStatus || !failureCause) return false;
-    if (!receiverName || signatureRef?.isEmpty()) return false;
+    // Validación 1: Descripción de falla
+    if (!failureDescription || failureDescription.trim() === '') return false;
     
-    // Si está detenido, requiere solicitud
+    // Validación 2: Resumen de resolución
+    if (!resolutionSummary || resolutionSummary.trim() === '') return false;
+    
+    // Validación 3: Estado final
+    if (!finalStatus || finalStatus === '') return false;
+    
+    // Validación 4: Causa de falla
+    if (!failureCause || failureCause === '') return false;
+    
+    // Validación 5: Nombre del receptor
+    if (!receiverName || receiverName.trim() === '') return false;
+    
+    // Validación 6: Firma (debe existir y NO estar vacía)
+    if (!signatureRef || signatureRef.isEmpty()) return false;
+    
+    // Validación 7: Si está detenido, requiere solicitud obligatoria
     if (finalStatus === 'stopped' && !serviceRequestId) return false;
     
     return true;
