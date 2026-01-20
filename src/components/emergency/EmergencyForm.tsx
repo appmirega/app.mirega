@@ -238,7 +238,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       if (visitData.final_status) setFinalStatus(visitData.final_status);
       if (visitData.failure_cause) setFailureCause(visitData.failure_cause);
       if (visitData.receiver_name) setReceiverName(visitData.receiver_name);
-      if (visitData.observation_until) setObservationUntil(visitData.observation_until);
       
       // Restaurar URLs de fotos
       if (visitData.failure_photo_1_url) setFailurePhoto1Url(visitData.failure_photo_1_url);
@@ -283,7 +282,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
           final_status: finalStatus || null,
           failure_cause: failureCause || null,
           receiver_name: receiverName || null,
-          observation_until: observationUntil || null,
           service_request_id: serviceRequestId || null,
           failure_photo_1_url: failurePhoto1Url || null,
           failure_photo_2_url: failurePhoto2Url || null,
@@ -303,7 +301,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     finalStatus,
     failureCause,
     receiverName,
-    observationUntil,
     serviceRequestId,
     failurePhoto1Url,
     failurePhoto2Url,
