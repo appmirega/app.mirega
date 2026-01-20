@@ -133,6 +133,13 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
         totalChecklistsMonth: totalChecklistsCount || 0,
         stoppedElevators: stoppedCount || 0,
       });
+      
+      console.log('🎯 VALORES FINALES ASIGNADOS A STATS:', {
+        emergencies: emergencyCount || 0,
+        checklistsThisMonth: checklistsCount || 0,
+        totalChecklistsMonth: totalChecklistsCount || 0,
+        solicitudes: requestsCount || 0
+      });
     } catch (error) {
       console.error('Error loading technician data:', error);
     } finally {

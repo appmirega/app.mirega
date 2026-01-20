@@ -866,6 +866,7 @@ export const TechnicianMaintenanceChecklistView = ({ initialMode = 'main' }: Tec
     console.log('✅ Historial cargado:', { count: data?.length, error });
 
     if (!error && data) {
+      console.log('📊 Datos del historial:', data.slice(0, 3)); // Mostrar primeros 3
       setHistory(data);
     }
     setLoadingHistory(false);
