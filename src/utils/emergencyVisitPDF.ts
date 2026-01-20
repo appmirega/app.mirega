@@ -115,39 +115,53 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO CON LOGO Y TEXTOS
+// ENCABEZADO CON LOGO Y TEXTOS (IGUAL AL PDF DE MANTENIMIENTO)
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
-
-  // TÍTULO CENTRADO en la página
-  doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  const title = 'REPORTE DE EMERGENCIA';
-  const titleWidth = doc.getTextWidth(title);
-  const titleStartX = (pageWidth - titleWidth) / 2;
-  doc.text(title, pageWidth / 2, 16, { align: 'center' });
-
-  // SUBTÍTULO CENTRADO debajo del título
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  const subtitle = 'SERVICIO DE ATENCIÓN';
-  doc.text(subtitle, pageWidth / 2, 22, { align: 'center' });
-
-  // Logo centrado HORIZONTALMENTE con el título/subtítulo (a la izquierda del bloque)
+  
+  // Logo a la izquierda (igual que mantenimiento)
+  const logoW = 35;
+  const logoH = 30;
   if (logoImg) {
     try {
-      const logoWidth = 38;
-      const logoHeight = (logoWidth * logoImg.height) / logoImg.width;
-      // Calcular X para que el logo quede centrado horizontalmente con el título
-      const logoX = titleStartX + (titleWidth / 2) - (logoWidth / 2) - titleWidth / 2 - 5; // A la izquierda del título
-      const logoY = 6;
-      doc.addImage(logoImg, 'JPEG', logoX, logoY, logoWidth, logoHeight);
+      const aspectRatio = logoImg.height / logoImg.width;
+      const adjustedH = logoW * aspectRatio;
+      doc.addImage(logoImg, 'JPEG', MARGIN, MARGIN, logoW, adjustedH);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
+
+  const mainTitle = 'REPORTE DE EMERGENCIA';
+  const subTitle = 'SERVICIO DE ATENCIÓN';
+
+  // Título centrado (igual que mantenimiento)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+
+  const titleXcenter = pageWidth / 2;
+  const titleY = MARGIN + 16;
+  doc.text(mainTitle, titleXcenter, titleY, { align: 'center' });
+
+  // Subtítulo alineado a la izquierda del título (igual que mantenimiento)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(13);
+  const titleWidth = doc.getTextWidth(mainTitle);
+  const titleStartX = titleXcenter - titleWidth / 2;
+  const subTitleY = titleY + 7;
+  doc.text(subTitle, titleStartX, subTitleY);
+
+  // Información de contacto
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  const infoY = subTitleY + 8;
+  doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', pageWidth / 2, infoY, { align: 'center' });
+  doc.text('+56956087972  contacto@mirega.cl', pageWidth / 2, infoY + 3, { align: 'center' });
+
+  return infoY + 8;
+}
 
   // Información de contacto centrada
   doc.setFontSize(7);
