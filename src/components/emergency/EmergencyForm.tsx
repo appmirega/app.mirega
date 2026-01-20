@@ -214,6 +214,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   const loadDraftData = async (draftVisitId: string) => {
     console.log('📂 Cargando borrador existente:', draftVisitId);
     try {
+      setVisitId(draftVisitId);
+      
       // Cargar datos de la visita
       const { data: visitData, error: visitError } = await supabase
         .from('emergency_visits')
@@ -230,26 +232,22 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         setVisitStartTime(startTime);
       }
       
-      // Restaurar estados del formulario
+      // Restaurar TODOS los estados del formulario
       if (visitData.failure_description) setFailureDescription(visitData.failure_description);
       if (visitData.resolution_summary) setResolutionSummary(visitData.resolution_summary);
       if (visitData.final_status) setFinalStatus(visitData.final_status);
+      if (visitData.failure_cause) setFailureCause(visitData.failure_cause);
+      if (visitData.receiver_name) setReceiverName(visitData.receiver_name);
+      if (visitData.observation_until) setObservationUntil(visitData.observation_until);
       
-      // Cargar fotos de evidencia si existen
-      const { data: photosData } = await supabase
-        .from('emergency_photos')
-        .select('photo_url, caption')
-        .eq('emergency_visit_id', draftVisitId);
+      // Restaurar URLs de fotos
+      if (visitData.failure_photo_1_url) setFailurePhoto1Url(visitData.failure_photo_1_url);
+      if (visitData.failure_photo_2_url) setFailurePhoto2Url(visitData.failure_photo_2_url);
+      if (visitData.resolution_photo_1_url) setResolutionPhoto1Url(visitData.resolution_photo_1_url);
+      if (visitData.resolution_photo_2_url) setResolutionPhoto2Url(visitData.resolution_photo_2_url);
       
-      if (photosData && photosData.length > 0) {
-        // TODO: Restaurar fotos de evidencia desde URLs
-        // const uploadedPhotosData = photosData.map(p => ({
-        //   url: p.photo_url,
-        //   caption: p.caption || ''
-        // }));
-        // setUploadedPhotos(uploadedPhotosData);
-        console.log('📷 Fotos encontradas en borrador:', photosData.length);
-      }
+      // Restaurar service_request_id si existe
+      if (visitData.service_request_id) setServiceRequestId(visitData.service_request_id);
       
       // Cargar estados iniciales de ascensores
       const { data: elevatorsData } = await supabase
@@ -265,7 +263,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         setElevatorInitialStatus(statusMap);
       }
       
-      console.log('✅ Borrador cargado correctamente');
+      console.log('✅ Borrador cargado correctamente con todos los campos');
       
     } catch (error) {
       console.error('❌ Error cargando borrador:', error);
@@ -283,6 +281,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
           failure_description: failureDescription,
           resolution_summary: resolutionSummary,
           final_status: finalStatus || null,
+          failure_cause: failureCause || null,
+          receiver_name: receiverName || null,
+          observation_until: observationUntil || null,
+          service_request_id: serviceRequestId || null,
+          failure_photo_1_url: failurePhoto1Url || null,
+          failure_photo_2_url: failurePhoto2Url || null,
+          resolution_photo_1_url: resolutionPhoto1Url || null,
+          resolution_photo_2_url: resolutionPhoto2Url || null,
           last_autosave: new Date().toISOString()
         })
         .eq('id', visitId);
@@ -290,7 +296,20 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     } catch (error) {
       console.error('Error auto-saving:', error);
     }
-  }, [visitId, failureDescription, resolutionSummary, finalStatus]);
+  }, [
+    visitId, 
+    failureDescription, 
+    resolutionSummary, 
+    finalStatus,
+    failureCause,
+    receiverName,
+    observationUntil,
+    serviceRequestId,
+    failurePhoto1Url,
+    failurePhoto2Url,
+    resolutionPhoto1Url,
+    resolutionPhoto2Url
+  ]);
 
   const uploadPhoto = async (file: File, path: string): Promise<string | null> => {
     try {
