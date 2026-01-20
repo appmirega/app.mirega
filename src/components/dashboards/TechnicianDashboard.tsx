@@ -40,9 +40,12 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
 
   const loadTechnicianData = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const currentMonth = new Date().getMonth() + 1;
-      const currentYear = new Date().getFullYear();
+      const now = new Date();
+      const today = now.toISOString().split('T')[0]; // 2026-01-20
+      const currentMonth = now.getMonth() + 1; // 1 (enero)
+      const currentYear = now.getFullYear(); // 2026
+      
+      console.log('📅 FECHA Y MES ACTUAL:', { today, currentMonth, currentYear, techId: profile?.id });
 
       // Cargar mantenimientos programados
       const { data: schedules, error } = await supabase
@@ -78,15 +81,22 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       // Cargar emergencias del día (completadas hoy)
       console.log('🔍 Dashboard: Buscando emergencias del día:', { today, techId: profile?.id });
       
-      const { count: emergencyCount, error: emergencyError, data: emergencyData } = await supabase
+      // Buscar emergencias donde completed_at empiece con la fecha de hoy
+      const { data: emergencyData, error: emergencyError } = await supabase
         .from('emergency_visits')
-        .select('*', { count: 'exact' })
+        .select('*')
         .eq('assigned_technician_id', profile?.id)
         .eq('status', 'completed')
         .gte('completed_at', `${today}T00:00:00`)
         .lt('completed_at', `${today}T23:59:59`);
       
-      console.log('✅ Dashboard: Emergencias encontradas:', { count: emergencyCount, error: emergencyError, sample: emergencyData?.slice(0, 2) });
+      const emergencyCount = emergencyData?.length || 0;
+      
+      console.log('✅ Dashboard: Emergencias encontradas:', { 
+        count: emergencyCount, 
+        error: emergencyError,
+        emergencias: emergencyData?.map(e => ({ id: e.id, completed_at: e.completed_at }))
+      });
 
       // Cargar solicitudes de servicio (TODAS, no solo del técnico)
       const { count: requestsCount, error: requestsError } = await supabase
