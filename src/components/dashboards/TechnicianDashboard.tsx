@@ -24,8 +24,9 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
   const [stats, setStats] = useState({
     scheduledToday: 0,
     completed: 0,
-    pending: 0,
-    emergencies: 0,
+    requestsThisMonth: 0,
+    requestsPending: 0,
+    emergenciesThisMonth: 0,
     checklistsThisMonth: 0,
     totalChecklistsMonth: 0,
     stoppedElevators: 0,
@@ -78,32 +79,42 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const completed = schedules?.filter(s => s.status === 'completed').length || 0;
       const pending = schedules?.filter(s => s.status === 'pending').length || 0;
 
-      // Cargar emergencias del día (completadas hoy)
-      console.log('🔍 Dashboard: Buscando emergencias del día:', { today, techId: profile?.id });
+      // Cargar emergencias del mes (completadas este mes)
+      const firstDayOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const lastDayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${lastDayOfMonth}`;
       
-      // Buscar emergencias donde completed_at empiece con la fecha de hoy
-      const { data: emergencyData, error: emergencyError } = await supabase
+      console.log('🔍 Dashboard: Buscando emergencias del mes:', { month: currentMonth, year: currentYear, techId: profile?.id });
+      
+      const { count: emergenciesMonthCount, error: emergencyError } = await supabase
         .from('emergency_visits')
-        .select('*')
-        .eq('assigned_technician_id', profile?.id)
+        .select('id', { count: 'exact', head: true })
         .eq('status', 'completed')
-        .gte('completed_at', `${today}T00:00:00`)
-        .lt('completed_at', `${today}T23:59:59`);
+        .gte('completed_at', `${firstDayOfMonth}T00:00:00`)
+        .lte('completed_at', `${lastDayStr}T23:59:59`);
       
-      const emergencyCount = emergencyData?.length || 0;
-      
-      console.log('✅ Dashboard: Emergencias encontradas:', { 
-        count: emergencyCount, 
+      console.log('✅ Dashboard: Emergencias del mes encontradas:', { 
+        count: emergenciesMonthCount, 
         error: emergencyError,
-        emergencias: emergencyData?.map(e => ({ id: e.id, completed_at: e.completed_at }))
+        periodo: `${firstDayOfMonth} a ${lastDayStr}`
       });
 
-      // Cargar solicitudes de servicio (TODAS, no solo del técnico)
-      const { count: requestsCount, error: requestsError } = await supabase
+      // Cargar solicitudes de servicio del mes (todas las del mes)
+      const { count: requestsMonthCount, error: requestsMonthError } = await supabase
         .from('service_requests')
-        .select('id', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', `${firstDayOfMonth}T00:00:00`)
+        .lte('created_at', `${lastDayStr}T23:59:59`);
       
-      console.log('📋 Solicitudes de servicio encontradas:', requestsCount, requestsError);
+      console.log('📋 Solicitudes del mes encontradas:', requestsMonthCount, requestsMonthError);
+      
+      // Cargar solicitudes pendientes (sin procesar)
+      const { count: requestsPendingCount, error: requestsPendingError } = await supabase
+        .from('service_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      console.log('⏳ Solicitudes pendientes encontradas:', requestsPendingCount, requestsPendingError);
 
       // Cargar checklists del mes actual (completados)
       console.log('🔍 Consultando checklists COMPLETADOS del mes:', { techId: profile?.id, month: currentMonth, year: currentYear });
@@ -137,18 +148,20 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       setStats({
         scheduledToday: schedules?.length || 0,
         completed,
-        pending: requestsCount || 0,
-        emergencies: emergencyCount || 0,
+        requestsThisMonth: requestsMonthCount || 0,
+        requestsPending: requestsPendingCount || 0,
+        emergenciesThisMonth: emergenciesMonthCount || 0,
         checklistsThisMonth: checklistsCount || 0,
         totalChecklistsMonth: totalChecklistsCount || 0,
         stoppedElevators: stoppedCount || 0,
       });
       
       console.log('🎯 VALORES FINALES ASIGNADOS A STATS:', {
-        emergencies: emergencyCount || 0,
+        emergenciesThisMonth: emergenciesMonthCount || 0,
         checklistsThisMonth: checklistsCount || 0,
         totalChecklistsMonth: totalChecklistsCount || 0,
-        solicitudes: requestsCount || 0
+        requestsThisMonth: requestsMonthCount || 0,
+        requestsPending: requestsPendingCount || 0
       });
     } catch (error) {
       console.error('Error loading technician data:', error);
@@ -218,7 +231,7 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
           <p className="text-sm text-purple-100">Mantenimientos del Mes</p>
         </div>
 
-        {/* Emergencias del Día */}
+        {/* Emergencias del Mes */}
         <div 
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg transition"
           onClick={() => onNavigate?.('emergency-history')}
@@ -228,8 +241,8 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
               <AlertTriangle className="w-6 h-6 text-white" />
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergencies}</h3>
-          <p className="text-sm text-slate-600">Emergencias del Día</p>
+          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.emergenciesThisMonth}</h3>
+          <p className="text-sm text-slate-600">Emergencias del Mes</p>
         </div>
 
         {/* Calendario Mensual */}
@@ -264,8 +277,10 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
               <FileText className="w-6 h-6 text-white" />
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pending}</h3>
-          <p className="text-sm text-slate-600">Solicitudes de Servicio</p>
+          <h3 className="text-xl font-bold text-slate-900 mb-1">
+            {stats.requestsThisMonth} <span className="text-slate-400">/</span> {stats.requestsPending}
+          </h3>
+          <p className="text-sm text-slate-600">Solicitudes (Mes / Pendientes)</p>
         </div>
       </div>
 
