@@ -115,7 +115,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO - CON LOGO IMAGEN SIN DISTORSIÓN
+// ENCABEZADO - CON LOGO IMAGEN SIN DISTORSIÓN v3.0
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
