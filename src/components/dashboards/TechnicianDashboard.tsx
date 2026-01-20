@@ -96,21 +96,25 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       console.log('📋 Solicitudes de servicio encontradas:', requestsCount, requestsError);
 
       // Cargar checklists del mes actual (completados)
-      const { count: checklistsCount } = await supabase
+      console.log('🔍 Consultando checklists COMPLETADOS del mes:', { techId: profile?.id, month: currentMonth, year: currentYear });
+      const { count: checklistsCount, error: checklistsError } = await supabase
         .from('mnt_checklists')
         .select('id', { count: 'exact', head: true })
         .eq('technician_id', profile?.id)
         .eq('month', currentMonth)
         .eq('year', currentYear)
         .eq('status', 'completed');
+      console.log('✅ Checklists COMPLETADOS:', checklistsCount, checklistsError);
 
       // Cargar total de checklists del mes (todos los asignados)
-      const { count: totalChecklistsCount } = await supabase
+      console.log('🔍 Consultando checklists TOTALES del mes:', { techId: profile?.id, month: currentMonth, year: currentYear });
+      const { count: totalChecklistsCount, error: totalChecklistsError } = await supabase
         .from('mnt_checklists')
         .select('id', { count: 'exact', head: true })
         .eq('technician_id', profile?.id)
         .eq('month', currentMonth)
         .eq('year', currentYear);
+      console.log('✅ Checklists TOTALES:', totalChecklistsCount, totalChecklistsError);
 
       // Cargar ascensores detenidos
       const { count: stoppedCount } = await supabase
