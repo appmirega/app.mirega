@@ -75,16 +75,16 @@ export function TechnicianDashboard({ onNavigate }: TechnicianDashboardProps = {
       const completed = schedules?.filter(s => s.status === 'completed').length || 0;
       const pending = schedules?.filter(s => s.status === 'pending').length || 0;
 
-      // Cargar emergencias del día (completadas hoy) - SIN timezone, usar solo fecha
+      // Cargar emergencias del día (completadas hoy)
       console.log('🔍 Dashboard: Buscando emergencias del día:', { today, techId: profile?.id });
       
-      // Intentar con completed_at usando LIKE para buscar cualquier hora del día
       const { count: emergencyCount, error: emergencyError, data: emergencyData } = await supabase
         .from('emergency_visits')
         .select('*', { count: 'exact' })
         .eq('assigned_technician_id', profile?.id)
         .eq('status', 'completed')
-        .like('completed_at', `${today}%`);
+        .gte('completed_at', `${today}T00:00:00`)
+        .lt('completed_at', `${today}T23:59:59`);
       
       console.log('✅ Dashboard: Emergencias encontradas:', { count: emergencyCount, error: emergencyError, sample: emergencyData?.slice(0, 2) });
 

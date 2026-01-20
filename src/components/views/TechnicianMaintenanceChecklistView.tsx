@@ -844,6 +844,7 @@ export const TechnicianMaintenanceChecklistView = ({ initialMode = 'main' }: Tec
   // Cargar historial
   const loadHistory = async () => {
     setLoadingHistory(true);
+    console.log('📚 Cargando historial de mantenimientos para:', profile?.id);
     const { data, error } = await supabase
       .from('mnt_checklists')
       .select(`
@@ -856,10 +857,13 @@ export const TechnicianMaintenanceChecklistView = ({ initialMode = 'main' }: Tec
         clients(company_name, building_name, internal_alias),
         elevators(location_name, elevator_number)
       `)
-      .or(`technician_id.eq.${profile?.id},status.eq.completed`)
+      .eq('technician_id', profile?.id)
+      .eq('status', 'completed')
       .order('year', { ascending: false })
       .order('month', { ascending: false })
       .order('completion_date', { ascending: false });
+    
+    console.log('✅ Historial cargado:', { count: data?.length, error });
 
     if (!error && data) {
       setHistory(data);

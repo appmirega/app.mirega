@@ -115,44 +115,24 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-// ENCABEZADO - EXACTAMENTE IGUAL AL PDF DE MANTENIMIENTO
+// ENCABEZADO - COPIA EXACTA DEL PDF DE MANTENIMIENTO (SOLO TEXTO, SIN IMAGEN)
 function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
+  const lightBlue = [63, 104, 184];
 
-  // Rectángulo azul izquierdo (IGUAL que mantenimiento)
+  // Rectángulo azul izquierdo (EXACTO como mantenimiento)
   doc.setFillColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.rect(0, 0, 70, 35, 'F');
 
-  // Logo imagen dentro del rectángulo azul (IGUAL que mantenimiento)
-  if (logoImg) {
-    try {
-      // Logo pequeño dentro del rectángulo azul, centrado
-      const logoW = 50;
-      const logoH = 25;
-      const logoX = 10;
-      const logoY = 5;
-      doc.addImage(logoImg, 'JPEG', logoX, logoY, logoW, logoH);
-    } catch (e) {
-      console.error('Error al cargar logo:', e);
-      // Fallback: texto si falla la imagen
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('MIREGA', 35, 15, { align: 'center' });
-      doc.setFontSize(8);
-      doc.text('ASCENSORES', 35, 20, { align: 'center' });
-    }
-  } else {
-    // Fallback: texto si no hay logo
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('MIREGA', 35, 15, { align: 'center' });
-    doc.setFontSize(8);
-    doc.text('ASCENSORES', 35, 20, { align: 'center' });
-  }
+  // TEXTO dentro del rectángulo (NO imagen, como mantenimiento)
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MIREGA', 35, 15, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text('ASCENSORES', 35, 20, { align: 'center' });
 
-  // Títulos a la derecha (IGUAL que mantenimiento)
+  // Títulos a la derecha (EXACTO como mantenimiento)
   doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
@@ -162,7 +142,7 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   doc.setFont('helvetica', 'normal');
   doc.text('SERVICIO DE ATENCIÓN', 105, 25);
 
-  // Información de contacto (IGUAL que mantenimiento)
+  // Información de contacto (EXACTO como mantenimiento)
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   doc.text('MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia', 105, 31);
