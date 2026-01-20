@@ -120,38 +120,36 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Logo imagen a la IZQUIERDA con aspect ratio correcto
+  // Logo imagen a la IZQUIERDA
+  let logoWidth = 45;
+  let logoHeight = 30;
+  const logoX = 15; // Posición fija a la izquierda
+  
   if (logoImg) {
     try {
       // Mantener aspect ratio del logo
-      const logoWidth = 45;
-      const logoHeight = (logoWidth * logoImg.height) / logoImg.width;
-      doc.addImage(logoImg, 'JPEG', 15, 8, logoWidth, logoHeight);
+      logoHeight = (logoWidth * logoImg.height) / logoImg.width;
+      doc.addImage(logoImg, 'JPEG', logoX, 8, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error al cargar logo:', e);
     }
   }
 
-  // TÍTULO CENTRADO perfectamente en la página
+  // Calcular posición X para título y subtítulo (a la derecha del logo)
+  const textStartX = logoX + logoWidth + 8; // 8mm de separación del logo
+
+  // TÍTULO alineado horizontalmente con el logo
   doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
   const title = 'REPORTE DE EMERGENCIA';
-  doc.text(title, pageWidth / 2, 18, { align: 'center' });
+  doc.text(title, textStartX, 18);
 
-  // SUBTÍTULO alineado a la IZQUIERDA del título
+  // SUBTÍTULO debajo del título, misma alineación
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   const subtitle = 'SERVICIO DE ATENCIÓN';
-  // Calcular dónde empieza el título para alinear el subtítulo
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  const titleWidth = doc.getTextWidth(title);
-  const titleStartX = (pageWidth - titleWidth) / 2;
-
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(subtitle, titleStartX, 26);
+  doc.text(subtitle, textStartX, 26);
 
   // Información de contacto centrada
   doc.setFontSize(7);
