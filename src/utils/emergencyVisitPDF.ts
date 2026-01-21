@@ -120,11 +120,12 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Logo - EXACTAMENTE COMO MANTENIMIENTO
+  // Logo - Ancho fijo 35, altura proporcional para evitar deformación
   const logoW = 35;
-  const logoH = 30;
   if (logoImg) {
     try {
+      const aspectRatio = logoImg.height / logoImg.width;
+      const logoH = logoW * aspectRatio;
       doc.addImage(logoImg, 'JPEG', MARGIN, MARGIN, logoW, logoH);
     } catch (e) {
       console.error('Error al cargar logo:', e);

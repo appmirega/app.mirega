@@ -232,12 +232,27 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         setVisitStartTime(startTime);
       }
       
-      // Restaurar TODOS los estados del formulario
-      if (visitData.failure_description) setFailureDescription(visitData.failure_description);
-      if (visitData.resolution_summary) setResolutionSummary(visitData.resolution_summary);
-      if (visitData.final_status) setFinalStatus(visitData.final_status);
-      if (visitData.failure_cause) setFailureCause(visitData.failure_cause);
-      if (visitData.receiver_name) setReceiverName(visitData.receiver_name);
+      // Restaurar TODOS los estados del formulario (incluso si son strings vacíos)
+      if (visitData.failure_description !== undefined && visitData.failure_description !== null) {
+        setFailureDescription(visitData.failure_description);
+        console.log('📋 Descripción cargada:', visitData.failure_description.length, 'chars');
+      }
+      if (visitData.resolution_summary !== undefined && visitData.resolution_summary !== null) {
+        setResolutionSummary(visitData.resolution_summary);
+        console.log('📋 Resolución cargada:', visitData.resolution_summary.length, 'chars');
+      }
+      if (visitData.final_status) {
+        setFinalStatus(visitData.final_status);
+        console.log('📋 Estado final:', visitData.final_status);
+      }
+      if (visitData.failure_cause) {
+        setFailureCause(visitData.failure_cause);
+        console.log('📋 Causa:', visitData.failure_cause);
+      }
+      if (visitData.receiver_name !== undefined && visitData.receiver_name !== null) {
+        setReceiverName(visitData.receiver_name);
+        console.log('📋 Receptor:', visitData.receiver_name);
+      }
       
       // Restaurar URLs de fotos
       if (visitData.failure_photo_1_url) setFailurePhoto1Url(visitData.failure_photo_1_url);
