@@ -273,7 +273,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   };
 
   const loadDraftData = async (draftVisitId: string) => {
-    console.log('📂 Cargando borrador existente:', draftVisitId);
+    console.log('📂 ============ CARGANDO BORRADOR ============');
+    console.log('🔑 Visit ID:', draftVisitId);
     try {
       setVisitId(draftVisitId);
       
@@ -284,20 +285,27 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .eq('id', draftVisitId)
         .single();
       
-      if (visitError) throw visitError;
+      if (visitError) {
+        console.error('❌ Error al cargar de BD:', visitError);
+        throw visitError;
+      }
       
-      console.log('💾 Datos cargados de BD:', {
-        failure_description: visitData.failure_description?.length || 0,
-        resolution_summary: visitData.resolution_summary?.length || 0,
+      console.log('💾 DATOS CRUDOS DE BD:', JSON.stringify(visitData, null, 2));
+      
+      console.log('💾 Valores específicos:', {
+        failure_description: visitData.failure_description,
+        failure_description_length: visitData.failure_description?.length || 0,
+        resolution_summary: visitData.resolution_summary,
+        resolution_summary_length: visitData.resolution_summary?.length || 0,
         final_status: visitData.final_status,
         failure_cause: visitData.failure_cause,
-        receiver_name: visitData.receiver_name?.length || 0,
-        fotos: [
-          visitData.failure_photo_1_url ? '1' : '-',
-          visitData.failure_photo_2_url ? '2' : '-',
-          visitData.resolution_photo_1_url ? '3' : '-',
-          visitData.resolution_photo_2_url ? '4' : '-'
-        ].join('')
+        receiver_name: visitData.receiver_name,
+        fotos: {
+          f1: visitData.failure_photo_1_url,
+          f2: visitData.failure_photo_2_url,
+          r1: visitData.resolution_photo_1_url,
+          r2: visitData.resolution_photo_2_url
+        }
       });
       
       // Capturar hora de creación
@@ -308,25 +316,42 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       }
       
       // Restaurar TODOS los estados del formulario (incluso si son strings vacíos)
+      console.log('
+📝 RESTAURANDO CAMPOS:');
+      
       if (visitData.failure_description !== undefined && visitData.failure_description !== null) {
+        console.log('  ✅ Seteando failure_description:', visitData.failure_description.substring(0, 50));
         setFailureDescription(visitData.failure_description);
-        console.log('📋 Descripción cargada:', visitData.failure_description.length, 'chars');
+      } else {
+        console.log('  ❌ failure_description es null/undefined');
       }
+      
       if (visitData.resolution_summary !== undefined && visitData.resolution_summary !== null) {
+        console.log('  ✅ Seteando resolution_summary:', visitData.resolution_summary.substring(0, 50));
         setResolutionSummary(visitData.resolution_summary);
-        console.log('📋 Resolución cargada:', visitData.resolution_summary.length, 'chars');
+      } else {
+        console.log('  ❌ resolution_summary es null/undefined');
       }
+      
       if (visitData.final_status) {
+        console.log('  ✅ Seteando final_status:', visitData.final_status);
         setFinalStatus(visitData.final_status);
-        console.log('📋 Estado final:', visitData.final_status);
+      } else {
+        console.log('  ❌ final_status vacío');
       }
+      
       if (visitData.failure_cause) {
+        console.log('  ✅ Seteando failure_cause:', visitData.failure_cause);
         setFailureCause(visitData.failure_cause);
-        console.log('📋 Causa:', visitData.failure_cause);
+      } else {
+        console.log('  ❌ failure_cause vacío');
       }
+      
       if (visitData.receiver_name !== undefined && visitData.receiver_name !== null) {
+        console.log('  ✅ Seteando receiver_name:', visitData.receiver_name);
         setReceiverName(visitData.receiver_name);
-        console.log('📋 Receptor:', visitData.receiver_name);
+      } else {
+        console.log('  ❌ receiver_name es null/undefined');
       }
       
       // Restaurar URLs de fotos
