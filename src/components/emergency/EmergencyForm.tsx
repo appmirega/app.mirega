@@ -94,7 +94,62 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Guardado automático cada 30 segundos
+  // Función de auto-guardado (DEFINIDA ANTES DEL useEffect)
+  const autoSave = useCallback(async () => {
+    if (!visitId) return;
+    
+    try {
+      const dataToSave = {
+        failure_description: failureDescription || '',
+        resolution_summary: resolutionSummary || '',
+        final_status: finalStatus || null,
+        failure_cause: failureCause || null,
+        receiver_name: receiverName || '',
+        service_request_id: serviceRequestId || null,
+        failure_photo_1_url: failurePhoto1Url || null,
+        failure_photo_2_url: failurePhoto2Url || null,
+        resolution_photo_1_url: resolutionPhoto1Url || null,
+        resolution_photo_2_url: resolutionPhoto2Url || null,
+        last_autosave: new Date().toISOString()
+      };
+      
+      console.log('💾 Auto-guardando:', {
+        texto_descripcion: failureDescription?.length || 0,
+        texto_resolucion: resolutionSummary?.length || 0,
+        estado_final: finalStatus,
+        causa: failureCause,
+        receptor: receiverName
+      });
+      
+      const { error } = await supabase
+        .from('emergency_visits')
+        .update(dataToSave)
+        .eq('id', visitId);
+      
+      if (error) {
+        console.error('❌ Error auto-guardado:', error);
+      } else {
+        console.log('✅ Guardado OK');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error:', error);
+    }
+  }, [
+    visitId, 
+    failureDescription, 
+    resolutionSummary, 
+    finalStatus,
+    failureCause,
+    receiverName,
+    serviceRequestId,
+    failurePhoto1Url,
+    failurePhoto2Url,
+    resolutionPhoto1Url,
+    resolutionPhoto2Url
+  ]);
+
+  // Guardado automático cada 30 segundos (DESPUÉS de definir autoSave)
   useEffect(() => {
     if (!visitId) return;
     
@@ -304,60 +359,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       throw error;
     }
   };
-
-  const autoSave = useCallback(async () => {
-    if (!visitId) return;
-    
-    try {
-      const dataToSave = {
-        failure_description: failureDescription || '',
-        resolution_summary: resolutionSummary || '',
-        final_status: finalStatus || null,
-        failure_cause: failureCause || null,
-        receiver_name: receiverName || '',
-        service_request_id: serviceRequestId || null,
-        failure_photo_1_url: failurePhoto1Url || null,
-        failure_photo_2_url: failurePhoto2Url || null,
-        resolution_photo_1_url: resolutionPhoto1Url || null,
-        resolution_photo_2_url: resolutionPhoto2Url || null,
-        last_autosave: new Date().toISOString()
-      };
-      
-      console.log('💾 Auto-guardando:', {
-        texto_descripcion: failureDescription?.length || 0,
-        texto_resolucion: resolutionSummary?.length || 0,
-        estado_final: finalStatus,
-        causa: failureCause,
-        receptor: receiverName
-      });
-      
-      const { error } = await supabase
-        .from('emergency_visits')
-        .update(dataToSave)
-        .eq('id', visitId);
-      
-      if (error) {
-        console.error('❌ Error auto-guardado:', error);
-      } else {
-        console.log('✅ Guardado OK');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error:', error);
-    }
-  }, [
-    visitId, 
-    failureDescription, 
-    resolutionSummary, 
-    finalStatus,
-    failureCause,
-    receiverName,
-    serviceRequestId,
-    failurePhoto1Url,
-    failurePhoto2Url,
-    resolutionPhoto1Url,
-    resolutionPhoto2Url
-  ]);
 
   const uploadPhoto = async (file: File, path: string): Promise<string | null> => {
     try {
