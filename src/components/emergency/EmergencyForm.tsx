@@ -98,12 +98,18 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   useEffect(() => {
     if (!visitId) return;
     
+    console.log('⏰ Iniciando auto-guardado cada 30 segundos para visitId:', visitId);
+    
     const interval = setInterval(() => {
+      console.log('⏰ Ejecutando auto-guardado programado...');
       autoSave();
     }, 30000);
     
-    return () => clearInterval(interval);
-  }, [visitId, failureDescription, resolutionSummary, finalStatus]);
+    return () => {
+      console.log('⏹️ Deteniendo auto-guardado');
+      clearInterval(interval);
+    };
+  }, [visitId, autoSave]);
 
   const loadInitialData = async () => {
     console.log('📊 Cargando datos iniciales para emergencia...');
@@ -224,6 +230,20 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .single();
       
       if (visitError) throw visitError;
+      
+      console.log('💾 Datos cargados de BD:', {
+        failure_description: visitData.failure_description?.length || 0,
+        resolution_summary: visitData.resolution_summary?.length || 0,
+        final_status: visitData.final_status,
+        failure_cause: visitData.failure_cause,
+        receiver_name: visitData.receiver_name?.length || 0,
+        fotos: [
+          visitData.failure_photo_1_url ? '1' : '-',
+          visitData.failure_photo_2_url ? '2' : '-',
+          visitData.resolution_photo_1_url ? '3' : '-',
+          visitData.resolution_photo_2_url ? '4' : '-'
+        ].join('')
+      });
       
       // Capturar hora de creación
       if (visitData.created_at) {
