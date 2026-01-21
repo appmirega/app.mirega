@@ -120,14 +120,11 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const darkBlue = [31, 49, 107];
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Logo a la izquierda ALINEADO CON EL TÍTULO
+  // Logo - EXACTAMENTE COMO MANTENIMIENTO
   const logoW = 35;
+  const logoH = 30;
   if (logoImg) {
     try {
-      // Calcular altura manteniendo aspect ratio
-      const aspectRatio = logoImg.height / logoImg.width;
-      const logoH = logoW * aspectRatio;
-      // Logo alineado en Y = MARGIN (10)
       doc.addImage(logoImg, 'JPEG', MARGIN, MARGIN, logoW, logoH);
     } catch (e) {
       console.error('Error al cargar logo:', e);
@@ -137,13 +134,13 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   const mainTitle = 'REPORTE DE EMERGENCIA';
   const subTitle = 'SERVICIO DE ATENCIÓN';
 
-  // Título centrado - alineado verticalmente con el logo
+  // Título centrado - EXACTAMENTE COMO MANTENIMIENTO
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
 
   const titleXcenter = pageWidth / 2;
-  const titleY = MARGIN + 16; // Logo está en 10, título en 26 (logo + 16px)
+  const titleY = MARGIN + 16;
   doc.text(mainTitle, titleXcenter, titleY, { align: 'center' });
 
   // Subtítulo alineado a la izquierda del título
