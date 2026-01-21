@@ -274,25 +274,35 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     if (!visitId) return;
     
     try {
-      await supabase
+      const dataToSave = {
+        failure_description: failureDescription || null,
+        resolution_summary: resolutionSummary || null,
+        final_status: finalStatus || null,
+        failure_cause: failureCause || null,
+        receiver_name: receiverName || null,
+        service_request_id: serviceRequestId || null,
+        failure_photo_1_url: failurePhoto1Url || null,
+        failure_photo_2_url: failurePhoto2Url || null,
+        resolution_photo_1_url: resolutionPhoto1Url || null,
+        resolution_photo_2_url: resolutionPhoto2Url || null,
+        last_autosave: new Date().toISOString()
+      };
+      
+      console.log('💾 Auto-guardando datos:', dataToSave);
+      
+      const { error } = await supabase
         .from('emergency_visits')
-        .update({
-          failure_description: failureDescription,
-          resolution_summary: resolutionSummary,
-          final_status: finalStatus || null,
-          failure_cause: failureCause || null,
-          receiver_name: receiverName || null,
-          service_request_id: serviceRequestId || null,
-          failure_photo_1_url: failurePhoto1Url || null,
-          failure_photo_2_url: failurePhoto2Url || null,
-          resolution_photo_1_url: resolutionPhoto1Url || null,
-          resolution_photo_2_url: resolutionPhoto2Url || null,
-          last_autosave: new Date().toISOString()
-        })
+        .update(dataToSave)
         .eq('id', visitId);
       
+      if (error) {
+        console.error('❌ Error en auto-guardado:', error);
+      } else {
+        console.log('✅ Auto-guardado exitoso');
+      }
+      
     } catch (error) {
-      console.error('Error auto-saving:', error);
+      console.error('❌ Error auto-saving:', error);
     }
   }, [
     visitId, 

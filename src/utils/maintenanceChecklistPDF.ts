@@ -131,8 +131,8 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null, icons: (HTMLIm
   const subTitleY = titleY + 7;
   doc.text(subTitle, titleStartX, subTitleY);
 
-  const companyText1 = 'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia';
-  const companyText2 = '+56956087972';
+  const companyText1 = 'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°273 – Of. 1406, Providencia';
+  const companyText2 = '+562 6469 1048 / +569 8793 3552';
   const companyText3 = 'contacto@mirega.cl';
   const companyText4 = 'www.mirega.cl';
 

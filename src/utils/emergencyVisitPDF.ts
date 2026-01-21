@@ -122,9 +122,11 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   
   // Logo a la izquierda ALINEADO CON EL TÍTULO
   const logoW = 35;
-  const logoH = 30; // Altura fija para alinear con el texto
   if (logoImg) {
     try {
+      // Calcular altura manteniendo aspect ratio
+      const aspectRatio = logoImg.height / logoImg.width;
+      const logoH = logoW * aspectRatio;
       // Logo alineado en Y = MARGIN (10)
       doc.addImage(logoImg, 'JPEG', MARGIN, MARGIN, logoW, logoH);
     } catch (e) {
@@ -156,7 +158,7 @@ function drawHeader(doc: jsPDF, logoImg: HTMLImageElement | null): number {
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   const infoY = subTitleY + 6;
-  const contactInfo = 'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°255 – Of. 202, Providencia  |  +56956087972  |  contacto@mirega.cl';
+  const contactInfo = 'MIREGA ASCENSORES LTDA. Pedro de Valdivia N°273 – Of. 1406, Providencia  |  +562 6469 1048 / +569 8793 3552  |  contacto@mirega.cl';
   doc.text(contactInfo, pageWidth / 2, infoY, { align: 'center' });
 
   return infoY + 6;
