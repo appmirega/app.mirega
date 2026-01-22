@@ -37,12 +37,16 @@ interface LastEmergency {
 }
 
 export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, existingVisitId }: EmergencyFormProps) {
-  console.log('🚨 EmergencyForm montado con:', { clientId, elevatorIds: elevatorIds.length, existingVisitId });
+  console.log('🚨 ========== EMERGENCYFORM MONTADO ==========');
+  console.log('📥 Props recibidas:', { clientId, elevatorIds: elevatorIds.length, existingVisitId });
+  console.log('🔑 existingVisitId tipo:', typeof existingVisitId, 'valor:', existingVisitId);
   
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [visitId, setVisitId] = useState<string | null>(existingVisitId || null);
+  
+  console.log('📍 visitId inicial (state):', visitId);
   
   // Datos del cliente y ascensores
   const [clientName, setClientName] = useState('');
@@ -159,7 +163,23 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     resolutionPhoto2Url
   ]);
 
-  // Guardado automático cada 30 segundos (DESPUÉS de definir autoSave)
+  // Auto-guardado cuando cambian los campos de texto (debounce 2 segundos)
+  useEffect(() => {
+    if (!visitId) return;
+    
+    console.log('📝 Campo de texto cambió, programando auto-guardado en 2 segundos...');
+    
+    const debounceTimer = setTimeout(() => {
+      console.log('💾 Ejecutando auto-guardado por cambio de texto');
+      autoSave();
+    }, 2000);
+    
+    return () => {
+      clearTimeout(debounceTimer);
+    };
+  }, [visitId, failureDescription, resolutionSummary, receiverName, autoSave]);
+  
+  // Guardado automático cada 30 segundos como respaldo
   useEffect(() => {
     if (!visitId) return;
     
