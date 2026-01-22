@@ -468,6 +468,10 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       .update({ initial_status: status })
       .eq('emergency_visit_id', visitId)
       .eq('elevator_id', elevatorId);
+    
+    // Guardar después de actualizar estado de ascensor
+    console.log('💾 Estado de ascensor actualizado - guardando...');
+    await autoSave();
   };
 
   const handleFinalStatusChange = (status: 'operational' | 'observation' | 'stopped') => {
@@ -479,6 +483,10 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     } else {
       setShowWarning(false);
     }
+    
+    // Guardar después de cambiar estado final
+    console.log('💾 Estado final actualizado - guardando...');
+    autoSave();
   };
 
   const formatTimeSinceEmergency = (days: number): string => {
@@ -1098,7 +1106,11 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button
               type="button"
-              onClick={() => setFailureCause('normal_use')}
+              onClick={() => {
+                setFailureCause('normal_use');
+                console.log('💾 Causa de falla seleccionada - guardando...');
+                setTimeout(() => autoSave(), 100);
+              }}
               className={`p-4 rounded-lg border-2 transition-all text-left ${
                 failureCause === 'normal_use'
                   ? 'bg-blue-50 border-blue-500'
@@ -1109,7 +1121,11 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
             </button>
             <button
               type="button"
-              onClick={() => setFailureCause('third_party')}
+              onClick={() => {
+                setFailureCause('third_party');
+                console.log('💾 Causa de falla seleccionada - guardando...');
+                setTimeout(() => autoSave(), 100);
+              }}
               className={`p-4 rounded-lg border-2 transition-all text-left ${
                 failureCause === 'third_party'
                   ? 'bg-orange-50 border-orange-500'
@@ -1120,7 +1136,11 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
             </button>
             <button
               type="button"
-              onClick={() => setFailureCause('part_lifespan')}
+              onClick={() => {
+                setFailureCause('part_lifespan');
+                console.log('💾 Causa de falla seleccionada - guardando...');
+                setTimeout(() => autoSave(), 100);
+              }}
               className={`p-4 rounded-lg border-2 transition-all text-left ${
                 failureCause === 'part_lifespan'
                   ? 'bg-purple-50 border-purple-500'
