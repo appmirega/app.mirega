@@ -752,6 +752,8 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   const handleExit = async () => {
     console.log('🚪 Saliendo del formulario - guardando cambios...');
     if (visitId) {
+      // Esperar 300ms para que se completen guardados pendientes de botones
+      await new Promise(resolve => setTimeout(resolve, 300));
       await autoSave();
       console.log('✅ Guardado completado antes de salir');
     }
