@@ -180,6 +180,61 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     };
   }, [visitId, autoSave]);
 
+  // Guardar cuando se desmonta el componente (navegación interna)
+  useEffect(() => {
+    return () => {
+      if (visitId) {
+        console.log('🔄 Componente desmontándose - guardando...');
+        // Guardado síncrono usando fetch (más confiable en cleanup)
+        const saveData = {
+          failure_description: failureDescription || '',
+          resolution_summary: resolutionSummary || '',
+          final_status: finalStatus || null,
+          failure_cause: failureCause || null,
+          receiver_name: receiverName || '',
+          service_request_id: serviceRequestId || null,
+          failure_photo_1_url: failurePhoto1Url || null,
+          failure_photo_2_url: failurePhoto2Url || null,
+          resolution_photo_1_url: resolutionPhoto1Url || null,
+          resolution_photo_2_url: resolutionPhoto2Url || null,
+        };
+        
+        // Usar fetch directamente (más confiable en cleanup)
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        fetch(`${supabaseUrl}/rest/v1/emergency_visits?id=eq.${visitId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(saveData),
+          keepalive: true // Permite que la petición continúe aunque se cierre la pestaña
+        });
+      }
+    };
+  }, [visitId, failureDescription, resolutionSummary, finalStatus, failureCause, receiverName, serviceRequestId, failurePhoto1Url, failurePhoto2Url, resolutionPhoto1Url, resolutionPhoto2Url]);
+
+  // Guardar antes de cerrar ventana/pestaña
+  useEffect(() => {
+    if (!visitId) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      console.log('🚪 Cerrando ventana - guardando...');
+      autoSave();
+      // No mostrar diálogo de confirmación
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [visitId, autoSave]);
+
   const loadInitialData = async () => {
     console.log('📊 Cargando datos iniciales para emergencia...');
     try {
