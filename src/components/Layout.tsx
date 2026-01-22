@@ -143,6 +143,8 @@ export function Layout({ children, onNavigate }: LayoutProps) {
   };
 
   const handleNavigation = (path: string) => {
+    // Siempre actualizar la vista, incluso si es la misma ruta
+    // Esto permite volver a la vista principal desde subsecciones
     setCurrentView(path);
     setSidebarOpen(false);
     if (onNavigate) {

@@ -75,6 +75,13 @@ function AppContent() {
   const { user, profile, loading } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [showSplash, setShowSplash] = useState(true);
+  const [viewKey, setViewKey] = useState(0); // Key para forzar re-render
+  
+  // Función mejorada para navegación que fuerza re-render
+  const handleNavigate = (path: string) => {
+    setCurrentView(path);
+    setViewKey(prev => prev + 1); // Incrementar key para forzar re-render
+  };
 
   if (loading || showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} minDuration={3500} />;
@@ -113,15 +120,15 @@ function AppContent() {
       case 'maintenance-history':
         return <TechnicianMaintenanceChecklistView initialMode="history" />;
       case 'maintenance-complete':
-        return <MaintenanceCompleteView onNavigate={setCurrentView} />;
+        return <MaintenanceCompleteView onNavigate={handleNavigate} />;
       case 'maintenance-complete-view':
-        return <MaintenanceCompleteView onNavigate={setCurrentView} />;
+        return <MaintenanceCompleteView onNavigate={handleNavigate} />;
       case 'emergency-history':
-        return <EmergencyHistory onBack={() => setCurrentView('dashboard')} />;
+        return <EmergencyHistory onBack={() => handleNavigate('dashboard')} />;
       case 'emergency-history-complete':
-        return <EmergencyHistory onBack={() => setCurrentView('dashboard')} />;
+        return <EmergencyHistory onBack={() => handleNavigate('dashboard')} />;
       case 'stopped-elevators':
-        return <StoppedElevators onBack={() => setCurrentView('dashboard')} />;
+        return <StoppedElevators onBack={() => handleNavigate('dashboard')} />;
       case 'qr-codes-complete':
         return <QRCodesCompleteView />;
       case 'certifications':
@@ -143,7 +150,7 @@ function AppContent() {
       case 'clients':
         return <ClientsView />;
       case 'elevators':
-        return <ElevatorsCompleteView onNavigate={setCurrentView} />;
+        return <ElevatorsCompleteView onNavigate={handleNavigate} />;
       case 'client-technical-info':
         return <ClientTechnicalInfoView />;
       case 'developer-permissions':
@@ -152,13 +159,15 @@ function AppContent() {
         return <AdminPermissionsPanel />;
       case 'dashboard':
       default:
-        return <DashboardRouter onNavigate={setCurrentView} />;
+        return <DashboardRouter onNavigate={handleNavigate} />;
     }
   };
 
   return (
-    <Layout onNavigate={setCurrentView}>
-      {renderContent()}
+    <Layout onNavigate={handleNavigate}>
+      <div key={viewKey}>
+        {renderContent()}
+      </div>
     </Layout>
   );
 }
