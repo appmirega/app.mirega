@@ -195,17 +195,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       clearInterval(interval);
     };
   }, [visitId, autoSave]);
-  
-  // Guardar SIEMPRE al desmontar el componente (cuando sales del formulario)
-  useEffect(() => {
-    return () => {
-      if (visitId) {
-        console.log('🚪 Saliendo del formulario - Guardando cambios finales...');
-        // Ejecutar guardado síncrono antes de desmontar
-        autoSave();
-      }
-    };
-  }, [visitId, autoSave]);
 
   const loadInitialData = async () => {
     console.log('📊 Cargando datos iniciales para emergencia...');
@@ -767,11 +756,21 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     );
   }
 
+  // Función para salir del formulario (guarda antes de salir)
+  const handleExit = async () => {
+    console.log('🚪 Saliendo del formulario - guardando cambios...');
+    if (visitId) {
+      await autoSave();
+      console.log('✅ Guardado completado antes de salir');
+    }
+    onCancel();
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={onCancel} className="p-2 hover:bg-gray-200 rounded-lg">
+        <button onClick={handleExit} className="p-2 hover:bg-gray-200 rounded-lg">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="flex-1">
