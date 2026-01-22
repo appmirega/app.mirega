@@ -56,18 +56,33 @@ export function ClientEmergenciesView() {
   const loadEmergencies = async () => {
     try {
       console.log('🔍 [Emergencies] Profile ID:', profile?.id);
+      console.log('📧 [Emergencies] Profile Email:', profile?.email);
       
-      const { data: client, error: clientError } = await supabase
+      // Intentar por profile_id primero
+      let { data: client, error: clientError } = await supabase
         .from('clients')
         .select('id, company_name, building_name, internal_alias')
         .eq('profile_id', profile?.id)
         .maybeSingle();
 
-      console.log('🏢 [Emergencies] Client Data:', client);
+      console.log('🏢 [Emergencies] Client Data (by profile_id):', client);
       console.log('⚠️ [Emergencies] Client Error:', clientError);
 
+      // Fallback a email matching
+      if (!client && profile?.email) {
+        console.log('🔄 [Emergencies] Trying fallback: matching by email...');
+        const { data: clientByEmail } = await supabase
+          .from('clients')
+          .select('id, company_name, building_name, internal_alias')
+          .eq('contact_email', profile.email)
+          .maybeSingle();
+        
+        client = clientByEmail;
+        console.log('📧 [Emergencies] Client Data (by email):', client);
+      }
+
       if (!client) {
-        console.error('❌ [Emergencies] No client found for this profile');
+        console.error('❌ [Emergencies] No client found for this profile (tried profile_id and email)');
         setLoading(false);
         return;
       }

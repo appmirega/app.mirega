@@ -52,19 +52,33 @@ export const ClientMaintenancesView: React.FC = () => {
       setLoadingHistory(true);
       
       console.log('🔍 Profile ID:', profile.id);
+      console.log('📧 Profile Email:', profile.email);
       
-      // Primero obtener el client_id del perfil
-      const { data: clientData, error: clientError } = await supabase
+      // Primero intentar por profile_id (nuevo flujo)
+      let { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('id, company_name, building_name, internal_alias')
         .eq('profile_id', profile.id)
         .maybeSingle();
 
-      console.log('🏢 Client Data:', clientData);
+      console.log('🏢 Client Data (by profile_id):', clientData);
       console.log('⚠️ Client Error:', clientError);
 
+      // Si no encuentra por profile_id, intentar por email (clientes legacy)
+      if (!clientData && profile.email) {
+        console.log('🔄 Trying fallback: matching by email...');
+        const { data: clientByEmail } = await supabase
+          .from('clients')
+          .select('id, company_name, building_name, internal_alias')
+          .eq('contact_email', profile.email)
+          .maybeSingle();
+        
+        clientData = clientByEmail;
+        console.log('📧 Client Data (by email):', clientData);
+      }
+
       if (!clientData) {
-        console.error('❌ No client found for this profile');
+        console.error('❌ No client found for this profile (tried profile_id and email)');
         setLoadingHistory(false);
         return;
       }
