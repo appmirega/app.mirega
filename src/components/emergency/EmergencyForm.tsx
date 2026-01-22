@@ -484,9 +484,9 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       setShowWarning(false);
     }
     
-    // Guardar después de cambiar estado final
-    console.log('💾 Estado final actualizado - guardando...');
-    autoSave();
+    // Guardar después de cambiar estado final (con delay para que se actualice el estado)
+    console.log('💾 Estado final actualizado - guardando en 200ms...');
+    setTimeout(() => autoSave(), 200);
   };
 
   const formatTimeSinceEmergency = (days: number): string => {
