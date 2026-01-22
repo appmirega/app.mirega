@@ -163,16 +163,16 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     resolutionPhoto2Url
   ]);
 
-  // Auto-guardado cuando cambian los campos de texto (debounce 2 segundos)
+  // Auto-guardado cuando cambian los campos de texto (debounce 500ms - medio segundo)
   useEffect(() => {
     if (!visitId) return;
     
-    console.log('📝 Campo de texto cambió, programando auto-guardado en 2 segundos...');
+    console.log('📝 Campo de texto cambió, programando auto-guardado en 500ms...');
     
     const debounceTimer = setTimeout(() => {
       console.log('💾 Ejecutando auto-guardado por cambio de texto');
       autoSave();
-    }, 2000);
+    }, 500);
     
     return () => {
       clearTimeout(debounceTimer);
@@ -193,6 +193,17 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     return () => {
       console.log('⏹️ Deteniendo auto-guardado');
       clearInterval(interval);
+    };
+  }, [visitId, autoSave]);
+  
+  // Guardar SIEMPRE al desmontar el componente (cuando sales del formulario)
+  useEffect(() => {
+    return () => {
+      if (visitId) {
+        console.log('🚪 Saliendo del formulario - Guardando cambios finales...');
+        // Ejecutar guardado síncrono antes de desmontar
+        autoSave();
+      }
     };
   }, [visitId, autoSave]);
 
