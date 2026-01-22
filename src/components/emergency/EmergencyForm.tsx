@@ -316,8 +316,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       }
       
       // Restaurar TODOS los estados del formulario (incluso si son strings vacíos)
-      console.log('
-📝 RESTAURANDO CAMPOS:');
+      console.log('\n📝 RESTAURANDO CAMPOS:');
       
       if (visitData.failure_description !== undefined && visitData.failure_description !== null) {
         console.log('  ✅ Seteando failure_description:', visitData.failure_description.substring(0, 50));
