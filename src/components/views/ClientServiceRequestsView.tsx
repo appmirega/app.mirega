@@ -59,22 +59,27 @@ export const ClientServiceRequestsView: React.FC = () => {
 
   const loadRequests = async () => {
     if (!profile?.id) {
-      console.error('No profile found');
+      console.error('❌ [Requests] No profile found');
       return;
     }
 
     try {
       setLoading(true);
       
+      console.log('🔍 [Requests] Profile ID:', profile.id);
+      
       // Primero obtener el client_id del perfil
-      const { data: clientData } = await supabase
+      const { data: clientData, error: clientError } = await supabase
         .from('clients')
-        .select('id')
+        .select('id, company_name, building_name, internal_alias')
         .eq('profile_id', profile.id)
         .maybeSingle();
 
+      console.log('🏢 [Requests] Client Data:', clientData);
+      console.log('⚠️ [Requests] Client Error:', clientError);
+
       if (!clientData) {
-        console.error('No client found for this profile');
+        console.error('❌ [Requests] No client found for this profile');
         setLoading(false);
         return;
       }
@@ -111,6 +116,9 @@ export const ClientServiceRequestsView: React.FC = () => {
         .eq('client_id', clientData.id)
         .order('created_at', { ascending: false });
 
+      console.log('📋 [Requests] Service Requests Data:', data);
+      console.log('⚠️ [Requests] Service Requests Error:', error);
+
       if (error) throw error;
       
       // Transformar los datos para manejar los arrays de Supabase
@@ -119,6 +127,8 @@ export const ClientServiceRequestsView: React.FC = () => {
         elevators: Array.isArray(item.elevators) && item.elevators.length > 0 ? item.elevators[0] : item.elevators,
         technician: Array.isArray(item.technician) && item.technician.length > 0 ? item.technician[0] : item.technician
       }));
+      
+      console.log('✅ [Requests] Transformed Data:', transformedData);
       
       setRequests(transformedData as any);
     } catch (error) {

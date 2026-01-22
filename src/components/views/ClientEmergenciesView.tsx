@@ -55,28 +55,40 @@ export function ClientEmergenciesView() {
 
   const loadEmergencies = async () => {
     try {
-      const { data: client } = await supabase
+      console.log('🔍 [Emergencies] Profile ID:', profile?.id);
+      
+      const { data: client, error: clientError } = await supabase
         .from('clients')
-        .select('id')
+        .select('id, company_name, building_name, internal_alias')
         .eq('profile_id', profile?.id)
         .maybeSingle();
 
+      console.log('🏢 [Emergencies] Client Data:', client);
+      console.log('⚠️ [Emergencies] Client Error:', clientError);
+
       if (!client) {
+        console.error('❌ [Emergencies] No client found for this profile');
         setLoading(false);
         return;
       }
 
-      const { data: elevatorsData } = await supabase
+      const { data: elevatorsData, error: elevatorsError } = await supabase
         .from('elevators')
-        .select('id')
+        .select('id, elevator_number, location_name')
         .eq('client_id', client.id);
+
+      console.log('🏗️ [Emergencies] Elevators Data:', elevatorsData);
+      console.log('⚠️ [Emergencies] Elevators Error:', elevatorsError);
 
       const elevatorIds = elevatorsData?.map(e => e.id) || [];
 
       if (elevatorIds.length === 0) {
+        console.warn('⚠️ [Emergencies] No elevators found for this client');
         setLoading(false);
         return;
       }
+
+      console.log('📋 [Emergencies] Elevator IDs:', elevatorIds);
 
       const { data, error } = await supabase
         .from('emergency_visits_v2')
@@ -98,6 +110,9 @@ export function ClientEmergenciesView() {
         .in('elevator_id', elevatorIds)
         .order('visit_date', { ascending: false })
         .order('visit_time', { ascending: false });
+
+      console.log('🚨 [Emergencies] Emergency Data:', data);
+      console.log('⚠️ [Emergencies] Emergency Error:', error);
 
       if (error) throw error;
 

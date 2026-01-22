@@ -44,27 +44,32 @@ export const ClientMaintenancesView: React.FC = () => {
 
   const loadHistory = async () => {
     if (!profile?.id) {
-      console.error('No profile found');
+      console.error('❌ No profile found');
       return;
     }
 
     try {
       setLoadingHistory(true);
       
+      console.log('🔍 Profile ID:', profile.id);
+      
       // Primero obtener el client_id del perfil
-      const { data: clientData } = await supabase
+      const { data: clientData, error: clientError } = await supabase
         .from('clients')
-        .select('id')
+        .select('id, company_name, building_name, internal_alias')
         .eq('profile_id', profile.id)
         .maybeSingle();
 
+      console.log('🏢 Client Data:', clientData);
+      console.log('⚠️ Client Error:', clientError);
+
       if (!clientData) {
-        console.error('No client found for this profile');
+        console.error('❌ No client found for this profile');
         setLoadingHistory(false);
         return;
       }
 
-      // Obtener todos los mantenimientos completados de los ascensores del cliente
+      // Obtener todos los mantenimientos de los ascensores del cliente (no solo completed)
       const { data, error } = await supabase
         .from('maintenance_schedules')
         .select(`
@@ -86,9 +91,11 @@ export const ClientMaintenancesView: React.FC = () => {
           )
         `)
         .eq('elevators.client_id', clientData.id)
-        .eq('status', 'completed')
         .order('year', { ascending: false })
         .order('month', { ascending: false });
+
+      console.log('📊 Maintenance Data:', data);
+      console.log('⚠️ Maintenance Error:', error);
 
       if (error) throw error;
       
@@ -270,8 +277,11 @@ export const ClientMaintenancesView: React.FC = () => {
     historyFilterMonth !== 'all' ||
     historyFilterElevator !== '';
 
-  // Filtrar historial
+  // Filtrar historial (solo mostrar los que tienen PDF disponible)
   const filteredHistory = history.filter(h => {
+    // Solo mostrar mantenimientos completados con PDF
+    if (h.status !== 'completed' || !h.pdf_url) return false;
+    
     const buildingName = h.clients?.internal_alias || h.clients?.building_name || h.clients?.company_name || '';
     const matchesSearch = historySearchQuery === '' || 
       buildingName.toLowerCase().includes(historySearchQuery.toLowerCase());
