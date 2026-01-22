@@ -23,6 +23,8 @@ import { AuditLogView } from './components/views/AuditLogView';
 import { BulkOperationsView } from './components/views/BulkOperationsView';
 import { ClientEmergenciesView } from './components/views/ClientEmergenciesView';
 import { ClientQuotationsView } from './components/views/ClientQuotationsView';
+import { ClientMaintenancesView } from './components/views/ClientMaintenancesView';
+import { ClientServiceRequestsView } from './components/views/ClientServiceRequestsView';
 import { CarpetaCeroView } from './components/views/CarpetaCeroView';
 import { RescueTrainingView } from './components/views/RescueTrainingView';
 import { MaintenanceCompleteView } from './components/views/MaintenanceCompleteView';
@@ -101,6 +103,10 @@ function AppContent() {
         return profile?.role === 'technician' ? <TechnicianEmergencyView /> : <EmergencyV2View />;
       case 'client-emergencies':
         return <ClientEmergenciesView />;
+      case 'client-maintenances':
+        return <ClientMaintenancesView />;
+      case 'client-service-requests':
+        return <ClientServiceRequestsView />;
       case 'work-orders':
         return profile?.role === 'technician' ? <TechnicianWorkOrdersView /> : <WorkOrdersView />;
       case 'routes':
