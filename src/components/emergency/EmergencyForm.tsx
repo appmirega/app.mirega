@@ -163,22 +163,6 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     resolutionPhoto2Url
   ]);
 
-  // Auto-guardado cuando cambian los campos de texto (debounce 500ms - medio segundo)
-  useEffect(() => {
-    if (!visitId) return;
-    
-    console.log('📝 Campo de texto cambió, programando auto-guardado en 500ms...');
-    
-    const debounceTimer = setTimeout(() => {
-      console.log('💾 Ejecutando auto-guardado por cambio de texto');
-      autoSave();
-    }, 500);
-    
-    return () => {
-      clearTimeout(debounceTimer);
-    };
-  }, [visitId, failureDescription, resolutionSummary, receiverName, autoSave]);
-  
   // Guardado automático cada 30 segundos como respaldo
   useEffect(() => {
     if (!visitId) return;
@@ -853,6 +837,10 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
                 setFailureDescription(value);
               }
             }}
+            onBlur={() => {
+              console.log('💾 Campo failureDescription perdió foco - guardando...');
+              autoSave();
+            }}
             placeholder="Describe detalladamente la falla encontrada..."
             className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
             maxLength={500}
@@ -1019,6 +1007,10 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
                 setResolutionSummary(value);
               }
             }}
+            onBlur={() => {
+              console.log('💾 Campo resolutionSummary perdió foco - guardando...');
+              autoSave();
+            }}
             placeholder="Describe lo que se realizó para resolver la falla..."
             className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 mb-4"
             maxLength={500}
@@ -1152,6 +1144,10 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
             type="text"
             value={receiverName}
             onChange={(e) => setReceiverName(e.target.value)}
+            onBlur={() => {
+              console.log('💾 Campo receiverName perdió foco - guardando...');
+              autoSave();
+            }}
             placeholder="Nombre completo"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
