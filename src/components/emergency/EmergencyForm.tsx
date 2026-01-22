@@ -96,7 +96,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
 
   // Función de auto-guardado (DEFINIDA ANTES DEL useEffect)
   const autoSave = useCallback(async () => {
-    if (!visitId) return;
+    console.log('🔍 autoSave LLAMADO - visitId:', visitId);
+    
+    if (!visitId) {
+      console.warn('⚠️ autoSave: NO HAY visitId, abortando');
+      return;
+    }
+    
+    console.log('✅ autoSave: visitId válido, procediendo a guardar');
     
     try {
       const dataToSave = {
@@ -121,15 +128,18 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         receptor: receiverName
       });
       
-      const { error } = await supabase
+      console.log('📤 Enviando a BD:', dataToSave);
+      
+      const { data, error } = await supabase
         .from('emergency_visits')
         .update(dataToSave)
-        .eq('id', visitId);
+        .eq('id', visitId)
+        .select();
       
       if (error) {
         console.error('❌ Error auto-guardado:', error);
       } else {
-        console.log('✅ Guardado OK');
+        console.log('✅ Guardado OK - Respuesta BD:', data);
       }
       
     } catch (error) {
