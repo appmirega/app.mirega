@@ -9,7 +9,6 @@ import { TechnicianDashboard } from './components/dashboards/TechnicianDashboard
 import { ClientDashboard } from './components/dashboards/ClientDashboard';
 import { UserProfile } from './components/UserProfile';
 import { ManualsView } from './components/views/ManualsView';
-import { EmergencyView } from './components/views/EmergencyView';
 import { EmergencyV2View } from './components/views/EmergencyV2View';
 import { WorkOrdersView } from './components/views/WorkOrdersView';
 import { RoutesView } from './components/views/RoutesView';
