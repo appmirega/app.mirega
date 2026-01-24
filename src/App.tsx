@@ -44,6 +44,8 @@ import { DeveloperPermissionsPanel } from './components/views/DeveloperPermissio
 import { AdminPermissionsPanel } from './components/views/AdminPermissionsPanel';
 import { StoppedElevators } from './components/emergency/StoppedElevators';
 import { MaintenanceCalendarView } from './components/calendar/MaintenanceCalendarView';
+import { EmergencyShiftScheduler } from './components/calendar/EmergencyShiftScheduler';
+import { TechnicianAbsenceForm } from './components/calendar/TechnicianAbsenceForm';
 
 interface DashboardRouterProps {
   onNavigate?: (path: string) => void;
@@ -160,6 +162,10 @@ function AppContent() {
         return <AdminPermissionsPanel />;
       case 'maintenance-calendar':
         return <MaintenanceCalendarView />;
+      case 'emergency-shifts':
+        return <EmergencyShiftScheduler />;
+      case 'technician-absences':
+        return <TechnicianAbsenceForm />;
       case 'dashboard':
       default:
         return <DashboardRouter onNavigate={handleNavigate} />;

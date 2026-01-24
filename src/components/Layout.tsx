@@ -52,6 +52,8 @@ const navigation: NavItem[] = [
   { label: 'Atajos', icon: LayoutDashboard, path: 'dashboard', roles: ['developer', 'admin', 'technician', 'client'] },
   { label: 'Mi Perfil', icon: UserIcon, path: 'profile', roles: ['developer', 'admin', 'technician', 'client'] },
   { label: 'Calendario de Mantenimientos', icon: CalendarRange, path: 'maintenance-calendar', roles: ['developer', 'admin'] },
+  { label: 'Turnos de Emergencia', icon: AlertTriangle, path: 'emergency-shifts', roles: ['developer', 'admin'] },
+  { label: 'Vacaciones y Permisos', icon: Calendar, path: 'technician-absences', roles: ['developer', 'admin', 'technician'] },
   { label: 'Mantenimientos', icon: ClipboardList, path: 'maintenance-checklist', roles: ['developer', 'admin', 'technician'] },
   { label: 'Mis Mantenimientos', icon: ClipboardList, path: 'client-maintenances', roles: ['client'] },
   { label: 'Certificaciones', icon: BadgeCheck, path: 'certifications', roles: ['developer', 'admin'] },
