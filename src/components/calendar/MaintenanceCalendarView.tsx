@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Send, AlertCircle } from 'lucide-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import { MaintenanceAssignmentModal } from './MaintenanceAssignmentModal';
 import { TechnicianAvailabilityPanel } from './TechnicianAvailabilityPanel';
@@ -20,6 +20,8 @@ interface MaintenanceAssignment {
   display_status: string;
   estimated_duration_hours: number;
   assigned_technician_id?: string;
+  publication_status?: string;
+  emergency_context_notes?: string;
 }
 
 interface Technician {
@@ -44,18 +46,22 @@ interface CalendarDay {
 
 export function MaintenanceCalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [assignments, setAssignments] = useState<MaintenanceAssignment[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<MaintenanceAssignment | null>(null);
+  const [calendarStats, setCalendarStats] = useState<any>(null);
 
   useEffect(() => {
     loadCalendarData();
-  }, [currentDate]);
+    loadCalendarStats();
+  }, [currentDate, selectedMonth]);
 
   const loadCalendarData = async () => {
     setLoading(true);
@@ -205,6 +211,43 @@ export function MaintenanceCalendarView() {
     setShowAssignmentModal(false);
   };
 
+  const handlePublishCalendar = async () => {
+    setPublishing(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('Usuario no autenticado');
+
+      const { data, error } = await supabase.rpc('publish_calendar_month', {
+        target_month: selectedMonth,
+        admin_id: userData.user.id
+      });
+
+      if (error) throw error;
+
+      loadCalendarData();
+      alert(`✅ Calendario publicado exitosamente. ${data?.assignments_published || 0} asignaciones publicadas.`);
+    } catch (error) {
+      console.error('Error publishing calendar:', error);
+      alert('❌ Error al publicar el calendario');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const loadCalendarStats = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_calendar_month_stats', {
+        target_month: selectedMonth
+      });
+
+      if (!error && data) {
+        setCalendarStats(data);
+      }
+    } catch (error) {
+      console.error('Error loading calendar stats:', error);
+    }
+  };
+
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
@@ -237,34 +280,44 @@ export function MaintenanceCalendarView() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setCurrentDate(new Date())}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+            <select
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                const [year, month] = e.target.value.split('-');
+                setCurrentDate(new Date(parseInt(year), parseInt(month) - 1, 1));
+              }}
+              className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg"
             >
-              Hoy
-            </button>
-            
-            <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
+              {Array.from({ length: 12 }, (_, i) => {
+                const date = new Date();
+                date.setMonth(date.getMonth() + i);
+                const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                return (
+                  <option key={monthStr} value={monthStr}>
+                    {monthNames[date.getMonth()]} {date.getFullYear()}
+                  </option>
+                );
+              })}
+            </select>
+
+            {calendarStats?.draft_count > 0 && (
+              <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-full flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                BORRADOR
+              </span>
+            )}
+
+            {calendarStats?.draft_count > 0 && (
               <button
-                onClick={handlePreviousMonth}
-                className="p-2 hover:bg-white rounded transition-colors"
+                onClick={handlePublishCalendar}
+                disabled={publishing}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
               >
-                <ChevronLeft className="w-5 h-5 text-slate-600" />
+                <Send className="w-5 h-5" />
+                {publishing ? 'Publicando...' : 'Publicar'}
               </button>
-              
-              <div className="px-4 py-2 min-w-[200px] text-center">
-                <span className="text-lg font-semibold text-slate-900">
-                  {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-                </span>
-              </div>
-              
-              <button
-                onClick={handleNextMonth}
-                className="p-2 hover:bg-white rounded transition-colors"
-              >
-                <ChevronRight className="w-5 h-5 text-slate-600" />
-              </button>
-            </div>
+            )}
 
             <button
               onClick={() => {

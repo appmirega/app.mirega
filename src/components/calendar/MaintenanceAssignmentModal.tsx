@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { X, Building, User, Users, Clock, Calendar, Lock, AlertCircle, Trash2, Check } from 'lucide-react';
+import { X, Building, User, Users, Clock, Calendar, Lock, AlertCircle, Trash2, Check, AlertTriangle } from 'lucide-react';
 
 interface Technician {
   technician_id: string;
@@ -63,11 +63,15 @@ export function MaintenanceAssignmentModal({
     scheduled_time_end: '11:00',
     estimated_duration_hours: 2,
     is_fixed: false,
-    notes: ''
+    notes: '',
+    requires_additional_technicians: false,
+    additional_technicians_count: 1,
+    coordination_notes: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [isHoliday, setIsHoliday] = useState(false);
+  const [emergencyContext, setEmergencyContext] = useState<string | null>(null);
 
   useEffect(() => {
     loadBuildings();
@@ -226,7 +230,11 @@ export function MaintenanceAssignmentModal({
         external_personnel_phone: formData.is_external ? formData.external_personnel_phone : null,
         is_fixed: formData.is_fixed,
         notes: formData.notes || null,
-        status: 'scheduled'
+        status: 'scheduled',
+        requires_additional_technicians: formData.requires_additional_technicians,
+        additional_technicians_count: formData.additional_technicians_count,
+        coordination_notes: formData.coordination_notes || null,
+        calendar_month: formData.scheduled_date.substring(0, 7)
       };
 
       if (assignment) {
@@ -553,6 +561,64 @@ export function MaintenanceAssignmentModal({
                 Bloquear fecha (no permitir reprogramación)
               </span>
             </label>
+          </div>
+
+          {/* Contexto de Emergencias */}
+          {emergencyContext && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-orange-800 whitespace-pre-wrap">
+                  {emergencyContext}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Solicitud de Apoyo Adicional */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.requires_additional_technicians}
+                onChange={(e) => setFormData({ ...formData, requires_additional_technicians: e.target.checked })}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <div>
+                <span className="text-sm font-medium text-slate-700">Requiere apoyo adicional</span>
+                <p className="text-xs text-slate-600">Se necesitan múltiples técnicos para este mantenimiento</p>
+              </div>
+            </label>
+
+            {formData.requires_additional_technicians && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    Cantidad total de técnicos necesarios
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={formData.additional_technicians_count}
+                    onChange={(e) => setFormData({ ...formData, additional_technicians_count: parseInt(e.target.value) })}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    Notas de coordinación
+                  </label>
+                  <textarea
+                    value={formData.coordination_notes}
+                    onChange={(e) => setFormData({ ...formData, coordination_notes: e.target.value })}
+                    rows={2}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ej: Se requiere especialista eléctrico, soldador..."
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notas */}
