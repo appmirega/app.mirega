@@ -44,6 +44,7 @@ import { ClientTechnicalInfoView } from './components/views/ClientTechnicalInfoV
 import { DeveloperPermissionsPanel } from './components/views/DeveloperPermissionsPanel';
 import { AdminPermissionsPanel } from './components/views/AdminPermissionsPanel';
 import { StoppedElevators } from './components/emergency/StoppedElevators';
+import { MaintenanceCalendarView } from './components/calendar/MaintenanceCalendarView';
 
 interface DashboardRouterProps {
   onNavigate?: (path: string) => void;
@@ -162,6 +163,8 @@ function AppContent() {
         return <DeveloperPermissionsPanel />;
       case 'admin-permissions':
         return <AdminPermissionsPanel />;
+      case 'maintenance-calendar':
+        return <MaintenanceCalendarView />;
       case 'dashboard':
       default:
         return <DashboardRouter onNavigate={handleNavigate} />;

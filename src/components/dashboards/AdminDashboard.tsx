@@ -463,6 +463,13 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
             Programar Mantenimiento
           </button>
           <button
+            onClick={() => onNavigate?.('maintenance-calendar')}
+            className="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center gap-2"
+          >
+            <Calendar className="w-5 h-5" />
+            📅 Calendario de Mantenimientos
+          </button>
+          <button
             onClick={() => onNavigate?.('emergencies')}
             className="bg-slate-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-slate-700 transition border border-slate-700"
           >
