@@ -26,7 +26,6 @@ import { ClientMaintenancesView } from './components/views/ClientMaintenancesVie
 import { ClientServiceRequestsView } from './components/views/ClientServiceRequestsView';
 import { CarpetaCeroView } from './components/views/CarpetaCeroView';
 import { RescueTrainingView } from './components/views/RescueTrainingView';
-import { MaintenanceCompleteView } from './components/views/MaintenanceCompleteView';
 import { EmergencyHistoryCompleteView } from './components/views/EmergencyHistoryCompleteView';
 import { EmergencyHistory } from './components/emergency/EmergencyHistory';
 import { QRCodesCompleteView } from './components/views/QRCodesCompleteView';
@@ -125,10 +124,6 @@ function AppContent() {
         return <TechnicianMaintenanceChecklistView />;
       case 'maintenance-history':
         return <TechnicianMaintenanceChecklistView initialMode="history" />;
-      case 'maintenance-complete':
-        return <MaintenanceCompleteView onNavigate={handleNavigate} />;
-      case 'maintenance-complete-view':
-        return <MaintenanceCompleteView onNavigate={handleNavigate} />;
       case 'emergency-history':
         return <EmergencyHistory onBack={() => handleNavigate('dashboard')} />;
       case 'emergency-history-complete':

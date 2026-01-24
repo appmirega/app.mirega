@@ -63,7 +63,6 @@ const navigation: NavItem[] = [
   { label: 'Usuarios', icon: Users, path: 'users', roles: ['developer', 'admin'] },
   { label: 'Clientes', icon: Building, path: 'clients', roles: ['developer', 'admin'] },
   { label: 'Gestión de Ascensores', icon: Building2, path: 'elevators', roles: ['developer', 'admin', 'technician', 'client'] },
-  { label: 'Gestión de Mantenimientos', icon: Calendar, path: 'maintenance-complete', roles: ['developer', 'admin'] },
   { label: 'Historial de Emergencias', icon: AlertTriangle, path: 'emergency-history', roles: ['developer', 'admin'] },
   { label: 'Emergencias', icon: AlertTriangle, path: 'emergencies', roles: ['technician'] },
   { label: 'Mis Emergencias', icon: AlertTriangle, path: 'client-emergencies', roles: ['client'] },
