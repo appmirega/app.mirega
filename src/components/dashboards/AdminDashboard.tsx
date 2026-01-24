@@ -18,6 +18,7 @@ import {
 import { ClientForm } from '../forms/ClientForm';
 import TechnicianForm from '../forms/TechnicianForm';
 import AdminForm from '../forms/AdminForm';
+import { CoordinationRequestsPanel } from '../calendar/CoordinationRequestsPanel';
 
 type ViewMode = 'dashboard' | 'add-client' | 'add-technician' | 'add-admin' | 'settings';
 
@@ -350,6 +351,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {viewSettings.showActivity && (
+          <div>
+            <CoordinationRequestsPanel />
+          </div>
+        )}
+
         {viewSettings.showActivity && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center gap-3 mb-6">
