@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, Plus, Trash2, Users, AlertCircle } from 'lucide-react';
+import { Calendar, Plus, Trash2, Users, AlertCircle, Clock } from 'lucide-react';
 
 interface Technician {
   technician_id: string;
@@ -16,6 +16,9 @@ interface EmergencyShift {
   external_personnel_phone?: string;
   shift_start_date: string;
   shift_end_date: string;
+  shift_start_time?: string;
+  shift_end_time?: string;
+  is_24h_shift?: boolean;
   shift_type: string;
   is_primary: boolean;
 }
@@ -32,6 +35,9 @@ export function EmergencyShiftScheduler() {
     external_personnel_phone: '',
     shift_start_date: '',
     shift_end_date: '',
+    is_24h_shift: true,
+    shift_start_time: '08:30',
+    shift_end_time: '17:59',
     is_primary: true
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -134,7 +140,10 @@ export function EmergencyShiftScheduler() {
         shift_start_date: formData.shift_start_date,
         shift_end_date: formData.shift_end_date,
         is_primary: formData.is_primary,
-        shift_type: formData.is_primary ? 'primary' : 'backup'
+        shift_type: formData.is_primary ? 'primary' : 'backup',
+        is_24h_shift: formData.is_24h_shift,
+        shift_start_time: formData.is_24h_shift ? '00:00:00' : formData.shift_start_time + ':00',
+        shift_end_time: formData.is_24h_shift ? '23:59:59' : formData.shift_end_time + ':00'
       };
 
       const { error } = await supabase
@@ -150,8 +159,9 @@ export function EmergencyShiftScheduler() {
         external_personnel_name: '',
         external_personnel_phone: '',
         shift_start_date: '',
-        shift_end_date: '',
-        is_primary: true
+        shift_end_date: '',        is_24h_shift: true,
+        shift_start_time: '08:30',
+        shift_end_time: '17:59',        is_primary: true
       });
       setShowForm(false);
       loadData();
@@ -186,6 +196,16 @@ export function EmergencyShiftScheduler() {
     }
     const tech = technicians.find(t => t.technician_id === shift.technician_id);
     return tech?.full_name || 'Sin asignar';
+  };
+
+  const getShiftHours = (shift: EmergencyShift) => {
+    if (shift.is_24h_shift) {
+      return '24h completo';
+    }
+    if (shift.shift_start_time && shift.shift_end_time) {
+      return `${shift.shift_start_time.substring(0, 5)} - ${shift.shift_end_time.substring(0, 5)}`;
+    }
+    return '24h completo';
   };
 
   if (loading) {
@@ -361,6 +381,73 @@ export function EmergencyShiftScheduler() {
                 </div>
               </div>
 
+              {/* Configuración de Horario */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <h4 className="text-sm font-semibold text-blue-900">Horario del Turno</h4>
+                </div>
+                
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={formData.is_24h_shift}
+                      onChange={() => setFormData({ ...formData, is_24h_shift: true })}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-slate-700 font-medium">
+                      Turno completo 24 horas (00:00 - 23:59)
+                    </span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={!formData.is_24h_shift}
+                      onChange={() => setFormData({ ...formData, is_24h_shift: false })}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-slate-700 font-medium">
+                      Turno con horario específico
+                    </span>
+                  </label>
+                  
+                  {!formData.is_24h_shift && (
+                    <div className="grid grid-cols-2 gap-4 mt-3 pl-6">
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">
+                          Hora Inicio
+                        </label>
+                        <input
+                          type="time"
+                          value={formData.shift_start_time}
+                          onChange={(e) =>
+                            setFormData({ ...formData, shift_start_time: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Ej: 08:30 (turno diurno)</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">
+                          Hora Fin
+                        </label>
+                        <input
+                          type="time"
+                          value={formData.shift_end_time}
+                          onChange={(e) =>
+                            setFormData({ ...formData, shift_end_time: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Ej: 17:59 (turno diurno)</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Tipo de Turno */}
               <div>
                 <label className="flex items-center gap-2">
@@ -455,6 +542,10 @@ export function EmergencyShiftScheduler() {
                           <Calendar className="w-4 h-4" />
                           {new Date(shift.shift_start_date).toLocaleDateString('es-CL')} hasta{' '}
                           {new Date(shift.shift_end_date).toLocaleDateString('es-CL')}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          <span className="font-medium">{getShiftHours(shift)}</span>
                         </div>
                       </div>
                       {shift.external_personnel_phone && (

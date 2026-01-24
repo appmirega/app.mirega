@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight, Plus, Send, AlertCircle } from 'lu
 import { CalendarDayCell } from './CalendarDayCell';
 import { MaintenanceAssignmentModal } from './MaintenanceAssignmentModal';
 import { TechnicianAvailabilityPanel } from './TechnicianAvailabilityPanel';
+import { EmergencyShiftsMonthlyView } from './EmergencyShiftsMonthlyView';
 
 interface MaintenanceAssignment {
   id: string;
@@ -386,6 +387,11 @@ export function MaintenanceCalendarView() {
                 />
               ))}
             </div>
+          </div>
+
+          {/* Vista de Turnos de Emergencia */}
+          <div className="mt-6">
+            <EmergencyShiftsMonthlyView targetMonth={selectedMonth} />
           </div>
         </div>
 
