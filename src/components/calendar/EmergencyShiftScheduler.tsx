@@ -140,7 +140,7 @@ export function EmergencyShiftScheduler() {
         shift_start_date: formData.shift_start_date,
         shift_end_date: formData.shift_end_date,
         is_primary: formData.is_primary,
-        shift_type: formData.is_primary ? 'primary' : 'backup',
+        shift_type: formData.is_24h_shift ? '24x7' : 'weekday',
         is_24h_shift: formData.is_24h_shift,
         shift_start_time: formData.is_24h_shift ? '00:00:00' : formData.shift_start_time + ':00',
         shift_end_time: formData.is_24h_shift ? '23:59:59' : formData.shift_end_time + ':00'
