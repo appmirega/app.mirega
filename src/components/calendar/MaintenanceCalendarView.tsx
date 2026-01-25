@@ -52,6 +52,7 @@ export function MaintenanceCalendarView() {
   const [assignments, setAssignments] = useState<MaintenanceAssignment[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  const [technicianAbsences, setTechnicianAbsences] = useState<Map<string, Map<string, string[]>>>(new Map()); // { date: { technicianId: [reasons] } }
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
@@ -70,7 +71,8 @@ export function MaintenanceCalendarView() {
       await Promise.all([
         loadAssignments(),
         loadTechnicians(),
-        loadHolidays()
+        loadHolidays(),
+        loadTechnicianAbsences()
       ]);
       generateCalendarDays();
     } catch (error) {
@@ -111,6 +113,39 @@ export function MaintenanceCalendarView() {
     }
 
     setTechnicians(data || []);
+  };
+
+  const loadTechnicianAbsences = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('technician_availability')
+        .select('technician_id, start_date, end_date, reason')
+        .eq('status', 'approved');
+
+      if (error) throw error;
+
+      const absenceMap = new Map<string, Map<string, string[]>>();
+
+      (data || []).forEach(absence => {
+        const start = new Date(absence.start_date);
+        const end = new Date(absence.end_date);
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          if (!absenceMap.has(dateStr)) {
+            absenceMap.set(dateStr, new Map<string, string[]>());
+          }
+          if (!absenceMap.get(dateStr)!.has(absence.technician_id)) {
+            absenceMap.get(dateStr)!.set(absence.technician_id, []);
+          }
+          absenceMap.get(dateStr)!.get(absence.technician_id)!.push(absence.reason);
+        }
+      });
+
+      setTechnicianAbsences(absenceMap);
+    } catch (error) {
+      console.error('Error loading technician absences:', error);
+    }
   };
 
   const loadHolidays = async () => {
@@ -173,14 +208,17 @@ export function MaintenanceCalendarView() {
 
   const createCalendarDay = (date: Date, isCurrentMonth: boolean, today: Date): CalendarDay => {
     const dateStr = date.toISOString().split('T')[0];
+    // getDay(): 0=domingo, 1=lunes, ..., 6=sábado
+    // Fin de semana: 0 (domingo) y 6 (sábado)
     const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     
     return {
       date,
       day: date.getDate(),
       isCurrentMonth,
       isToday: date.getTime() === today.getTime(),
-      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+      isWeekend,
       isHoliday: holidays.has(dateStr),
       assignments: assignments.filter(a => a.scheduled_date === dateStr)
     };
@@ -400,6 +438,7 @@ export function MaintenanceCalendarView() {
           technicians={technicians}
           currentDate={currentDate}
           onRefresh={loadTechnicians}
+          absences={technicianAbsences}
         />
       </div>
 

@@ -15,14 +15,19 @@ interface TechnicianAvailabilityPanelProps {
   technicians: Technician[];
   currentDate: Date;
   onRefresh: () => void;
+  absences?: Map<string, Map<string, string[]>>;
 }
 
 export function TechnicianAvailabilityPanel({
   technicians,
   currentDate,
-  onRefresh
+  onRefresh,
+  absences
 }: TechnicianAvailabilityPanelProps) {
   const [expandedTech, setExpandedTech] = useState<string | null>(null);
+
+  const todayStr = currentDate.toISOString().split('T')[0];
+  const todayAbsences = absences?.get(todayStr) || new Map<string, string[]>();
 
   const availableTechnicians = technicians.filter(t => !t.is_on_leave);
   const unavailableTechnicians = technicians.filter(t => t.is_on_leave);
@@ -157,6 +162,14 @@ export function TechnicianAvailabilityPanel({
 
                 {expandedTech === tech.technician_id && (
                   <div className="px-3 pb-3 border-t border-slate-100 pt-2 space-y-2">
+                    {todayAbsences.has(tech.technician_id) && (
+                      <div className="bg-orange-50 border border-orange-200 rounded p-2">
+                        <p className="text-xs font-semibold text-orange-800 mb-1">🚫 En licencia hoy:</p>
+                        <p className="text-xs text-orange-700">
+                          {todayAbsences.get(tech.technician_id)?.join(', ')}
+                        </p>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-slate-600">
                       <Phone className="w-3 h-3" />
                       <a href={`tel:${tech.phone}`} className="hover:text-blue-600">
