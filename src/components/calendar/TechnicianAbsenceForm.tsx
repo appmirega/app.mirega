@@ -124,6 +124,16 @@ export function TechnicianAbsenceForm() {
     if (!validateForm()) return;
 
     try {
+      const absenceTypeMap: Record<string, string> = {
+        Vacaciones: 'vacation',
+        Permiso: 'personal_leave',
+        Enfermo: 'sick_leave',
+        Licencia: 'training',
+        Otro: 'other'
+      };
+
+      const absence_type = absenceTypeMap[formData.reason] || 'other';
+
       const { error } = await supabase
         .from('technician_availability')
         .insert([
@@ -131,6 +141,7 @@ export function TechnicianAbsenceForm() {
             technician_id: formData.technician_id,
             start_date: formData.start_date,
             end_date: formData.end_date,
+            absence_type,
             reason: formData.reason,
             status: 'pending'
           }
