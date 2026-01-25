@@ -35,6 +35,8 @@ import { TechnicianWorkOrdersView } from './components/views/TechnicianWorkOrder
 import { TechnicianRoutesView } from './components/views/TechnicianRoutesView';
 import { NotificationsView } from './components/views/NotificationsView';
 import { ServiceRequestsDashboard } from './components/views/ServiceRequestsDashboard';
+import { EmergenciesDashboard } from './components/views/EmergenciesDashboard';
+import { MaintenancesDashboard } from './components/views/MaintenancesDashboard';
 import { UsersView } from './components/views/UsersView';
 import { ClientsView } from './components/views/ClientsView';
 import { ElevatorsCompleteView } from './components/views/ElevatorsCompleteView';
@@ -100,7 +102,7 @@ function AppContent() {
       case 'manuals':
         return <ManualsView />;
       case 'emergencies':
-        return profile?.role === 'technician' ? <TechnicianEmergencyView /> : <EmergencyV2View />;
+        return profile?.role === 'technician' ? <TechnicianEmergencyView /> : <EmergenciesDashboard />;
       case 'client-emergencies':
         return <ClientEmergenciesView />;
       case 'client-maintenances':
@@ -118,7 +120,7 @@ function AppContent() {
       case 'rescue-training-admin':
         return <AdminRescueTrainingView />;
       case 'maintenance-checklist':
-        return <TechnicianMaintenanceChecklistView />;
+        return profile?.role === 'technician' || profile?.role === 'admin' || profile?.role === 'developer' ? <MaintenancesDashboard /> : <TechnicianMaintenanceChecklistView />;
       case 'maintenance-history':
         return <TechnicianMaintenanceChecklistView initialMode="history" />;
       case 'emergency-history':

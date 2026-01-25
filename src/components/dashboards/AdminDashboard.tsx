@@ -544,10 +544,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
             Asignar Ruta a Técnico
           </button>
           <button
-            onClick={() => onNavigate?.('maintenance')}
+            onClick={() => onNavigate?.('maintenance-checklist')}
             className="bg-slate-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-slate-700 transition border border-slate-700"
           >
-            Programar Mantenimiento
+            Mantenimientos
           </button>
           <button
             onClick={() => onNavigate?.('maintenance-calendar')}
@@ -558,9 +558,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
           </button>
           <button
             onClick={() => onNavigate?.('emergencies')}
-            className="bg-slate-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-slate-700 transition border border-slate-700"
+            className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition"
           >
-            Gestionar Emergencias
+            🚨 Emergencias
           </button>
           <button
             onClick={() => onNavigate?.('service-requests')}
