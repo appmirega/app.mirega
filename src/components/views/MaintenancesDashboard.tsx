@@ -13,7 +13,10 @@ import {
   X,
   Download,
   Filter,
+  QrCode,
+  FileText,
 } from 'lucide-react';
+import { MaintenanceQRScanner } from '../maintenance/MaintenanceQRScanner';
 
 interface MaintenanceSchedule {
   id: string;
@@ -47,6 +50,8 @@ export function MaintenancesDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('pending');
   const [showNewMaintenanceForm, setShowNewMaintenanceForm] = useState(false);
+  const [showCreationModal, setShowCreationModal] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [buildings, setBuildings] = useState<any[]>([]);
   
   // Filtros
@@ -276,6 +281,17 @@ export function MaintenancesDashboard() {
     }
   };
 
+  const handleQRScanSuccess = (data: {
+    buildingId: string;
+    buildingName: string;
+    buildingAddress: string;
+    clientId: string;
+  }) => {
+    setShowQRScanner(false);
+    setShowNewMaintenanceForm(true);
+    // El formulario inline puede pre-llenar estos datos si se actualiza
+  };
+
   const filteredMaintenances = maintenances.filter(m => {
     if (activeTab === 'pending') return m.status === 'pending';
     if (activeTab === 'in_progress') return m.status === 'in_progress';
@@ -328,7 +344,7 @@ export function MaintenancesDashboard() {
                   Filtros
                 </button>
                 <button
-                  onClick={() => setShowNewMaintenanceForm(true)}
+                  onClick={() => setShowCreationModal(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md"
                 >
                   <Plus className="w-5 h-5" />
@@ -613,11 +629,93 @@ export function MaintenancesDashboard() {
           </div>
         )}
 
-        {/* New Maintenance Form Modal */}
+        {/* Modal de Selección: QR o Manual */}
+        {showCreationModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+                Nuevo Mantenimiento
+              </h2>
+              <p className="text-gray-600 mb-6 text-center">
+                Selecciona cómo quieres registrar el mantenimiento:
+              </p>
+
+              <div className="grid grid-cols-1 gap-4">
+                <button
+                  onClick={() => {
+                    setShowCreationModal(false);
+                    setShowQRScanner(true);
+                  }}
+                  className="flex items-center gap-4 p-6 border-2 border-gray-300 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition group"
+                >
+                  <div className="bg-blue-100 p-3 rounded-lg group-hover:bg-blue-600 transition">
+                    <QrCode className="w-8 h-8 text-blue-600 group-hover:text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-bold text-lg text-gray-900">Escanear QR</h3>
+                    <p className="text-sm text-gray-600">
+                      Usa el escáner QR del edificio
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCreationModal(false);
+                    setShowNewMaintenanceForm(true);
+                  }}
+                  className="flex items-center gap-4 p-6 border-2 border-gray-300 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition group"
+                >
+                  <div className="bg-blue-100 p-3 rounded-lg group-hover:bg-blue-600 transition">
+                    <FileText className="w-8 h-8 text-blue-600 group-hover:text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-bold text-lg text-gray-900">Ingreso Manual</h3>
+                    <p className="text-sm text-gray-600">
+                      Selecciona edificio manualmente
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowCreationModal(false)}
+                className="mt-6 w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* QR Scanner Modal */}
+        {showQRScanner && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Escanear QR de Edificio</h2>
+                <button
+                  onClick={() => setShowQRScanner(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6">
+                <MaintenanceQRScanner
+                  onScanSuccess={handleQRScanSuccess}
+                  onCancel={() => setShowQRScanner(false)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Formulario Manual Modal */}
         {showNewMaintenanceForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 max-h-screen overflow-y-auto">
-            <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full my-8">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Nuevo Mantenimiento</h2>
                 <button
                   onClick={() => setShowNewMaintenanceForm(false)}
