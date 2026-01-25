@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, FileText, Clock, CheckCircle, X, AlertCircle, DollarSign, Calendar, Package } from 'lucide-react';
+import { Plus, FileText, Clock, CheckCircle, X, AlertCircle, DollarSign, Calendar, Package, Users } from 'lucide-react';
 
 interface WorkOrder {
   id: string;
@@ -17,6 +17,7 @@ interface WorkOrder {
   completed_at?: string;
   notes?: string;
   // Nuevos campos
+  is_internal: boolean;
   has_client_cost: boolean;
   requires_client_approval: boolean;
   external_quotation_number?: string;
@@ -36,6 +37,10 @@ interface WorkOrder {
   parts_warranty_description?: string;
   client_approved_at?: string;
   client_rejected_at?: string;
+  // Personal externo
+  uses_external_personnel: boolean;
+  external_personnel_ids?: string[];
+  mixed_personnel: boolean;
   buildings?: {
     name: string;
     clients?: {
@@ -47,13 +52,27 @@ interface WorkOrder {
   };
 }
 
+interface ExternalProvider {
+  id: string;
+  name: string;
+  provider_type: 'company' | 'individual' | 'specialist';
+  service_category?: string;
+  elevator_brand_specialty?: string;
+  phone?: string;
+  email?: string;
+  contact_person?: string;
+}
+
 type ViewMode = 'list' | 'create';
+type OrderType = 'internal' | 'quotation' | null;
 
 export function WorkOrdersViewEnhanced() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeTab, setActiveTab] = useState('basic');
+  const [orderType, setOrderType] = useState<OrderType>(null);
+  
   const [formData, setFormData] = useState({
     // Básico
     building_id: '',
@@ -61,11 +80,17 @@ export function WorkOrdersViewEnhanced() {
     work_type: 'maintenance',
     description: '',
     priority: 'medium',
+    notes: '',
+    // Designación (solo si es orden interna O después de aprobación)
     assigned_technician_id: '',
     scheduled_date: '',
-    notes: '',
-    // Costo y cotización
+    uses_external_personnel: false,
+    external_personnel_ids: [] as string[],
+    mixed_personnel: false,
+    // Costo y cotización (solo si es con cotización)
     has_client_cost: false,
+    requires_client_approval: false,
+    approval_deadline: '',
     external_quotation_number: '',
     quotation_amount: '',
     quotation_description: '',
@@ -81,20 +106,27 @@ export function WorkOrdersViewEnhanced() {
     work_warranty_description: '',
     parts_warranty_months: '',
     parts_warranty_description: '',
-    // Aprobación
-    requires_client_approval: false,
-    approval_deadline: '',
   });
 
   const [buildings, setBuildings] = useState<any[]>([]);
   const [serviceRequests, setServiceRequests] = useState<any[]>([]);
   const [technicians, setTechnicians] = useState<any[]>([]);
+  const [externalProviders, setExternalProviders] = useState<ExternalProvider[]>([]);
+  const [showNewProviderForm, setShowNewProviderForm] = useState(false);
+  const [newProviderData, setNewProviderData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    provider_type: 'individual' as const,
+    service_category: '',
+  });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadWorkOrders();
     loadBuildings();
     loadTechnicians();
+    loadExternalProviders();
   }, []);
 
   const loadWorkOrders = async () => {
@@ -170,64 +202,181 @@ export function WorkOrdersViewEnhanced() {
     }
   };
 
-  const handleBuildingChange = (buildingId: string) => {
-    setFormData({ ...formData, building_id: buildingId, service_request_id: '' });
-    if (buildingId) {
-      loadServiceRequests(buildingId);
+  const loadExternalProviders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('external_service_providers')
+        .select('id, name, provider_type, service_category, elevator_brand_specialty, phone, email, contact_person')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setExternalProviders(data || []);
+    } catch (error) {
+      console.error('Error loading external providers:', error);
     }
   };
 
-  const handleAdvancePercentageChange = (percentage: string) => {
-    setFormData({ ...formData, advance_percentage: percentage });
-    if (percentage && formData.quotation_amount) {
-      const amount = (parseFloat(formData.quotation_amount) * parseFloat(percentage)) / 100;
-      setFormData(prev => ({ ...prev, advance_amount: amount.toString() }));
+  const handleAddExternalProvider = async () => {
+    if (!newProviderData.name) {
+      alert('Por favor ingresa el nombre del prestador');
+      return;
     }
+
+    try {
+      const { data, error } = await supabase
+        .rpc('create_external_provider', {
+          p_name: newProviderData.name,
+          p_email: newProviderData.email,
+          p_phone: newProviderData.phone,
+          p_provider_type: newProviderData.provider_type,
+          p_service_category: newProviderData.service_category,
+        });
+
+      if (error) throw error;
+
+      // Agregar a la lista de providers
+      const newProvider: ExternalProvider = {
+        id: data.provider_id,
+        name: newProviderData.name,
+        provider_type: newProviderData.provider_type,
+        service_category: newProviderData.service_category,
+        phone: newProviderData.phone,
+        email: newProviderData.email,
+      };
+
+      setExternalProviders([...externalProviders, newProvider]);
+      setFormData({
+        ...formData,
+        external_personnel_ids: [...formData.external_personnel_ids, newProvider.id],
+      });
+
+      // Reset form
+      setNewProviderData({
+        name: '',
+        email: '',
+        phone: '',
+        provider_type: 'individual',
+        service_category: '',
+      });
+      setShowNewProviderForm(false);
+
+      alert('✅ Prestador creado exitosamente');
+    } catch (error: any) {
+      console.error('Error creating provider:', error);
+      alert('Error al crear prestador: ' + error.message);
+    }
+  };
+
+  const handleToggleExternalProvider = (providerId: string) => {
+    const updated = formData.external_personnel_ids.includes(providerId)
+      ? formData.external_personnel_ids.filter((id) => id !== providerId)
+      : [...formData.external_personnel_ids, providerId];
+
+    setFormData({
+      ...formData,
+      external_personnel_ids: updated,
+    });
+  };
+
+  const handleAdvancePercentageChange = (value: string) => {
+    const percentage = value ? parseFloat(value) : 0;
+    const quotationAmount = formData.quotation_amount ? parseFloat(formData.quotation_amount) : 0;
+    const advanceAmount = (quotationAmount * percentage) / 100;
+
+    setFormData({
+      ...formData,
+      advance_percentage: value,
+      advance_amount: advanceAmount > 0 ? advanceAmount.toString() : '',
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.building_id) {
+      alert('Por favor selecciona un edificio');
+      return;
+    }
+
+    if (!formData.description) {
+      alert('Por favor ingresa una descripción');
+      return;
+    }
+
+    if (!orderType) {
+      alert('Por favor selecciona el tipo de orden (Interna o Con Cotización)');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
+      // Validaciones específicas por tipo
+      if (orderType === 'quotation') {
+        if (!formData.has_client_cost) {
+          alert('Para órdenes con cotización, debes marcar que tiene costo al cliente');
+          return;
+        }
+        if (formData.requires_client_approval && !formData.approval_deadline) {
+          alert('Por favor ingresa una fecha límite de aprobación');
+          return;
+        }
+      }
+
+      if (orderType === 'internal') {
+        // Para órdenes internas, la designación es opcional pero si se pone, la fecha también debe existir
+        if ((formData.assigned_technician_id && !formData.scheduled_date) ||
+            (!formData.assigned_technician_id && formData.scheduled_date)) {
+          alert('Para asignar técnico, también debes establecer una fecha programada (o viceversa)');
+          return;
+        }
+      }
+
       const insertData = {
         building_id: formData.building_id,
         service_request_id: formData.service_request_id || null,
         work_type: formData.work_type,
         description: formData.description,
         priority: formData.priority,
-        assigned_technician_id: formData.assigned_technician_id || null,
-        scheduled_date: formData.scheduled_date || null,
         notes: formData.notes || null,
         status: 'pending',
-        // Costo
-        has_client_cost: formData.has_client_cost,
-        external_quotation_number: formData.external_quotation_number || null,
-        quotation_amount: formData.quotation_amount ? parseFloat(formData.quotation_amount) : null,
-        quotation_description: formData.quotation_description || null,
+        is_internal: orderType === 'internal',
+        // Para órdenes internas: asignar inmediatamente
+        // Para órdenes con cotización: asignar después de aprobación
+        assigned_technician_id: orderType === 'internal' ? (formData.assigned_technician_id || null) : null,
+        scheduled_date: orderType === 'internal' ? (formData.scheduled_date || null) : null,
+        // Personal externo
+        uses_external_personnel: formData.uses_external_personnel,
+        external_personnel_ids: formData.uses_external_personnel ? formData.external_personnel_ids : [],
+        mixed_personnel: formData.mixed_personnel,
+        // Cotización (solo si es con cotización)
+        has_client_cost: orderType === 'quotation' ? formData.has_client_cost : false,
+        requires_client_approval: orderType === 'quotation' ? formData.requires_client_approval : false,
+        approval_deadline: orderType === 'quotation' ? (formData.approval_deadline || null) : null,
+        external_quotation_number: orderType === 'quotation' ? (formData.external_quotation_number || null) : null,
+        quotation_amount: orderType === 'quotation' ? (formData.quotation_amount ? parseFloat(formData.quotation_amount) : null) : null,
+        quotation_description: orderType === 'quotation' ? (formData.quotation_description || null) : null,
         // Repuestos
-        involves_foreign_parts: formData.involves_foreign_parts,
-        foreign_parts_supplier: formData.foreign_parts_supplier || null,
-        estimated_execution_days: formData.estimated_execution_days ? parseInt(formData.estimated_execution_days) : null,
+        involves_foreign_parts: orderType === 'quotation' ? formData.involves_foreign_parts : false,
+        foreign_parts_supplier: orderType === 'quotation' ? (formData.foreign_parts_supplier || null) : null,
+        estimated_execution_days: orderType === 'quotation' ? (formData.estimated_execution_days ? parseInt(formData.estimated_execution_days) : null) : null,
         // Adelantos
-        requires_advance_payment: formData.requires_advance_payment,
-        advance_percentage: formData.advance_percentage ? parseFloat(formData.advance_percentage) : null,
-        advance_amount: formData.advance_amount ? parseFloat(formData.advance_amount) : null,
+        requires_advance_payment: orderType === 'quotation' ? formData.requires_advance_payment : false,
+        advance_percentage: orderType === 'quotation' ? (formData.advance_percentage ? parseFloat(formData.advance_percentage) : null) : null,
+        advance_amount: orderType === 'quotation' ? (formData.advance_amount ? parseFloat(formData.advance_amount) : null) : null,
         // Garantías
-        work_warranty_months: formData.work_warranty_months ? parseInt(formData.work_warranty_months) : null,
-        work_warranty_description: formData.work_warranty_description || null,
-        parts_warranty_months: formData.parts_warranty_months ? parseInt(formData.parts_warranty_months) : null,
-        parts_warranty_description: formData.parts_warranty_description || null,
-        // Aprobación
-        requires_client_approval: formData.requires_client_approval,
-        approval_deadline: formData.approval_deadline || null,
+        work_warranty_months: orderType === 'quotation' ? (formData.work_warranty_months ? parseInt(formData.work_warranty_months) : null) : null,
+        work_warranty_description: orderType === 'quotation' ? (formData.work_warranty_description || null) : null,
+        parts_warranty_months: orderType === 'quotation' ? (formData.parts_warranty_months ? parseInt(formData.parts_warranty_months) : null) : null,
+        parts_warranty_description: orderType === 'quotation' ? (formData.parts_warranty_description || null) : null,
       };
 
       const { error } = await supabase.from('work_orders').insert([insertData]);
 
       if (error) throw error;
 
-      alert('✅ Orden de trabajo creada exitosamente');
+      alert(`✅ Orden de trabajo ${orderType === 'internal' ? 'interna' : 'con cotización'} creada exitosamente`);
       resetForm();
       setViewMode('list');
       loadWorkOrders();
@@ -246,10 +395,15 @@ export function WorkOrdersViewEnhanced() {
       work_type: 'maintenance',
       description: '',
       priority: 'medium',
+      notes: '',
       assigned_technician_id: '',
       scheduled_date: '',
-      notes: '',
+      uses_external_personnel: false,
+      external_personnel_ids: [],
+      mixed_personnel: false,
       has_client_cost: false,
+      requires_client_approval: false,
+      approval_deadline: '',
       external_quotation_number: '',
       quotation_amount: '',
       quotation_description: '',
@@ -262,9 +416,8 @@ export function WorkOrdersViewEnhanced() {
       work_warranty_description: '',
       parts_warranty_months: '',
       parts_warranty_description: '',
-      requires_client_approval: false,
-      approval_deadline: '',
     });
+    setOrderType(null);
     setActiveTab('basic');
   };
 
@@ -300,47 +453,31 @@ export function WorkOrdersViewEnhanced() {
 
   if (viewMode === 'create') {
     return (
-      <div className="bg-white rounded-xl shadow-lg p-6 max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-blue-600" />
-            <h2 className="text-2xl font-bold text-slate-900">Crear Orden de Trabajo</h2>
-          </div>
+          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+            <FileText className="w-8 h-8" />
+            Crear Orden de Trabajo
+          </h1>
           <button
-            onClick={() => { setViewMode('list'); resetForm(); }}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition"
+            onClick={() => {
+              resetForm();
+              setViewMode('list');
+            }}
+            className="p-2 hover:bg-slate-200 rounded-lg transition"
           >
-            <X className="w-4 h-4" />
-            Cancelar
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200">
-          {[
-            { id: 'basic', label: 'Información Básica' },
-            { id: 'cost', label: 'Cotización y Costo' },
-            { id: 'warranty', label: 'Garantías' },
-            { id: 'approval', label: 'Aprobación' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 font-medium transition ${
-                activeTab === tab.id
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* BASIC TAB */}
-          {activeTab === 'basic' && (
-            <>
+          {/* TAB: BÁSICO */}
+          <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
+            <h2 className="text-2xl font-bold text-slate-900 border-b pb-3">
+              Información Básica
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Edificio *
@@ -348,88 +485,166 @@ export function WorkOrdersViewEnhanced() {
                 <select
                   required
                   value={formData.building_id}
-                  onChange={(e) => handleBuildingChange(e.target.value)}
+                  onChange={(e) => {
+                    setFormData({ ...formData, building_id: e.target.value });
+                    loadServiceRequests(e.target.value);
+                  }}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="">Seleccionar edificio</option>
+                  <option value="">Selecciona un edificio</option>
                   {buildings.map((building) => (
                     <option key={building.id} value={building.id}>
-                      {building.clients?.business_name} - {building.name}
+                      {building.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {serviceRequests.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Solicitud de Servicio (Opcional)
-                  </label>
-                  <select
-                    value={formData.service_request_id}
-                    onChange={(e) => setFormData({ ...formData, service_request_id: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Crear nueva OT</option>
-                    {serviceRequests.map((sr) => (
-                      <option key={sr.id} value={sr.id}>
-                        {sr.request_type} - {sr.description?.substring(0, 50)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Solicitud de Servicio (Opcional)
+                </label>
+                <select
+                  value={formData.service_request_id}
+                  onChange={(e) => setFormData({ ...formData, service_request_id: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Sin relacionar</option>
+                  {serviceRequests.map((req) => (
+                    <option key={req.id} value={req.id}>
+                      {req.description.substring(0, 40)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Tipo de Trabajo *
-                  </label>
-                  <select
-                    required
-                    value={formData.work_type}
-                    onChange={(e) => setFormData({ ...formData, work_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="maintenance">Mantenimiento</option>
-                    <option value="repair">Reparación</option>
-                    <option value="installation">Instalación</option>
-                    <option value="inspection">Inspección</option>
-                    <option value="emergency">Emergencia</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Prioridad *
-                  </label>
-                  <select
-                    required
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="low">Baja</option>
-                    <option value="medium">Media</option>
-                    <option value="high">Alta</option>
-                    <option value="urgent">Urgente</option>
-                  </select>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Tipo de Trabajo
+                </label>
+                <select
+                  value={formData.work_type}
+                  onChange={(e) => setFormData({ ...formData, work_type: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="maintenance">Mantenimiento</option>
+                  <option value="repair">Reparación</option>
+                  <option value="installation">Instalación</option>
+                  <option value="inspection">Inspección</option>
+                </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Descripción *
+                  Prioridad *
                 </label>
-                <textarea
+                <select
                   required
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={4}
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe el trabajo a realizar..."
-                />
+                >
+                  <option value="low">Baja</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                  <option value="urgent">Urgente</option>
+                </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Descripción *
+              </label>
+              <textarea
+                required
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Describe el trabajo a realizar..."
+              />
+            </div>
+
+            {/* SELECTOR DE TIPO DE ORDEN - CRÍTICO */}
+            {!orderType && (
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">
+                  ¿Qué tipo de orden deseas crear?
+                </h3>
+                <div className="space-y-3">
+                  <label className="flex items-center p-4 border-2 border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition">
+                    <input
+                      type="radio"
+                      name="orderType"
+                      value="internal"
+                      checked={orderType === 'internal'}
+                      onChange={() => {
+                        setOrderType('internal');
+                        setActiveTab('schedule');
+                      }}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-3">
+                      <span className="block font-semibold text-slate-900">
+                        🔧 Orden Interna
+                      </span>
+                      <span className="text-sm text-slate-600">
+                        Para trabajos sin costo al cliente. Directo a coordinación de técnico y fecha.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-center p-4 border-2 border-orange-200 rounded-lg cursor-pointer hover:bg-orange-100 transition">
+                    <input
+                      type="radio"
+                      name="orderType"
+                      value="quotation"
+                      checked={orderType === 'quotation'}
+                      onChange={() => {
+                        setOrderType('quotation');
+                        setActiveTab('approval');
+                      }}
+                      className="w-4 h-4 text-orange-600"
+                    />
+                    <span className="ml-3">
+                      <span className="block font-semibold text-slate-900">
+                        📊 Orden con Cotización
+                      </span>
+                      <span className="text-sm text-slate-600">
+                        Para trabajos con costo. Requiere aprobación del cliente y coordinación posterior.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {orderType && (
+              <div className="bg-green-50 border border-green-300 rounded-lg p-3 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="text-sm font-medium text-green-800">
+                  Orden {orderType === 'internal' ? 'Interna' : 'con Cotización'} seleccionada
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOrderType(null)}
+                  className="ml-auto text-sm text-green-600 hover:text-green-800 underline"
+                >
+                  Cambiar
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* TABS CONDICIONALES BASADOS EN TIPO DE ORDEN */}
+          {orderType === 'internal' && (
+            <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
+              <h2 className="text-2xl font-bold text-slate-900 border-b pb-3">
+                🗓️ Programación (Orden Interna)
+              </h2>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -446,7 +661,7 @@ export function WorkOrdersViewEnhanced() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Asignar Técnico
+                    Técnico Responsable
                   </label>
                   <select
                     value={formData.assigned_technician_id}
@@ -463,6 +678,125 @@ export function WorkOrdersViewEnhanced() {
                 </div>
               </div>
 
+              {/* PERSONAL EXTERNO */}
+              <div className="border-t-2 border-slate-200 pt-4">
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Equipo de Trabajo
+                </h3>
+
+                <div className="space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.uses_external_personnel}
+                      onChange={(e) => setFormData({ ...formData, uses_external_personnel: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300"
+                    />
+                    <span className="text-slate-900">Utilizar personal externo</span>
+                  </label>
+
+                  {formData.uses_external_personnel && (
+                    <>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.mixed_personnel}
+                          onChange={(e) => setFormData({ ...formData, mixed_personnel: e.target.checked })}
+                          className="w-4 h-4 rounded border-slate-300"
+                        />
+                        <span className="text-slate-900">Mezclar con técnico interno</span>
+                      </label>
+
+                      <div className="bg-slate-50 rounded-lg p-4">
+                        <h4 className="font-semibold text-slate-900 mb-3">
+                          Selecciona prestadores externos:
+                        </h4>
+
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {externalProviders.map((provider) => (
+                            <label key={provider.id} className="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={formData.external_personnel_ids.includes(provider.id)}
+                                onChange={() => handleToggleExternalProvider(provider.id)}
+                                className="w-4 h-4 rounded border-slate-300"
+                              />
+                              <div className="flex-1">
+                                <p className="font-medium text-slate-900">{provider.name}</p>
+                                <p className="text-xs text-slate-600">
+                                  {provider.provider_type === 'company' && '🏢 Empresa'}
+                                  {provider.provider_type === 'individual' && '👤 Independiente'}
+                                  {provider.provider_type === 'specialist' && '⭐ Especialista'} • {provider.service_category}
+                                </p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowNewProviderForm(!showNewProviderForm)}
+                          className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-semibold underline"
+                        >
+                          + Agregar nuevo prestador
+                        </button>
+
+                        {showNewProviderForm && (
+                          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+                            <h5 className="font-semibold text-slate-900">Nuevo Prestador</h5>
+                            <input
+                              type="text"
+                              placeholder="Nombre *"
+                              value={newProviderData.name}
+                              onChange={(e) => setNewProviderData({ ...newProviderData, name: e.target.value })}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                            />
+                            <input
+                              type="email"
+                              placeholder="Email"
+                              value={newProviderData.email}
+                              onChange={(e) => setNewProviderData({ ...newProviderData, email: e.target.value })}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                            />
+                            <input
+                              type="tel"
+                              placeholder="Teléfono"
+                              value={newProviderData.phone}
+                              onChange={(e) => setNewProviderData({ ...newProviderData, phone: e.target.value })}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                            />
+                            <select
+                              value={newProviderData.provider_type}
+                              onChange={(e) => setNewProviderData({ ...newProviderData, provider_type: e.target.value as any })}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                            >
+                              <option value="individual">Independiente</option>
+                              <option value="company">Empresa</option>
+                              <option value="specialist">Especialista en marca</option>
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="Categoría de servicio"
+                              value={newProviderData.service_category}
+                              onChange={(e) => setNewProviderData({ ...newProviderData, service_category: e.target.value })}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddExternalProvider}
+                              className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition text-sm"
+                            >
+                              Crear Prestador
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Notas Adicionales
@@ -476,208 +810,235 @@ export function WorkOrdersViewEnhanced() {
                 />
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('cost')}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                >
-                  Siguiente: Cotización
-                </button>
-              </div>
-            </>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
+              >
+                {submitting ? 'Creando...' : '✅ Crear Orden Interna'}
+              </button>
+            </div>
           )}
 
-          {/* COST TAB */}
-          {activeTab === 'cost' && (
+          {orderType === 'quotation' && (
             <>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              {/* APROBACIÓN */}
+              <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
+                <h2 className="text-2xl font-bold text-slate-900 border-b pb-3">
+                  📋 Aprobación del Cliente
+                </h2>
+
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.has_client_cost}
-                    onChange={(e) => setFormData({ ...formData, has_client_cost: e.target.checked })}
+                    checked={formData.requires_client_approval}
+                    onChange={(e) => setFormData({ ...formData, requires_client_approval: e.target.checked })}
                     className="w-4 h-4 rounded border-slate-300"
                   />
                   <span className="font-medium text-slate-900">
-                    ¿Esta OT tiene costo al cliente?
+                    Esta orden requiere aprobación del cliente
                   </span>
                 </label>
-                {formData.has_client_cost && (
-                  <p className="text-sm text-blue-700 mt-2">
-                    📋 Folio generado automáticamente: OT-XXXX-2026
-                  </p>
+
+                {formData.requires_client_approval && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Fecha Límite de Aprobación *
+                    </label>
+                    <input
+                      type="date"
+                      required={formData.requires_client_approval}
+                      value={formData.approval_deadline}
+                      onChange={(e) => setFormData({ ...formData, approval_deadline: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-slate-600 mt-2">
+                      El cliente tendrá hasta esta fecha para aprobar o rechazar
+                    </p>
+                  </div>
                 )}
               </div>
 
-              {formData.has_client_cost && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Número de Cotización Externa
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.external_quotation_number}
-                        onChange={(e) => setFormData({ ...formData, external_quotation_number: e.target.value })}
-                        placeholder="Ej: COTI-2025-001"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
+              {/* COSTO Y COTIZACIÓN */}
+              <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
+                <h2 className="text-2xl font-bold text-slate-900 border-b pb-3">
+                  💰 Cotización y Costos
+                </h2>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Monto de Cotización (CLP)
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.quotation_amount}
-                        onChange={(e) => setFormData({ ...formData, quotation_amount: e.target.value })}
-                        placeholder="0"
-                        min="0"
-                        step="1000"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Descripción de Cotización
-                    </label>
-                    <textarea
-                      value={formData.quotation_description}
-                      onChange={(e) => setFormData({ ...formData, quotation_description: e.target.value })}
-                      rows={3}
-                      placeholder="Descripción detallada de lo cotizado..."
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.has_client_cost}
+                      onChange={(e) => setFormData({ ...formData, has_client_cost: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300"
                     />
-                  </div>
+                    <span className="font-medium text-slate-900">
+                      ¿Esta OT tiene costo al cliente?
+                    </span>
+                  </label>
+                  {formData.has_client_cost && (
+                    <p className="text-sm text-blue-700 mt-2">
+                      📋 Folio generado automáticamente: OT-XXXX-2026
+                    </p>
+                  )}
+                </div>
 
-                  <div className="border-t-2 border-slate-200 pt-4">
-                    <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <Package className="w-5 h-5" />
-                      Repuestos y Materiales
-                    </h4>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.involves_foreign_parts}
-                        onChange={(e) => setFormData({ ...formData, involves_foreign_parts: e.target.checked })}
-                        className="w-4 h-4 rounded border-slate-300"
-                      />
-                      <span className="text-slate-900">¿Incluye compras en el extranjero?</span>
-                    </label>
-
-                    {formData.involves_foreign_parts && (
-                      <div className="mt-3">
+                {formData.has_client_cost && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Proveedor / País
+                          Número de Cotización Externa
                         </label>
                         <input
                           type="text"
-                          value={formData.foreign_parts_supplier}
-                          onChange={(e) => setFormData({ ...formData, foreign_parts_supplier: e.target.value })}
-                          placeholder="Ej: Germany / Siemens"
+                          value={formData.external_quotation_number}
+                          onChange={(e) => setFormData({ ...formData, external_quotation_number: e.target.value })}
+                          placeholder="Ej: COTI-2025-001"
                           className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Estimación de Ejecución (días)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.estimated_execution_days}
-                      onChange={(e) => setFormData({ ...formData, estimated_execution_days: e.target.value })}
-                      placeholder="Ej: 5"
-                      min="1"
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </>
-              )}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Monto de Cotización (CLP)
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.quotation_amount}
+                          onChange={(e) => setFormData({ ...formData, quotation_amount: e.target.value })}
+                          placeholder="0"
+                          min="0"
+                          step="1000"
+                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
 
-              <div className="border-t-2 border-slate-200 pt-4">
-                <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
-                  Adelanto de Pago
-                </h4>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.requires_advance_payment}
-                    onChange={(e) => setFormData({ ...formData, requires_advance_payment: e.target.checked })}
-                    className="w-4 h-4 rounded border-slate-300"
-                  />
-                  <span className="text-slate-900">¿Requiere adelanto de pago?</span>
-                </label>
-
-                {formData.requires_advance_payment && (
-                  <div className="mt-3 grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Porcentaje (%)
+                        Descripción de Cotización
                       </label>
-                      <input
-                        type="number"
-                        value={formData.advance_percentage}
-                        onChange={(e) => handleAdvancePercentageChange(e.target.value)}
-                        placeholder="Ej: 50"
-                        min="0"
-                        max="100"
-                        step="5"
+                      <textarea
+                        value={formData.quotation_description}
+                        onChange={(e) => setFormData({ ...formData, quotation_description: e.target.value })}
+                        rows={3}
+                        placeholder="Descripción detallada de lo cotizado..."
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
+
+                    {/* REPUESTOS */}
+                    <div className="border-t-2 border-slate-200 pt-4">
+                      <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                        <Package className="w-5 h-5" />
+                        Repuestos y Materiales
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.involves_foreign_parts}
+                          onChange={(e) => setFormData({ ...formData, involves_foreign_parts: e.target.checked })}
+                          className="w-4 h-4 rounded border-slate-300"
+                        />
+                        <span className="text-slate-900">¿Incluye compras en el extranjero?</span>
+                      </label>
+
+                      {formData.involves_foreign_parts && (
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Proveedor / País
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.foreign_parts_supplier}
+                            onChange={(e) => setFormData({ ...formData, foreign_parts_supplier: e.target.value })}
+                            placeholder="Ej: Germany / Siemens"
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Monto (CLP) - Auto calculado
+                        Estimación de Ejecución (días)
                       </label>
                       <input
-                        type="text"
-                        value={formData.advance_amount ? `$${parseFloat(formData.advance_amount).toLocaleString('es-CL')}` : '-'}
-                        disabled
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-600"
+                        type="number"
+                        value={formData.estimated_execution_days}
+                        onChange={(e) => setFormData({ ...formData, estimated_execution_days: e.target.value })}
+                        placeholder="Ej: 5"
+                        min="1"
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
-                  </div>
+
+                    {/* ADELANTOS */}
+                    <div className="border-t-2 border-slate-200 pt-4">
+                      <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                        <DollarSign className="w-5 h-5" />
+                        Adelanto de Pago
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.requires_advance_payment}
+                          onChange={(e) => setFormData({ ...formData, requires_advance_payment: e.target.checked })}
+                          className="w-4 h-4 rounded border-slate-300"
+                        />
+                        <span className="text-slate-900">Requiere adelanto de pago</span>
+                      </label>
+
+                      {formData.requires_advance_payment && (
+                        <div className="mt-3 grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Porcentaje Adelanto (%)
+                            </label>
+                            <input
+                              type="number"
+                              value={formData.advance_percentage}
+                              onChange={(e) => handleAdvancePercentageChange(e.target.value)}
+                              placeholder="0"
+                              min="0"
+                              max="100"
+                              step="5"
+                              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Monto Adelanto (CLP) (Auto)
+                            </label>
+                            <input
+                              type="number"
+                              value={formData.advance_amount}
+                              disabled
+                              className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('basic')}
-                  className="flex-1 bg-slate-600 text-white py-3 rounded-lg font-semibold hover:bg-slate-700 transition"
-                >
-                  ← Anterior
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('warranty')}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                >
-                  Siguiente: Garantías →
-                </button>
-              </div>
-            </>
-          )}
+              {/* GARANTÍAS */}
+              <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
+                <h2 className="text-2xl font-bold text-slate-900 border-b pb-3">
+                  🛡️ Garantías
+                </h2>
 
-          {/* WARRANTY TAB */}
-          {activeTab === 'warranty' && (
-            <>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="border border-slate-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-slate-900 mb-4">Garantía del Trabajo</h4>
-                  <div className="space-y-3">
+                <div>
+                  <h4 className="font-semibold text-slate-900 mb-3">Garantía de Trabajo</h4>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Meses de Garantía
+                        Meses
                       </label>
                       <input
                         type="number"
@@ -692,23 +1053,23 @@ export function WorkOrdersViewEnhanced() {
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Descripción
                       </label>
-                      <textarea
+                      <input
+                        type="text"
                         value={formData.work_warranty_description}
                         onChange={(e) => setFormData({ ...formData, work_warranty_description: e.target.value })}
-                        rows={3}
-                        placeholder="Términos y condiciones de garantía..."
+                        placeholder="Cobertura de trabajo..."
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="border border-slate-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-slate-900 mb-4">Garantía de Repuestos</h4>
-                  <div className="space-y-3">
+                <div className="border-t-2 border-slate-200 pt-4">
+                  <h4 className="font-semibold text-slate-900 mb-3">Garantía de Repuestos</h4>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Meses de Garantía
+                        Meses
                       </label>
                       <input
                         type="number"
@@ -723,11 +1084,11 @@ export function WorkOrdersViewEnhanced() {
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Descripción
                       </label>
-                      <textarea
+                      <input
+                        type="text"
                         value={formData.parts_warranty_description}
                         onChange={(e) => setFormData({ ...formData, parts_warranty_description: e.target.value })}
-                        rows={3}
-                        placeholder="Términos específicos para repuestos..."
+                        placeholder="Cobertura de repuestos..."
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -735,90 +1096,21 @@ export function WorkOrdersViewEnhanced() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('cost')}
-                  className="flex-1 bg-slate-600 text-white py-3 rounded-lg font-semibold hover:bg-slate-700 transition"
-                >
-                  ← Anterior
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('approval')}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                >
-                  Siguiente: Aprobación →
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* APPROVAL TAB */}
-          {activeTab === 'approval' && (
-            <>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.requires_client_approval}
-                    onChange={(e) => setFormData({ ...formData, requires_client_approval: e.target.checked })}
-                    className="w-4 h-4 rounded border-slate-300"
-                  />
-                  <span className="font-medium text-slate-900">
-                    ¿Requiere aprobación del cliente?
-                  </span>
-                </label>
-                <p className="text-sm text-yellow-700 mt-2">
-                  Si está activado, el cliente debe aprobar esta OT antes de ejecutarla
-                </p>
+              {/* PROGRAMACIÓN - DESPUÉS DE APROBACIÓN (SOLO MUESTRA BOTÓN) */}
+              <div className="bg-blue-50 border border-blue-300 rounded-lg p-4">
+                <AlertCircle className="w-5 h-5 inline text-blue-600 mr-2" />
+                <span className="text-sm text-blue-800">
+                  ℹ️ La designación de técnico y fecha se realizará después de la aprobación del cliente.
+                </span>
               </div>
 
-              {formData.requires_client_approval && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Fecha Límite de Aprobación
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.approval_deadline}
-                    onChange={(e) => setFormData({ ...formData, approval_deadline: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    ⏰ El cliente tendrá esta fecha límite para aprobar o rechazar
-                  </p>
-                </div>
-              )}
-
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mt-6">
-                <h4 className="font-semibold text-slate-900 mb-2">Resumen de la OT</h4>
-                <div className="text-sm text-slate-600 space-y-1">
-                  <p>🏢 <strong>Tipo Folio:</strong> {formData.has_client_cost ? 'OT-XXXX-2026 (Con costo)' : 'OT-INT-XXXX-2026 (Sin costo)'}</p>
-                  {formData.quotation_amount && <p>💰 <strong>Monto:</strong> ${parseFloat(formData.quotation_amount).toLocaleString('es-CL')}</p>}
-                  {formData.requires_advance_payment && <p>💵 <strong>Adelanto:</strong> {formData.advance_percentage}% = ${formData.advance_amount ? parseFloat(formData.advance_amount).toLocaleString('es-CL') : '-'}</p>}
-                  {formData.work_warranty_months && <p>🛡️ <strong>Garantía Trabajo:</strong> {formData.work_warranty_months} meses</p>}
-                  {formData.parts_warranty_months && <p>🔧 <strong>Garantía Repuestos:</strong> {formData.parts_warranty_months} meses</p>}
-                  {formData.requires_client_approval && <p>✅ <strong>Requiere Aprobación:</strong> Sí</p>}
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('warranty')}
-                  className="flex-1 bg-slate-600 text-white py-3 rounded-lg font-semibold hover:bg-slate-700 transition"
-                >
-                  ← Anterior
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
-                >
-                  {submitting ? '⏳ Creando...' : '✅ Crear Orden de Trabajo'}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 transition disabled:opacity-50"
+              >
+                {submitting ? 'Creando...' : '✅ Crear Orden con Cotización'}
+              </button>
             </>
           )}
         </form>
@@ -826,136 +1118,85 @@ export function WorkOrdersViewEnhanced() {
     );
   }
 
+  // LIST VIEW
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Órdenes de Trabajo</h1>
-          <p className="text-slate-600 mt-1">Gestión de órdenes de trabajo, cotizaciones y garantías</p>
-        </div>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+          <FileText className="w-8 h-8" />
+          Órdenes de Trabajo
+        </h1>
         <button
-          onClick={() => { setViewMode('create'); resetForm(); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          onClick={() => {
+            resetForm();
+            setViewMode('create');
+          }}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-semibold"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5" />
           Nueva Orden
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <Clock className="w-8 h-8 text-yellow-600" />
-            <div>
-              <p className="text-2xl font-bold text-yellow-900">
-                {workOrders.filter((w) => w.status === 'pending').length}
-              </p>
-              <p className="text-sm text-yellow-700">Pendientes</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg p-4 shadow">
+          <p className="text-slate-600 text-sm">Total Órdenes</p>
+          <p className="text-3xl font-bold text-slate-900">{workOrders.length}</p>
         </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-2xl font-bold text-blue-900">
-                {workOrders.filter((w) => w.status === 'pending_approval').length}
-              </p>
-              <p className="text-sm text-blue-700">Pendientes Aprobación</p>
-            </div>
-          </div>
+        <div className="bg-yellow-50 rounded-lg p-4 shadow">
+          <p className="text-slate-600 text-sm">Pendientes</p>
+          <p className="text-3xl font-bold text-yellow-800">{workOrders.filter((o) => o.status === 'pending').length}</p>
         </div>
-
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-8 h-8 text-orange-600" />
-            <div>
-              <p className="text-2xl font-bold text-orange-900">
-                {workOrders.filter((w) => w.status === 'in_progress').length}
-              </p>
-              <p className="text-sm text-orange-700">En Proceso</p>
-            </div>
-          </div>
+        <div className="bg-blue-50 rounded-lg p-4 shadow">
+          <p className="text-slate-600 text-sm">En Progreso</p>
+          <p className="text-3xl font-bold text-blue-800">{workOrders.filter((o) => o.status === 'in_progress').length}</p>
         </div>
-
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-            <div>
-              <p className="text-2xl font-bold text-green-900">
-                {workOrders.filter((w) => w.status === 'completed').length}
-              </p>
-              <p className="text-sm text-green-700">Completadas</p>
-            </div>
-          </div>
+        <div className="bg-green-50 rounded-lg p-4 shadow">
+          <p className="text-slate-600 text-sm">Completadas</p>
+          <p className="text-3xl font-bold text-green-800">{workOrders.filter((o) => o.status === 'completed').length}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-100 border-b">
               <tr>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Folio</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Cliente/Edificio</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Tipo</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Descripción</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Monto</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Prioridad</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Estado</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Folio</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Cliente/Edificio</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Tipo</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Descripción</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Monto</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Prioridad</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
-              {workOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <FileText className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                    <p className="text-slate-600 font-medium">No hay órdenes de trabajo</p>
-                    <p className="text-sm text-slate-500 mt-1">Crea tu primera orden de trabajo</p>
+            <tbody className="divide-y">
+              {workOrders.map((workOrder) => (
+                <tr key={workOrder.id} className="hover:bg-slate-50 transition">
+                  <td className="px-6 py-4 text-sm font-medium text-blue-600">{workOrder.folio_number || workOrder.id.substring(0, 8)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900">
+                    {workOrder.buildings?.clients?.business_name} / {workOrder.buildings?.name}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {workOrder.is_internal ? '🔧 Interna' : '📊 Cotización'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{workOrder.description.substring(0, 40)}...</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                    {workOrder.quotation_amount ? `$${workOrder.quotation_amount.toLocaleString('es-CL')}` : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityBadge(workOrder.priority)}`}>
+                      {workOrder.priority}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(workOrder.status)}`}>
+                      {workOrder.status}
+                    </span>
                   </td>
                 </tr>
-              ) : (
-                workOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50 transition">
-                    <td className="px-6 py-4">
-                      <p className="font-mono text-sm font-semibold text-blue-600">
-                        {order.folio_number || '(auto)'}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-slate-900">
-                        {order.buildings?.clients?.business_name || 'N/A'}
-                      </p>
-                      <p className="text-xs text-slate-500">{order.buildings?.name}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-slate-900 capitalize">{order.work_type}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-slate-900 max-w-xs truncate">{order.description}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-slate-900">
-                        {order.quotation_amount ? `$${order.quotation_amount.toLocaleString('es-CL')}` : '-'}
-                      </p>
-                      {order.requires_advance_payment && (
-                        <p className="text-xs text-orange-600">Adelanto: {order.advance_percentage}%</p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityBadge(order.priority)}`}>
-                        {order.priority}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
