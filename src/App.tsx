@@ -9,11 +9,9 @@ import { TechnicianDashboard } from './components/dashboards/TechnicianDashboard
 import { ClientDashboard } from './components/dashboards/ClientDashboard';
 import { UserProfile } from './components/UserProfile';
 import { ManualsView } from './components/views/ManualsView';
-import { EmergencyV2View } from './components/views/EmergencyV2View';
 import { WorkOrdersViewEnhanced } from './components/views/WorkOrdersViewEnhanced';
 import { RoutesView } from './components/views/RoutesView';
 import { QRCodesManagementView } from './components/views/QRCodesManagementView';
-import { QRGalleryView } from './components/views/QRGalleryView';
 import { CertificationsDashboard } from './components/views/CertificationsDashboard';
 import { PDFHistoryView } from './components/views/PDFHistoryView';
 import { StatisticsView } from './components/views/StatisticsView';
@@ -25,12 +23,9 @@ import { ClientServiceRequestsView } from './components/views/ClientServiceReque
 import { ClientServiceRequestsViewEnhanced } from './components/views/ClientServiceRequestsViewEnhanced';
 import { CarpetaCeroView } from './components/views/CarpetaCeroView';
 import { RescueTrainingView } from './components/views/RescueTrainingView';
-import { EmergencyHistoryCompleteView } from './components/views/EmergencyHistoryCompleteView';
 import { EmergencyHistory } from './components/emergency/EmergencyHistory';
 import { QRCodesCompleteView } from './components/views/QRCodesCompleteView';
 import { AdminRescueTrainingView } from './components/views/AdminRescueTrainingView';
-import { TechnicianMaintenanceChecklistView } from './components/views/TechnicianMaintenanceChecklistView';
-import { TechnicianEmergencyView } from './components/views/TechnicianEmergencyView';
 import { TechnicianWorkOrdersView } from './components/views/TechnicianWorkOrdersView';
 import { TechnicianRoutesView } from './components/views/TechnicianRoutesView';
 import { NotificationsView } from './components/views/NotificationsView';
