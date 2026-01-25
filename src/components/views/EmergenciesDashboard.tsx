@@ -9,9 +9,14 @@ import {
   Phone,
   MapPin,
   Zap,
+  Download,
+  Filter,
+  QrCode,
+  FileText,
 } from 'lucide-react';
 import { MultiElevatorEmergencyForm } from '../emergency/MultiElevatorEmergencyForm';
 import { EmergencyQRScanner } from '../emergency/EmergencyQRScanner';
+import { ManualEmergencySelector } from '../emergency/ManualEmergencySelector';
 
 interface EmergencyVisit {
   id: string;
@@ -43,6 +48,15 @@ export function EmergenciesDashboard() {
   const [showNewEmergencyForm, setShowNewEmergencyForm] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [scannerData, setScannerData] = useState<any>(null);
+  const [showCreationModal, setShowCreationModal] = useState(false);
+  const [showManualSelector, setShowManualSelector] = useState(false);
+  
+  // Filtros
+  const [clients, setClients] = useState<any[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const [stats, setStats] = useState({
     in_progress: 0,
@@ -54,7 +68,24 @@ export function EmergenciesDashboard() {
 
   useEffect(() => {
     loadEmergencies();
-  }, [activeTab]);
+    if (isAdmin) {
+      loadClients();
+    }
+  }, [activeTab, selectedYear, selectedClient]);
+
+  const loadClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, company_name')
+        .order('company_name');
+
+      if (error) throw error;
+      setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+    }
+  };
 
   const loadEmergencies = async () => {
     setLoading(true);
@@ -92,6 +123,17 @@ export function EmergenciesDashboard() {
         query = query.eq('technician_id', user?.id);
       }
 
+      // Aplicar filtros de año y cliente
+      if (selectedYear !== 'all') {
+        const yearStart = `${selectedYear}-01-01`;
+        const yearEnd = `${selectedYear}-12-31`;
+        query = query.gte('created_at', yearStart).lte('created_at', yearEnd);
+      }
+
+      if (selectedClient !== 'all') {
+        query = query.eq('client_id', selectedClient);
+      }
+
       query = query.order('created_at', { ascending: false });
 
       const { data, error } = await query;
@@ -123,6 +165,17 @@ export function EmergenciesDashboard() {
     setShowNewEmergencyForm(true);
   };
 
+  const handleManualBuildingSelected = (data: {
+    clientId: string;
+    buildingName: string;
+    buildingAddress: string;
+    elevators: Array<{ id: string; internal_code: string; location: string }>;
+  }) => {
+    setScannerData(data);
+    setShowManualSelector(false);
+    setShowNewEmergencyForm(true);
+  };
+
   const handleCompleteEmergency = async (emergencyId: string) => {
     try {
       const { error } = await supabase
@@ -139,6 +192,72 @@ export function EmergenciesDashboard() {
     } catch (error) {
       console.error('Error completing emergency:', error);
       alert('Error al completar emergencia');
+    }
+  };
+
+  const handleBulkDownloadPDFs = async () => {
+    setDownloading(true);
+    try {
+      // Nota: emergency_v2_visits no tiene pdf_url aún implementado
+      // Por ahora buscaremos en emergency_visits (tabla legacy con PDFs)
+      let query = supabase
+        .from('emergency_visits')
+        .select('id, pdf_url, visit_date, clients(company_name)')
+        .not('pdf_url', 'is', null)
+        .order('visit_date', { ascending: false });
+
+      // Aplicar mismos filtros
+      if (selectedYear !== 'all') {
+        const yearStart = `${selectedYear}-01-01`;
+        const yearEnd = `${selectedYear}-12-31`;
+        query = query.gte('visit_date', yearStart).lte('visit_date', yearEnd);
+      }
+
+      if (selectedClient !== 'all') {
+        query = query.eq('client_id', selectedClient);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        alert('No hay PDFs disponibles para los filtros seleccionados');
+        return;
+      }
+
+      alert(`Iniciando descarga de ${data.length} PDFs. Esto puede tardar unos segundos...`);
+
+      // Descargar cada PDF con delay para evitar bloqueos
+      for (let i = 0; i < data.length; i++) {
+        const record = data[i];
+        setTimeout(() => {
+          const clientData = Array.isArray(record.clients) && record.clients.length > 0 
+            ? record.clients[0] 
+            : record.clients;
+          
+          const clientName = (clientData as any)?.company_name || 'cliente';
+          const date = new Date(record.visit_date).toLocaleDateString('es-CL').replace(/\//g, '-');
+          const filename = `emergencia_${clientName}_${date}.pdf`;
+          
+          const link = document.createElement('a');
+          link.href = record.pdf_url!;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }, i * 500); // Delay 500ms entre descargas
+      }
+
+      setTimeout(() => {
+        alert(`✅ Descarga completa: ${data.length} PDFs`);
+        setDownloading(false);
+      }, data.length * 500 + 1000);
+
+    } catch (error) {
+      console.error('Error downloading PDFs:', error);
+      alert('Error al descargar PDFs');
+      setDownloading(false);
     }
   };
 
@@ -165,18 +284,88 @@ export function EmergenciesDashboard() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Emergencias</h1>
             <p className="text-gray-600">Gestión centralizada de llamadas de emergencia y asignación técnica</p>
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => {
-                setShowQRScanner(true);
-              }}
-              className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition shadow-md"
-            >
-              <Plus className="w-5 h-5" />
-              Nueva Emergencia
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition shadow-md ${
+                    showFilters
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <Filter className="w-5 h-5" />
+                  Filtros
+                </button>
+                <button
+                  onClick={() => setShowCreationModal(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition shadow-md"
+                >
+                  <Plus className="w-5 h-5" />
+                  Nueva Emergencia
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Panel de Filtros */}
+        {isAdmin && showFilters && (
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Año
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Todos los años</option>
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="2023">2023</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cliente
+                </label>
+                <select
+                  value={selectedClient}
+                  onChange={(e) => setSelectedClient(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Todos los clientes</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.company_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={handleBulkDownloadPDFs}
+                  disabled={downloading}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
+                    downloading
+                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  <Download className="w-5 h-5" />
+                  {downloading ? 'Descargando...' : 'Descargar PDFs'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -339,6 +528,90 @@ export function EmergenciesDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Modal de Selección: QR o Manual */}
+        {showCreationModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+                Nueva Emergencia
+              </h2>
+              <p className="text-gray-600 mb-6 text-center">
+                Selecciona cómo quieres registrar la emergencia:
+              </p>
+
+              <div className="grid grid-cols-1 gap-4">
+                <button
+                  onClick={() => {
+                    setShowCreationModal(false);
+                    setShowQRScanner(true);
+                  }}
+                  className="flex items-center gap-4 p-6 border-2 border-gray-300 rounded-lg hover:border-red-600 hover:bg-red-50 transition group"
+                >
+                  <div className="bg-red-100 p-3 rounded-lg group-hover:bg-red-600 transition">
+                    <QrCode className="w-8 h-8 text-red-600 group-hover:text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-bold text-lg text-gray-900">Escanear QR</h3>
+                    <p className="text-sm text-gray-600">
+                      Usa el escáner QR del edificio
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCreationModal(false);
+                    setShowManualSelector(true);
+                  }}
+                  className="flex items-center gap-4 p-6 border-2 border-gray-300 rounded-lg hover:border-red-600 hover:bg-red-50 transition group"
+                >
+                  <div className="bg-red-100 p-3 rounded-lg group-hover:bg-red-600 transition">
+                    <FileText className="w-8 h-8 text-red-600 group-hover:text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-bold text-lg text-gray-900">Ingreso Manual</h3>
+                    <p className="text-sm text-gray-600">
+                      Selecciona cliente y edificio manualmente
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowCreationModal(false)}
+                className="mt-6 w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Manual Building Selector Modal */}
+        {showManualSelector && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Seleccionar Edificio
+                </h2>
+                <button
+                  onClick={() => setShowManualSelector(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6">
+                <ManualEmergencySelector
+                  onBuildingSelected={handleManualBuildingSelected}
+                  onCancel={() => setShowManualSelector(false)}
+                />
+              </div>
+            </div>
           </div>
         )}
 

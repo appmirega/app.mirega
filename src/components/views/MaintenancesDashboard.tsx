@@ -11,6 +11,8 @@ import {
   AlertCircle,
   User,
   X,
+  Download,
+  Filter,
 } from 'lucide-react';
 
 interface MaintenanceSchedule {
@@ -46,6 +48,13 @@ export function MaintenancesDashboard() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('pending');
   const [showNewMaintenanceForm, setShowNewMaintenanceForm] = useState(false);
   const [buildings, setBuildings] = useState<any[]>([]);
+  
+  // Filtros
+  const [clients, setClients] = useState<any[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const [stats, setStats] = useState({
     pending: 0,
@@ -60,8 +69,9 @@ export function MaintenancesDashboard() {
     loadMaintenances();
     if (isAdmin) {
       loadBuildings();
+      loadClients();
     }
-  }, [activeTab]);
+  }, [activeTab, selectedYear, selectedClient]);
 
   const loadBuildings = async () => {
     try {
@@ -74,6 +84,20 @@ export function MaintenancesDashboard() {
       setBuildings(data || []);
     } catch (error) {
       console.error('Error loading buildings:', error);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, company_name')
+        .order('company_name');
+
+      if (error) throw error;
+      setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
     }
   };
 
@@ -113,6 +137,17 @@ export function MaintenancesDashboard() {
       // Filtrar por técnico si es técnico
       if (isTechnician) {
         query = query.contains('assigned_technicians', [user?.id]);
+      }
+
+      // Aplicar filtros de año y cliente
+      if (selectedYear !== 'all') {
+        const yearStart = `${selectedYear}-01-01`;
+        const yearEnd = `${selectedYear}-12-31`;
+        query = query.gte('scheduled_date', yearStart).lte('scheduled_date', yearEnd);
+      }
+
+      if (selectedClient !== 'all') {
+        query = query.eq('client_id', selectedClient);
       }
 
       query = query.order('scheduled_date', { ascending: true });
@@ -173,6 +208,74 @@ export function MaintenancesDashboard() {
     }
   };
 
+  const handleBulkDownloadPDFs = async () => {
+    setDownloading(true);
+    try {
+      // Buscar PDFs en mnt_checklists
+      let query = supabase
+        .from('mnt_checklists')
+        .select('id, pdf_url, completed_at, clients(company_name, internal_alias), elevators(elevator_number), month, year')
+        .not('pdf_url', 'is', null)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false });
+
+      // Aplicar mismos filtros
+      if (selectedYear !== 'all') {
+        query = query.eq('year', parseInt(selectedYear));
+      }
+
+      if (selectedClient !== 'all') {
+        query = query.eq('client_id', selectedClient);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        alert('No hay PDFs de mantenimiento disponibles para los filtros seleccionados');
+        return;
+      }
+
+      alert(`Iniciando descarga de ${data.length} PDFs. Esto puede tardar unos segundos...`);
+
+      // Descargar cada PDF con delay
+      for (let i = 0; i < data.length; i++) {
+        const record = data[i];
+        setTimeout(() => {
+          const clientData = Array.isArray(record.clients) && record.clients.length > 0 
+            ? record.clients[0] 
+            : record.clients;
+          const elevatorData = Array.isArray(record.elevators) && record.elevators.length > 0 
+            ? record.elevators[0] 
+            : record.elevators;
+          
+          const buildingName = (clientData as any)?.internal_alias || 'edificio';
+          const elevatorNum = (elevatorData as any)?.elevator_number || 'asc';
+          const monthName = new Date(record.year, record.month - 1).toLocaleString('es-CL', { month: 'long' });
+          const filename = `mantenimiento_${buildingName}_${elevatorNum}_${monthName}_${record.year}.pdf`;
+          
+          const link = document.createElement('a');
+          link.href = record.pdf_url!;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }, i * 500);
+      }
+
+      setTimeout(() => {
+        alert(`✅ Descarga completa: ${data.length} PDFs`);
+        setDownloading(false);
+      }, data.length * 500 + 1000);
+
+    } catch (error) {
+      console.error('Error downloading PDFs:', error);
+      alert('Error al descargar PDFs');
+      setDownloading(false);
+    }
+  };
+
   const filteredMaintenances = maintenances.filter(m => {
     if (activeTab === 'pending') return m.status === 'pending';
     if (activeTab === 'in_progress') return m.status === 'in_progress';
@@ -210,16 +313,88 @@ export function MaintenancesDashboard() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Mantenimientos</h1>
             <p className="text-gray-600">Gestión centralizada de mantenimientos preventivos y asignación técnica</p>
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => setShowNewMaintenanceForm(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md"
-            >
-              <Plus className="w-5 h-5" />
-              Nuevo Mantenimiento
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition shadow-md ${
+                    showFilters
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <Filter className="w-5 h-5" />
+                  Filtros
+                </button>
+                <button
+                  onClick={() => setShowNewMaintenanceForm(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md"
+                >
+                  <Plus className="w-5 h-5" />
+                  Nuevo Mantenimiento
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Panel de Filtros */}
+        {isAdmin && showFilters && (
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Año
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Todos los años</option>
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="2023">2023</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cliente
+                </label>
+                <select
+                  value={selectedClient}
+                  onChange={(e) => setSelectedClient(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Todos los clientes</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.company_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={handleBulkDownloadPDFs}
+                  disabled={downloading}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
+                    downloading
+                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  <Download className="w-5 h-5" />
+                  {downloading ? 'Descargando...' : 'Descargar PDFs'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
