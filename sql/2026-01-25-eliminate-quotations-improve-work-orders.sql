@@ -153,6 +153,30 @@ CREATE TABLE IF NOT EXISTS work_order_closures (
 -- Agregar columnas una por una (IF NOT EXISTS requiere PostgreSQL 9.6+)
 DO $$
 BEGIN
+  -- completion_date
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'completion_date'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN completion_date TIMESTAMP NOT NULL DEFAULT NOW();
+  END IF;
+
+  -- created_at
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'created_at'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN created_at TIMESTAMP DEFAULT NOW();
+  END IF;
+
+  -- updated_at
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'updated_at'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN updated_at TIMESTAMP DEFAULT NOW();
+  END IF;
+
   -- closed_by
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
