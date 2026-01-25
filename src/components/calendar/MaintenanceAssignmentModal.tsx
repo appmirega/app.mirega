@@ -40,6 +40,7 @@ interface MaintenanceAssignmentModalProps {
   selectedDate: Date | null;
   assignment: MaintenanceAssignment | null;
   technicians: Technician[];
+  technicianAbsences?: Map<string, Map<string, string[]>>;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -48,6 +49,7 @@ export function MaintenanceAssignmentModal({
   selectedDate,
   assignment,
   technicians,
+  technicianAbsences,
   onClose,
   onSuccess
 }: MaintenanceAssignmentModalProps) {
@@ -76,7 +78,7 @@ export function MaintenanceAssignmentModal({
   useEffect(() => {
     loadBuildings();
     if (selectedDate) {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
       setFormData(prev => ({ ...prev, scheduled_date: dateStr }));
       checkHoliday(dateStr);
     }
@@ -189,14 +191,22 @@ export function MaintenanceAssignmentModal({
 
       // Validar disponibilidad del técnico
       if (formData.assigned_technician_id) {
-        const { data: isAvailable } = await supabase
-          .rpc('is_technician_available', {
-            tech_id: formData.assigned_technician_id,
-            check_date: formData.scheduled_date
-          });
+        // Validar ausencia (vacaciones/permiso) usando mapa local
+        const absencesForDate = technicianAbsences?.get(formData.scheduled_date);
+        const reasons = absencesForDate?.get(formData.assigned_technician_id);
+        if (reasons && reasons.length > 0) {
+          newErrors.assigned_technician_id = `El técnico no está disponible (vacaciones/permiso: ${reasons.join(', ')})`;
+        } else {
+          // Validar disponibilidad del técnico vía RPC (respaldo)
+          const { data: isAvailable } = await supabase
+            .rpc('is_technician_available', {
+              tech_id: formData.assigned_technician_id,
+              check_date: formData.scheduled_date
+            });
 
-        if (!isAvailable) {
-          newErrors.assigned_technician_id = 'El técnico no está disponible en esta fecha (vacaciones o permiso)';
+          if (!isAvailable) {
+            newErrors.assigned_technician_id = 'El técnico no está disponible en esta fecha (vacaciones o permiso)';
+          }
         }
       }
     }

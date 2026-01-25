@@ -127,11 +127,13 @@ export function MaintenanceCalendarView() {
       const absenceMap = new Map<string, Map<string, string[]>>();
 
       (data || []).forEach(absence => {
-        const start = new Date(absence.start_date);
-        const end = new Date(absence.end_date);
+        const [sy, sm, sd] = absence.start_date.split('-').map(Number);
+        const [ey, em, ed] = absence.end_date.split('-').map(Number);
+        const start = new Date(sy, sm - 1, sd);
+        const end = new Date(ey, em - 1, ed);
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const dateStr = d.toISOString().split('T')[0];
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           if (!absenceMap.has(dateStr)) {
             absenceMap.set(dateStr, new Map<string, string[]>());
           }
@@ -448,6 +450,7 @@ export function MaintenanceCalendarView() {
           selectedDate={selectedDate}
           assignment={selectedAssignment}
           technicians={technicians}
+          technicianAbsences={technicianAbsences}
           onClose={() => setShowAssignmentModal(false)}
           onSuccess={handleAssignmentCreated}
         />
