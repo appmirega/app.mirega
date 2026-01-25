@@ -10,7 +10,7 @@ import { ClientDashboard } from './components/dashboards/ClientDashboard';
 import { UserProfile } from './components/UserProfile';
 import { ManualsView } from './components/views/ManualsView';
 import { EmergencyV2View } from './components/views/EmergencyV2View';
-import { WorkOrdersView } from './components/views/WorkOrdersView';
+import { WorkOrdersViewEnhanced } from './components/views/WorkOrdersViewEnhanced';
 import { RoutesView } from './components/views/RoutesView';
 import { QRCodesManagementView } from './components/views/QRCodesManagementView';
 import { QRGalleryView } from './components/views/QRGalleryView';
@@ -22,6 +22,7 @@ import { BulkOperationsView } from './components/views/BulkOperationsView';
 import { ClientEmergenciesView } from './components/views/ClientEmergenciesView';
 import { ClientMaintenancesView } from './components/views/ClientMaintenancesView';
 import { ClientServiceRequestsView } from './components/views/ClientServiceRequestsView';
+import { ClientServiceRequestsViewEnhanced } from './components/views/ClientServiceRequestsViewEnhanced';
 import { CarpetaCeroView } from './components/views/CarpetaCeroView';
 import { RescueTrainingView } from './components/views/RescueTrainingView';
 import { EmergencyHistoryCompleteView } from './components/views/EmergencyHistoryCompleteView';
@@ -105,9 +106,9 @@ function AppContent() {
       case 'client-maintenances':
         return <ClientMaintenancesView />;
       case 'client-service-requests':
-        return <ClientServiceRequestsView />;
+        return <ClientServiceRequestsViewEnhanced />;
       case 'work-orders':
-        return profile?.role === 'technician' ? <TechnicianWorkOrdersView /> : <WorkOrdersView />;
+        return profile?.role === 'technician' ? <TechnicianWorkOrdersView /> : <WorkOrdersViewEnhanced />;
       case 'routes':
         return profile?.role === 'technician' ? <TechnicianRoutesView /> : <RoutesView />;
       case 'carpeta-cero':
