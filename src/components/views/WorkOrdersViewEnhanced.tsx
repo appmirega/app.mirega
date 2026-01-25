@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, FileText, Clock, CheckCircle, X, AlertCircle, DollarSign, Calendar, Package, Users } from 'lucide-react';
+import { Plus, FileText, Clock, CheckCircle, X, AlertCircle, DollarSign, Calendar, Package, Users, Download } from 'lucide-react';
 
 interface WorkOrder {
   id: string;
@@ -26,6 +26,7 @@ interface WorkOrder {
   quotation_description?: string;
   involves_foreign_parts: boolean;
   foreign_parts_supplier?: string;
+  foreign_parts_lead_time?: string;
   estimated_execution_days?: number;
   requires_advance_payment: boolean;
   advance_percentage?: number;
@@ -92,11 +93,13 @@ export function WorkOrdersViewEnhanced() {
     requires_client_approval: false,
     approval_deadline: '',
     external_quotation_number: '',
+    external_quotation_pdf_url: '',
     quotation_amount: '',
     quotation_description: '',
     // Repuestos
     involves_foreign_parts: false,
     foreign_parts_supplier: '',
+    foreign_parts_lead_time: '',
     estimated_execution_days: '',
     // Adelantos
     requires_advance_payment: false,
@@ -120,6 +123,7 @@ export function WorkOrdersViewEnhanced() {
     provider_type: 'individual' as const,
     service_category: '',
   });
+  const [quotationFile, setQuotationFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -215,6 +219,29 @@ export function WorkOrdersViewEnhanced() {
     } catch (error) {
       console.error('Error loading external providers:', error);
     }
+  };
+
+  const uploadQuotationPdf = async (): Promise<string | null> => {
+    if (!quotationFile) return null;
+
+    const fileExt = quotationFile.name.split('.').pop();
+    const fileName = `quotation-${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const filePath = `pdf/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from('work-order-quotations')
+      .upload(filePath, quotationFile, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) throw error;
+
+    const { data: publicUrlData } = supabase.storage
+      .from('work-order-quotations')
+      .getPublicUrl(data?.path || filePath);
+
+    return publicUrlData?.publicUrl || null;
   };
 
   const handleAddExternalProvider = async () => {
@@ -324,6 +351,15 @@ export function WorkOrdersViewEnhanced() {
         }
       }
 
+      let quotationPdfUrl: string | null = formData.external_quotation_pdf_url || null;
+
+      if (orderType === 'quotation' && quotationFile) {
+        const uploadedUrl = await uploadQuotationPdf();
+        if (uploadedUrl) {
+          quotationPdfUrl = uploadedUrl;
+        }
+      }
+
       if (orderType === 'internal') {
         // Para órdenes internas, la designación es opcional pero si se pone, la fecha también debe existir
         if ((formData.assigned_technician_id && !formData.scheduled_date) ||
@@ -355,11 +391,13 @@ export function WorkOrdersViewEnhanced() {
         requires_client_approval: orderType === 'quotation' ? formData.requires_client_approval : false,
         approval_deadline: orderType === 'quotation' ? (formData.approval_deadline || null) : null,
         external_quotation_number: orderType === 'quotation' ? (formData.external_quotation_number || null) : null,
+        external_quotation_pdf_url: orderType === 'quotation' ? quotationPdfUrl : null,
         quotation_amount: orderType === 'quotation' ? (formData.quotation_amount ? parseFloat(formData.quotation_amount) : null) : null,
         quotation_description: orderType === 'quotation' ? (formData.quotation_description || null) : null,
         // Repuestos
         involves_foreign_parts: orderType === 'quotation' ? formData.involves_foreign_parts : false,
         foreign_parts_supplier: orderType === 'quotation' ? (formData.foreign_parts_supplier || null) : null,
+        foreign_parts_lead_time: orderType === 'quotation' ? (formData.foreign_parts_lead_time || null) : null,
         estimated_execution_days: orderType === 'quotation' ? (formData.estimated_execution_days ? parseInt(formData.estimated_execution_days) : null) : null,
         // Adelantos
         requires_advance_payment: orderType === 'quotation' ? formData.requires_advance_payment : false,
@@ -405,10 +443,12 @@ export function WorkOrdersViewEnhanced() {
       requires_client_approval: false,
       approval_deadline: '',
       external_quotation_number: '',
+      external_quotation_pdf_url: '',
       quotation_amount: '',
       quotation_description: '',
       involves_foreign_parts: false,
       foreign_parts_supplier: '',
+      foreign_parts_lead_time: '',
       estimated_execution_days: '',
       requires_advance_payment: false,
       advance_percentage: '',
@@ -417,6 +457,7 @@ export function WorkOrdersViewEnhanced() {
       parts_warranty_months: '',
       parts_warranty_description: '',
     });
+    setQuotationFile(null);
     setOrderType(null);
     setActiveTab('basic');
   };
@@ -914,6 +955,29 @@ export function WorkOrdersViewEnhanced() {
                           className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Adjuntar Cotización (PDF)
+                        </label>
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          onChange={(e) => setQuotationFile(e.target.files?.[0] || null)}
+                          className="w-full text-sm text-slate-700"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Formato PDF. Se almacenará y el cliente podrá descargarla.</p>
+                        {formData.external_quotation_pdf_url && !quotationFile && (
+                          <a
+                            href={formData.external_quotation_pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium mt-2"
+                          >
+                            <Download className="w-3 h-3" /> Ver cotización existente
+                          </a>
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -957,6 +1021,22 @@ export function WorkOrdersViewEnhanced() {
                             placeholder="Ej: Germany / Siemens"
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
+
+                          <div className="mt-3">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Plazo de Importación (días o rango)
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.foreign_parts_lead_time}
+                              onChange={(e) => setFormData({ ...formData, foreign_parts_lead_time: e.target.value })}
+                              placeholder="Ej: 15 días o 7-10 días"
+                              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                              Se muestra al cliente para transparentar tiempos de importación fuera de nuestro control.
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>

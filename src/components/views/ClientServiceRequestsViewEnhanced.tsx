@@ -66,6 +66,9 @@ interface WorkOrderPendingApproval {
   external_quotation_number: string | null;
   external_quotation_pdf_url: string | null;
   quotation_description: string | null;
+  involves_foreign_parts: boolean;
+  foreign_parts_supplier: string | null;
+  foreign_parts_lead_time: string | null;
   work_warranty_months: number | null;
   work_warranty_description: string | null;
   parts_warranty_months: number | null;
@@ -189,6 +192,9 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
           external_quotation_number,
           external_quotation_pdf_url,
           quotation_description,
+          involves_foreign_parts,
+          foreign_parts_supplier,
+          foreign_parts_lead_time,
           work_warranty_months,
           work_warranty_description,
           parts_warranty_months,
@@ -689,6 +695,32 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
                                     <Download className="w-3 h-3" />
                                     Descargar PDF
                                   </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Repuestos y importación */}
+                          {(wo.involves_foreign_parts || wo.foreign_parts_supplier || wo.foreign_parts_lead_time) && (
+                            <div className="p-3 bg-slate-50 rounded-lg">
+                              <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                                <Package className="w-4 h-4 text-blue-600" />
+                                Repuestos / Importación
+                              </h4>
+                              <div className="space-y-1 text-sm text-slate-600">
+                                {wo.involves_foreign_parts && (
+                                  <p className="font-medium text-slate-800">Incluye compras en el extranjero</p>
+                                )}
+                                {wo.foreign_parts_supplier && (
+                                  <p><span className="font-medium">Proveedor/País:</span> {wo.foreign_parts_supplier}</p>
+                                )}
+                                {wo.foreign_parts_lead_time && (
+                                  <p className="text-orange-700 font-semibold">
+                                    ⏱️ Plazo estimado de importación: {wo.foreign_parts_lead_time}
+                                  </p>
+                                )}
+                                {!wo.foreign_parts_lead_time && wo.involves_foreign_parts && (
+                                  <p className="text-xs text-slate-500">El plazo de importación se confirmará con el proveedor.</p>
                                 )}
                               </div>
                             </div>
