@@ -75,7 +75,6 @@ interface WorkOrderPendingApproval {
   parts_warranty_description: string | null;
   advance_percentage: number | null;
   advance_amount: number | null;
-  approval_deadline: string | null;
   created_at: string;
   buildings?: {
     name: string;
@@ -201,7 +200,6 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
           parts_warranty_description,
           advance_percentage,
           advance_amount,
-          approval_deadline,
           created_at,
           buildings:building_id (
             name,
@@ -329,13 +327,6 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
     return icons[type] || Wrench;
   };
 
-  const calculateDaysUntilDeadline = (deadline: string | null) => {
-    if (!deadline) return null;
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const daysLeft = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return daysLeft;
-  };
 
   const filteredRequests = activeTab === 'all' 
     ? requests 
@@ -588,18 +579,10 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {workOrders.map((wo) => {
-                  const daysLeft = calculateDaysUntilDeadline(wo.approval_deadline);
-                  const isExpired = daysLeft !== null && daysLeft < 0;
-                  const isUrgent = daysLeft !== null && daysLeft < 3;
-
                   return (
                     <div
                       key={wo.id}
-                      className={`border-2 rounded-xl transition ${
-                        isExpired ? 'border-red-300 bg-red-50' :
-                        isUrgent ? 'border-orange-300 bg-orange-50' :
-                        'border-slate-200 hover:border-blue-300'
-                      }`}
+                      className="border-2 rounded-xl transition border-slate-200 hover:border-blue-300"
                     >
                       {/* Header colapsable */}
                       <div
@@ -607,16 +590,8 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
                         className="p-4 cursor-pointer flex items-start justify-between"
                       >
                         <div className="flex items-start gap-3 flex-1">
-                          <div className={`p-2 rounded-lg ${
-                            isExpired ? 'bg-red-200' :
-                            isUrgent ? 'bg-orange-200' :
-                            'bg-blue-100'
-                          }`}>
-                            <Zap className={`w-5 h-5 ${
-                              isExpired ? 'text-red-600' :
-                              isUrgent ? 'text-orange-600' :
-                              'text-blue-600'
-                            }`} />
+                          <div className="p-2 rounded-lg bg-blue-100">
+                            <Zap className="w-5 h-5 text-blue-600" />
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
@@ -645,16 +620,6 @@ export const ClientServiceRequestsViewEnhanced: React.FC = () => {
                                 <div className="flex items-center gap-1 text-blue-600">
                                   <Shield className="w-3 h-3" />
                                   Garantía: {wo.work_warranty_months} meses
-                                </div>
-                              )}
-                              {daysLeft !== null && (
-                                <div className={`flex items-center gap-1 font-semibold ${
-                                  isExpired ? 'text-red-600' :
-                                  isUrgent ? 'text-orange-600' :
-                                  'text-slate-600'
-                                }`}>
-                                  <Clock className="w-3 h-3" />
-                                  {isExpired ? '⏱️ VENCIDO' : `Válida ${daysLeft} días`}
                                 </div>
                               )}
                             </div>
