@@ -178,7 +178,9 @@ export function MaintenanceAssignmentModal({
 
     // Validar que técnicos internos solo trabajen de lunes a viernes
     if (!formData.is_external) {
-      const date = new Date(formData.scheduled_date);
+      // Parsear fecha sin problemas de zona horaria: YYYY-MM-DD -> new Date(year, month-1, day)
+      const [year, month, day] = formData.scheduled_date.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
       const dayOfWeek = date.getDay();
       
       if (dayOfWeek === 0 || dayOfWeek === 6) {
