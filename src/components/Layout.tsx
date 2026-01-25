@@ -70,8 +70,6 @@ const navigation: NavItem[] = [
   { label: 'Mis Emergencias', icon: AlertTriangle, path: 'client-emergencies', roles: ['client'] },
   { label: 'Órdenes de Trabajo', icon: FileText, path: 'work-orders', roles: ['developer', 'admin', 'technician'] },
   { label: 'Rutas', icon: Map, path: 'routes', roles: ['developer', 'admin', 'technician'] },
-  { label: 'Cotizaciones', icon: BarChart3, path: 'quotations', roles: ['developer', 'admin'] },
-  { label: 'Mis Cotizaciones', icon: BarChart3, path: 'client-quotations', roles: ['client'] },
   { label: 'Carpeta Cero', icon: Folder, path: 'carpeta-cero', roles: ['developer', 'admin', 'client'] },
   { label: 'Capacitaciones de Rescate', icon: Presentation, path: 'rescue-training-admin', roles: ['developer', 'admin'] },
   { label: 'Inducción de Rescate', icon: Award, path: 'rescue-training', roles: ['client'] },

@@ -12,7 +12,6 @@ import { ManualsView } from './components/views/ManualsView';
 import { EmergencyV2View } from './components/views/EmergencyV2View';
 import { WorkOrdersView } from './components/views/WorkOrdersView';
 import { RoutesView } from './components/views/RoutesView';
-import { QuotationsManagementView } from './components/views/QuotationsManagementView';
 import { QRCodesManagementView } from './components/views/QRCodesManagementView';
 import { QRGalleryView } from './components/views/QRGalleryView';
 import { CertificationsDashboard } from './components/views/CertificationsDashboard';
@@ -21,7 +20,6 @@ import { StatisticsView } from './components/views/StatisticsView';
 import { AuditLogView } from './components/views/AuditLogView';
 import { BulkOperationsView } from './components/views/BulkOperationsView';
 import { ClientEmergenciesView } from './components/views/ClientEmergenciesView';
-import { ClientQuotationsView } from './components/views/ClientQuotationsView';
 import { ClientMaintenancesView } from './components/views/ClientMaintenancesView';
 import { ClientServiceRequestsView } from './components/views/ClientServiceRequestsView';
 import { CarpetaCeroView } from './components/views/CarpetaCeroView';
@@ -112,10 +110,6 @@ function AppContent() {
         return profile?.role === 'technician' ? <TechnicianWorkOrdersView /> : <WorkOrdersView />;
       case 'routes':
         return profile?.role === 'technician' ? <TechnicianRoutesView /> : <RoutesView />;
-      case 'quotations':
-        return <QuotationsManagementView />;
-      case 'client-quotations':
-        return <ClientQuotationsView />;
       case 'carpeta-cero':
         return <CarpetaCeroView />;
       case 'rescue-training':
