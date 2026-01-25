@@ -141,38 +141,130 @@ COMMENT ON FUNCTION generate_work_order_folio IS 'Genera folio único: OT-0001-2
 -- PARTE 4: TABLA DE CIERRES DE ÓRDENES DE TRABAJO
 -- =====================================================
 
+-- Crear tabla si no existe
 CREATE TABLE IF NOT EXISTS work_order_closures (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   work_order_id UUID NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
-  closed_by UUID NOT NULL REFERENCES profiles(id),
   completion_date TIMESTAMP NOT NULL DEFAULT NOW(),
-  
-  -- Documentación
-  photos_urls TEXT[], -- Array de URLs a fotos en storage
-  signature_data TEXT, -- Firma digital en formato base64
-  technician_notes TEXT,
-  
-  -- Costos reales vs estimados
-  actual_labor_cost DECIMAL(12,2),
-  actual_parts_cost DECIMAL(12,2),
-  actual_total_cost DECIMAL(12,2),
-  cost_variance_percentage DECIMAL(5,2), -- % diferencia vs estimado
-  
-  -- Documento final
-  closure_pdf_url TEXT,
-  closure_pdf_generated_at TIMESTAMP,
-  
-  -- Garantías activadas
-  work_warranty_activated BOOLEAN DEFAULT FALSE,
-  parts_warranty_activated BOOLEAN DEFAULT FALSE,
-  
-  -- Satisfacción cliente (si aplica)
-  client_rating INTEGER CHECK (client_rating BETWEEN 1 AND 5),
-  client_feedback TEXT,
-  
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Agregar columnas una por una (IF NOT EXISTS requiere PostgreSQL 9.6+)
+DO $$
+BEGIN
+  -- closed_by
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'closed_by'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN closed_by UUID NOT NULL REFERENCES profiles(id);
+  END IF;
+  
+  -- photos_urls
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'photos_urls'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN photos_urls TEXT[];
+  END IF;
+  
+  -- signature_data
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'signature_data'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN signature_data TEXT;
+  END IF;
+  
+  -- technician_notes
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'technician_notes'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN technician_notes TEXT;
+  END IF;
+  
+  -- actual_labor_cost
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'actual_labor_cost'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN actual_labor_cost DECIMAL(12,2);
+  END IF;
+  
+  -- actual_parts_cost
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'actual_parts_cost'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN actual_parts_cost DECIMAL(12,2);
+  END IF;
+  
+  -- actual_total_cost
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'actual_total_cost'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN actual_total_cost DECIMAL(12,2);
+  END IF;
+  
+  -- cost_variance_percentage
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'cost_variance_percentage'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN cost_variance_percentage DECIMAL(5,2);
+  END IF;
+  
+  -- closure_pdf_url
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'closure_pdf_url'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN closure_pdf_url TEXT;
+  END IF;
+  
+  -- closure_pdf_generated_at
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'closure_pdf_generated_at'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN closure_pdf_generated_at TIMESTAMP;
+  END IF;
+  
+  -- work_warranty_activated
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'work_warranty_activated'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN work_warranty_activated BOOLEAN DEFAULT FALSE;
+  END IF;
+  
+  -- parts_warranty_activated
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'parts_warranty_activated'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN parts_warranty_activated BOOLEAN DEFAULT FALSE;
+  END IF;
+  
+  -- client_rating
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'client_rating'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN client_rating INTEGER CHECK (client_rating BETWEEN 1 AND 5);
+  END IF;
+  
+  -- client_feedback
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'work_order_closures' AND column_name = 'client_feedback'
+  ) THEN
+    ALTER TABLE work_order_closures ADD COLUMN client_feedback TEXT;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_work_order_closures_work_order ON work_order_closures(work_order_id);
 CREATE INDEX IF NOT EXISTS idx_work_order_closures_closed_by ON work_order_closures(closed_by);
@@ -184,42 +276,146 @@ COMMENT ON TABLE work_order_closures IS 'Cierres formales de órdenes de trabajo
 -- PARTE 5: TABLA DE REPORTES DE INSPECCIÓN
 -- =====================================================
 
+-- Crear tabla si no existe
 CREATE TABLE IF NOT EXISTS inspection_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_request_id UUID REFERENCES service_requests(id) ON DELETE SET NULL,
   work_order_id UUID REFERENCES work_orders(id) ON DELETE SET NULL,
-  
-  -- Datos de inspección
-  inspector_id UUID NOT NULL REFERENCES profiles(id),
-  inspection_date DATE NOT NULL,
-  inspection_type VARCHAR(50), -- 'routine', 'preventive', 'diagnostic'
-  
-  -- Hallazgos
-  equipment_condition VARCHAR(20) CHECK (equipment_condition IN ('excellent', 'good', 'fair', 'poor', 'critical')),
-  findings TEXT, -- Hallazgos estructurados (JSON o texto)
-  photos_urls TEXT[],
-  
-  -- Recomendaciones
-  recommendations TEXT,
-  urgency_level VARCHAR(20) CHECK (urgency_level IN ('low', 'medium', 'high', 'critical')),
-  requires_immediate_action BOOLEAN DEFAULT FALSE,
-  
-  -- Seguimiento
-  next_recommended_inspection DATE,
-  follow_up_service_request_id UUID REFERENCES service_requests(id),
-  
-  -- Documento
-  report_pdf_url TEXT,
-  report_pdf_generated_at TIMESTAMP,
-  
-  -- Envío a cliente
-  sent_to_client BOOLEAN DEFAULT FALSE,
-  sent_to_client_at TIMESTAMP,
-  client_viewed_at TIMESTAMP,
-  
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Agregar columnas una por una
+DO $$
+BEGIN
+  -- inspector_id
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'inspector_id'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN inspector_id UUID NOT NULL REFERENCES profiles(id);
+  END IF;
+  
+  -- inspection_date
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'inspection_date'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN inspection_date DATE NOT NULL;
+  END IF;
+  
+  -- inspection_type
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'inspection_type'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN inspection_type VARCHAR(50);
+  END IF;
+  
+  -- equipment_condition
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'equipment_condition'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN equipment_condition VARCHAR(20) CHECK (equipment_condition IN ('excellent', 'good', 'fair', 'poor', 'critical'));
+  END IF;
+  
+  -- findings
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'findings'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN findings TEXT;
+  END IF;
+  
+  -- photos_urls
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'photos_urls'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN photos_urls TEXT[];
+  END IF;
+  
+  -- recommendations
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'recommendations'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN recommendations TEXT;
+  END IF;
+  
+  -- urgency_level
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'urgency_level'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN urgency_level VARCHAR(20) CHECK (urgency_level IN ('low', 'medium', 'high', 'critical'));
+  END IF;
+  
+  -- requires_immediate_action
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'requires_immediate_action'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN requires_immediate_action BOOLEAN DEFAULT FALSE;
+  END IF;
+  
+  -- next_recommended_inspection
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'next_recommended_inspection'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN next_recommended_inspection DATE;
+  END IF;
+  
+  -- follow_up_service_request_id
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'follow_up_service_request_id'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN follow_up_service_request_id UUID REFERENCES service_requests(id);
+  END IF;
+  
+  -- report_pdf_url
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'report_pdf_url'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN report_pdf_url TEXT;
+  END IF;
+  
+  -- report_pdf_generated_at
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'report_pdf_generated_at'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN report_pdf_generated_at TIMESTAMP;
+  END IF;
+  
+  -- sent_to_client
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'sent_to_client'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN sent_to_client BOOLEAN DEFAULT FALSE;
+  END IF;
+  
+  -- sent_to_client_at
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'sent_to_client_at'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN sent_to_client_at TIMESTAMP;
+  END IF;
+  
+  -- client_viewed_at
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'inspection_reports' AND column_name = 'client_viewed_at'
+  ) THEN
+    ALTER TABLE inspection_reports ADD COLUMN client_viewed_at TIMESTAMP;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_inspection_reports_service_request ON inspection_reports(service_request_id);
 CREATE INDEX IF NOT EXISTS idx_inspection_reports_inspector ON inspection_reports(inspector_id);
