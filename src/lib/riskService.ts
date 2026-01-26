@@ -16,7 +16,6 @@ export interface ElevatorRisk {
 
 export interface BacklogItem {
   workOrderId: string;
-  buildingId?: string;
   elevatorId?: string;
   description: string;
   status: string;
@@ -131,7 +130,7 @@ export async function getRiskData(): Promise<ElevatorRisk[]> {
 export async function getBacklog(): Promise<BacklogItem[]> {
   const { data: workOrders, error } = await supabase
     .from('work_orders')
-    .select('id, building_id, elevator_id, description, status, created_at, revenue, total_cost')
+    .select('id, elevator_id, description, status, created_at, revenue, total_cost')
     .neq('status', 'completed');
 
   if (error) throw new Error(`Backlog work orders query failed: ${error.message}`);
@@ -146,7 +145,6 @@ export async function getBacklog(): Promise<BacklogItem[]> {
       const value = (wo.revenue || wo.total_cost || 0);
       return {
         workOrderId: wo.id,
-        buildingId: wo.building_id,
         elevatorId: wo.elevator_id,
         description: wo.description || 'Orden de trabajo',
         status: wo.status,

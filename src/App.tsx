@@ -43,6 +43,7 @@ import { MaintenanceCalendarView } from './components/calendar/MaintenanceCalend
 import { EmergencyShiftScheduler } from './components/calendar/EmergencyShiftScheduler';
 import { TechnicianAbsenceForm } from './components/calendar/TechnicianAbsenceForm';
 import RiskBacklogView from './components/views/RiskBacklogView';
+import ValueOpportunitiesView from './components/views/ValueOpportunitiesView';
 
 interface DashboardRouterProps {
   onNavigate?: (path: string) => void;
@@ -135,6 +136,8 @@ function AppContent() {
         return <StatisticsView />;
       case 'risk-backlog':
         return <RiskBacklogView />;
+      case 'value-opportunities':
+        return <ValueOpportunitiesView />;
       case 'audit-logs':
         return <AuditLogView />;
       case 'bulk-operations':

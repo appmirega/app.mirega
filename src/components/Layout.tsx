@@ -54,6 +54,7 @@ const navigation: NavItem[] = [
   { label: 'Mis Solicitudes', icon: FileText, path: 'client-service-requests', roles: ['client'] },
   { label: 'Estadísticas', icon: TrendingUp, path: 'statistics', roles: ['developer', 'admin'] },
   { label: 'Riesgo y Backlog', icon: ShieldCheck, path: 'risk-backlog', roles: ['developer', 'admin'] },
+  { label: 'Valor y Oportunidades', icon: BarChart3, path: 'value-opportunities', roles: ['developer', 'admin'] },
   { label: 'Registro de Auditoría', icon: FileSearch, path: 'audit-logs', roles: ['developer', 'admin'] },
   { label: 'Usuarios', icon: Users, path: 'users', roles: ['developer', 'admin'] },
   { label: 'Clientes', icon: Building, path: 'clients', roles: ['developer', 'admin'] },
