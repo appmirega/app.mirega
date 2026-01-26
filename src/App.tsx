@@ -42,6 +42,7 @@ import { StoppedElevators } from './components/emergency/StoppedElevators';
 import { MaintenanceCalendarView } from './components/calendar/MaintenanceCalendarView';
 import { EmergencyShiftScheduler } from './components/calendar/EmergencyShiftScheduler';
 import { TechnicianAbsenceForm } from './components/calendar/TechnicianAbsenceForm';
+import RiskBacklogView from './components/views/RiskBacklogView';
 
 interface DashboardRouterProps {
   onNavigate?: (path: string) => void;
@@ -132,6 +133,8 @@ function AppContent() {
         return <PDFHistoryView />;
       case 'statistics':
         return <StatisticsView />;
+      case 'risk-backlog':
+        return <RiskBacklogView />;
       case 'audit-logs':
         return <AuditLogView />;
       case 'bulk-operations':
