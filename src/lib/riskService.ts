@@ -45,21 +45,21 @@ export async function getRiskData(): Promise<ElevatorRisk[]> {
     .from('elevators')
     .select('id, location_name, internal_code, building_id, client_id');
 
-  if (elevError) throw elevError;
+  if (elevError) throw new Error(`Elevators query failed: ${elevError.message}`);
 
   const { data: requests, error: reqError } = await supabase
     .from('service_requests')
     .select('elevator_id, status, created_at')
     .gte('created_at', oneYearAgo.toISOString());
 
-  if (reqError) throw reqError;
+  if (reqError) throw new Error(`Service requests query failed: ${reqError.message}`);
 
   const { data: workOrders, error: woError } = await supabase
     .from('work_orders')
-    .select('elevator_id, actual_labor_cost, actual_parts_cost, created_at')
+    .select('elevator_id, labor_cost, parts_cost, created_at')
     .gte('created_at', oneYearAgo.toISOString());
 
-  if (woError) throw woError;
+  if (woError) throw new Error(`Work orders query failed: ${woError.message}`);
 
   const riskMap = new Map<string, ElevatorRisk>();
 
@@ -93,7 +93,7 @@ export async function getRiskData(): Promise<ElevatorRisk[]> {
   const costAccumulator = new Map<string, { total: number; count: number }>();
   (workOrders || []).forEach((wo) => {
     if (!wo.elevator_id) return;
-    const total = (wo.actual_labor_cost || 0) + (wo.actual_parts_cost || 0);
+    const total = (wo.labor_cost || 0) + (wo.parts_cost || 0);
     const acc = costAccumulator.get(wo.elevator_id) || { total: 0, count: 0 };
     acc.total += total;
     acc.count += 1;
@@ -131,10 +131,10 @@ export async function getRiskData(): Promise<ElevatorRisk[]> {
 export async function getBacklog(): Promise<BacklogItem[]> {
   const { data: workOrders, error } = await supabase
     .from('work_orders')
-    .select('id, building_id, elevator_id, description, status, created_at, estimated_cost, quotation_amount, has_client_cost')
-    .in('status', BACKLOG_STATUSES);
+    .select('id, building_id, elevator_id, description, status, created_at, revenue, total_cost')
+    .neq('status', 'completed');
 
-  if (error) throw error;
+  if (error) throw new Error(`Backlog work orders query failed: ${error.message}`);
 
   const now = Date.now();
   return (workOrders || [])
@@ -143,9 +143,7 @@ export async function getBacklog(): Promise<BacklogItem[]> {
         0,
         Math.floor((now - new Date(wo.created_at).getTime()) / (1000 * 60 * 60 * 24))
       );
-      const value =
-        (wo.estimated_cost || wo.quotation_amount || 0) ||
-        (wo.has_client_cost ? 150000 : 0);
+      const value = (wo.revenue || wo.total_cost || 0);
       return {
         workOrderId: wo.id,
         buildingId: wo.building_id,

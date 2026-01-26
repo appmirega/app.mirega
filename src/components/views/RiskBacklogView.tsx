@@ -58,8 +58,9 @@ export default function RiskBacklogView() {
         setRisk(riskData);
         setBacklog(backlogData);
       } catch (err) {
-        console.error(err);
-        setError('No pudimos cargar riesgos y backlog.');
+        console.error('Risk/Backlog load error:', err);
+        const msg = err instanceof Error ? err.message : 'Error desconocido';
+        setError(`No pudimos cargar riesgos y backlog. Detalle: ${msg}`);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -92,7 +93,12 @@ export default function RiskBacklogView() {
   }
 
   if (error) {
-    return <p className="text-rose-600">{error}</p>;
+    return (
+      <div className="space-y-2">
+        <p className="text-rose-600">{error}</p>
+        <p className="text-xs text-slate-500">Revisa permisos de lectura y nombres de columnas en Supabase.</p>
+      </div>
+    );
   }
 
   return (
