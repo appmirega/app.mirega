@@ -21,6 +21,7 @@ import { ClientMaintenancesView } from './components/views/ClientMaintenancesVie
 import { ClientServiceRequestsView } from './components/views/ClientServiceRequestsView';
 import { ClientServiceRequestsViewEnhanced } from './components/views/ClientServiceRequestsViewEnhanced';
 import { CarpetaCeroView } from './components/views/CarpetaCeroView';
+import { ROICalculatorView } from './components/views/ROICalculatorView';
 import { RescueTrainingView } from './components/views/RescueTrainingView';
 import { EmergencyHistory } from './components/emergency/EmergencyHistory';
 import { QRCodesCompleteView } from './components/views/QRCodesCompleteView';
@@ -109,6 +110,8 @@ function AppContent() {
         return profile?.role === 'technician' ? <TechnicianRoutesView /> : <RoutesView />;
       case 'carpeta-cero':
         return <CarpetaCeroView />;
+      case 'roi-calculator':
+        return <ROICalculatorView />;
       case 'rescue-training':
         return <RescueTrainingView />;
       case 'rescue-training-admin':

@@ -61,6 +61,7 @@ const navigation: NavItem[] = [
   { label: 'Mis Emergencias', icon: AlertTriangle, path: 'client-emergencies', roles: ['client'] },
   { label: 'Órdenes de Trabajo', icon: FileText, path: 'work-orders', roles: ['developer', 'admin', 'technician'] },
   { label: 'Carpeta Cero', icon: Folder, path: 'carpeta-cero', roles: ['developer', 'admin', 'client'] },
+  { label: 'Calculadora ROI', icon: TrendingUp, path: 'roi-calculator', roles: ['developer', 'admin'] },
   { label: 'Inducción de Rescate', icon: Award, path: 'rescue-training', roles: ['client'] },
   { label: 'Manuales Técnicos', icon: BookOpen, path: 'manuals', roles: ['developer', 'admin', 'technician'] },
   { label: 'Códigos QR', icon: QrCode, path: 'qr-codes-complete', roles: ['developer', 'admin'] },
