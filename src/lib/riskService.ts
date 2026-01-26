@@ -42,7 +42,7 @@ export async function getRiskData(): Promise<ElevatorRisk[]> {
 
   const { data: elevators, error: elevError } = await supabase
     .from('elevators')
-    .select('id, location_name, internal_code, building_id, client_id');
+    .select('id, location_name, internal_code, client_id');
 
   if (elevError) throw new Error(`Elevators query failed: ${elevError.message}`);
 

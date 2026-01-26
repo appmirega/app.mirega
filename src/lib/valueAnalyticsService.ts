@@ -91,7 +91,7 @@ export async function getRecurrentElevators(): Promise<RecurrentElevator[]> {
       .gte('closed_at', ninetyDaysAgo),
     supabase
       .from('elevators')
-      .select('id, client_id, location_name, building_name, internal_code'),
+      .select('id, client_id, location_name, internal_code'),
   ]);
 
   if (errEmergency) throw new Error(`Emergency orders query failed: ${errEmergency.message}`);
@@ -143,7 +143,7 @@ export async function getClientsAttention(): Promise<ClientAttention[]> {
       .gte('closed_at', ninetyDaysAgo),
     supabase
       .from('elevators')
-      .select('id, client_id, location_name, building_name'),
+      .select('id, client_id, location_name'),
     supabase
       .from('clients')
       .select('id, business_name'),
