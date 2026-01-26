@@ -170,7 +170,7 @@ RECOMENDACIÓN: ${
       <div>
         <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
           <Calculator className="w-8 h-8 text-green-600" />
-          Calculadora de ROI
+          Prioridades Operativas
         </h1>
         <p className="text-slate-600 mt-1">Analiza el costo-beneficio de mejoras en ascensores</p>
       </div>

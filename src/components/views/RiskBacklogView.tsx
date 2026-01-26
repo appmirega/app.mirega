@@ -105,7 +105,7 @@ export default function RiskBacklogView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Matriz de Riesgo y Backlog</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Gestión de Trabajo</h1>
           <p className="text-slate-600">Priorización para mitigación y ejecución rápida.</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">

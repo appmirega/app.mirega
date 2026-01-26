@@ -58,7 +58,7 @@ export default function ValueOpportunitiesView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Valor y Oportunidades</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Análisis Estratégico</h1>
         <p className="text-slate-600">En simple: ¿Dónde estamos generando valor y dónde podemos reducir pérdidas por emergencias repetidas?</p>
       </div>
 
