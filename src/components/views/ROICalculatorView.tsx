@@ -34,6 +34,13 @@ export function ROICalculatorView() {
   const [inactivityReduction, setInactivityReduction] = useState(95);
 
   const [roiResults, setRoiResults] = useState<ROIScenario | null>(null);
+  const [scenarioComparisons, setScenarioComparisons] = useState<{ name: string; result: ROIScenario }[]>([]);
+
+  const presets = {
+    conservative: { investment: 18000, maintenance: 6000, repair: 60, inactivity: 80, label: 'Conservador' },
+    standard: { investment: 28000, maintenance: 8000, repair: 80, inactivity: 95, label: 'Estándar' },
+    premium: { investment: 40000, maintenance: 10000, repair: 95, inactivity: 99, label: 'Premium' },
+  };
 
   useEffect(() => {
     loadBuildings();
@@ -93,6 +100,33 @@ export function ROICalculatorView() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyPreset = (presetKey: keyof typeof presets) => {
+    const preset = presets[presetKey];
+    setInvestmentCost(preset.investment);
+    setAnnualMaintenanceCost(preset.maintenance);
+    setRepairReduction(preset.repair);
+    setInactivityReduction(preset.inactivity);
+  };
+
+  const compareScenarios = () => {
+    if (!historicalCosts) {
+      alert('Primero carga los datos históricos');
+      return;
+    }
+
+    const comparisons = Object.entries(presets).map(([key, preset]) => {
+      const result = calculateROI(
+        historicalCosts,
+        preset.investment,
+        preset.maintenance,
+        preset.repair / 100,
+        preset.inactivity / 100
+      );
+      return { name: preset.label, result };
+    });
+    setScenarioComparisons(comparisons);
   };
 
   const handleCalculate = () => {
@@ -161,6 +195,28 @@ RECOMENDACIÓN: ${
     const a = document.createElement('a');
     a.href = url;
     a.download = `roi-analysis-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+  };
+
+  const handleExportCSV = () => {
+    if (!roiResults || !historicalCosts) return;
+    const rows = [
+      ['Metrica', 'Actual', 'Mejorado'],
+      ['Costo reparaciones anual', roiResults.current.annualRepairCost.toFixed(0), roiResults.improved.annualRepairCost.toFixed(0)],
+      ['Costo inactividad anual', roiResults.current.annualInactivityCost.toFixed(0), roiResults.improved.annualInactivityCost.toFixed(0)],
+      ['Costo total anual', roiResults.current.totalAnnualCost.toFixed(0), roiResults.improved.totalAnnualCost.toFixed(0)],
+      ['Inversion inicial', '', roiResults.improved.investmentCost.toFixed(0)],
+      ['Mantencion anual', '', roiResults.improved.annualMaintenanceCost.toFixed(0)],
+      ['Ahorro anual', roiResults.metrics.annualSavings.toFixed(0), ''],
+      ['Payback (años)', roiResults.metrics.paybackPeriod.toString(), ''],
+      ['ROI (%)', roiResults.metrics.roi.toFixed(1), ''],
+    ];
+    const csv = rows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `roi-comparacion-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
@@ -317,7 +373,36 @@ RECOMENDACIÓN: ${
             <>
               {/* Parámetros de inversión */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h2 className="font-bold text-slate-900 mb-4">Parámetros de Mejora</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-bold text-slate-900">Parámetros de Mejora</h2>
+                  <button
+                    onClick={compareScenarios}
+                    className="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium"
+                  >
+                    Comparar Presets
+                  </button>
+                </div>
+
+                <div className="mb-4 flex gap-2">
+                  <button
+                    onClick={() => applyPreset('conservative')}
+                    className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg hover:bg-slate-50 font-medium"
+                  >
+                    Conservador
+                  </button>
+                  <button
+                    onClick={() => applyPreset('standard')}
+                    className="flex-1 px-3 py-2 text-xs bg-blue-100 border border-blue-300 rounded-lg hover:bg-blue-200 font-medium text-blue-700"
+                  >
+                    Estándar
+                  </button>
+                  <button
+                    onClick={() => applyPreset('premium')}
+                    className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg hover:bg-slate-50 font-medium"
+                  >
+                    Premium
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -387,6 +472,20 @@ RECOMENDACIÓN: ${
                 <>
                   {/* Comparativa de costos */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex justify-end gap-2 md:col-span-2 -mb-2">
+                      <button
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-1 px-3 py-2 text-xs bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+                      >
+                        <Download className="h-4 w-4" /> Exportar CSV
+                      </button>
+                      <button
+                        onClick={handleExportPDF}
+                        className="flex items-center gap-1 px-3 py-2 text-xs bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200"
+                      >
+                        <Download className="h-4 w-4" /> Resumen TXT
+                      </button>
+                    </div>
                     <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
                       <h3 className="font-bold text-orange-900 mb-3 flex items-center gap-2">
                         <AlertCircle className="w-5 h-5" />
@@ -510,32 +609,42 @@ RECOMENDACIÓN: ${
                         ? '⚠️ RECOMENDACIÓN: REVISAR'
                         : '❌ RECOMENDACIÓN: NO RECOMENDADO'}
                     </h3>
-                    <p
-                      className={`text-sm ${
-                        roiResults.metrics.recommendation === 'procced'
-                          ? 'text-green-800'
-                          : roiResults.metrics.recommendation === 'review'
-                          ? 'text-yellow-800'
-                          : 'text-red-800'
-                      }`}
-                    >
-                      {roiResults.metrics.recommendation === 'procced'
-                        ? 'La inversión tiene un ROI excelente. Se recuperará la inversión en ' +
-                          roiResults.metrics.paybackPeriod +
-                          ' años y generará ahorros significativos.'
-                        : roiResults.metrics.recommendation === 'review'
-                        ? 'La inversión tiene un ROI moderado. Considere revisar los parámetros o buscar alternativas más económicas.'
-                        : 'El ROI de esta inversión es insuficiente. No se recomienda proceder bajo estos parámetros.'}
-                    </p>
-
-                    <button
-                      onClick={handleExportPDF}
-                      className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium"
-                    >
-                      <Download className="w-4 h-4" />
-                      Descargar Reporte
-                    </button>
                   </div>
+
+                  {/* Comparación de escenarios */}
+                  {scenarioComparisons.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                      <h3 className="font-bold text-slate-900 mb-4">Comparación de Escenarios</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-xs text-slate-500 border-b">
+                              <th className="py-2 px-2">Escenario</th>
+                              <th className="py-2 px-2 text-right">Inversión</th>
+                              <th className="py-2 px-2 text-right">Ahorro Anual</th>
+                              <th className="py-2 px-2 text-right">Payback</th>
+                              <th className="py-2 px-2 text-right">ROI %</th>
+                              <th className="py-2 px-2 text-right">Recomendación</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {scenarioComparisons.map((scenario) => (
+                              <tr key={scenario.name} className="border-t text-slate-700 hover:bg-slate-50">
+                                <td className="py-2 px-2 font-semibold">{scenario.name}</td>
+                                <td className="py-2 px-2 text-right">${(scenario.result.improved.investmentCost / 1000).toFixed(0)}k</td>
+                                <td className="py-2 px-2 text-right text-green-600 font-semibold">${(scenario.result.metrics.annualSavings / 1000).toFixed(0)}k</td>
+                                <td className="py-2 px-2 text-right">{scenario.result.metrics.paybackPeriod.toFixed(1)} años</td>
+                                <td className="py-2 px-2 text-right font-semibold">{scenario.result.metrics.roi.toFixed(1)}%</td>
+                                <td className="py-2 px-2 text-right">
+                                  {scenario.result.metrics.recommendation === 'procced' ? '✅' : scenario.result.metrics.recommendation === 'review' ? '⚠️' : '❌'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </>

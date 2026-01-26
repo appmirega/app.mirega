@@ -5,6 +5,9 @@ export interface KPISummary {
   profit90: number;
   inProgressRevenue: number;
   avoidableCost90: number;
+  recurrenceRate: number;
+  topAvoidableCost: number;
+  conversionRate: number;
 }
 
 export interface RecurrentElevator {
@@ -70,14 +73,41 @@ export async function getKPISummary(): Promise<KPISummary> {
   });
 
   let avoidableCost90 = 0;
+  let recurrentElevatorsCount = 0;
+  let maxAvoidableCost = 0;
   emergencyByElevator.forEach((v) => {
     if (v.count >= 2) {
       // Simple model: cost of repeats beyond 1 are avoidable
       avoidableCost90 += v.cost;
+      recurrentElevatorsCount += 1;
+      if (v.cost > maxAvoidableCost) maxAvoidableCost = v.cost;
     }
   });
 
-  return { revenue90, profit90, inProgressRevenue, avoidableCost90 };
+  // Get total elevators count for recurrence rate
+  const { count: totalElevators } = await supabase
+    .from('elevators')
+    .select('*', { count: 'exact', head: true });
+
+  const recurrenceRate = totalElevators ? (recurrentElevatorsCount * 100) / totalElevators : 0;
+
+  // Conversion rate: completed vs total orders in 90d
+  const { count: totalOrders90 } = await supabase
+    .from('work_orders')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', ninetyDaysAgo);
+
+  const conversionRate = totalOrders90 ? ((completed?.length || 0) * 100) / totalOrders90 : 0;
+
+  return {
+    revenue90,
+    profit90,
+    inProgressRevenue,
+    avoidableCost90,
+    recurrenceRate,
+    topAvoidableCost: maxAvoidableCost,
+    conversionRate,
+  };
 }
 
 export async function getRecurrentElevators(): Promise<RecurrentElevator[]> {
