@@ -99,7 +99,7 @@ export function EmergencyShiftsMonthlyView({ targetMonth }: EmergencyShiftsMonth
           <AlertTriangle className="w-6 h-6" />
           <div>
             <p className="font-semibold">No hay turnos de emergencia programados</p>
-            <p className="text-sm">Asigna turnos desde "Turnos de Emergencia" en el menú</p>
+            <p className="text-sm">Asigna turnos con el botón "Turnos de Emergencia" del calendario</p>
           </div>
         </div>
       </div>

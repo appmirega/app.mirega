@@ -12,7 +12,6 @@ import { ManualsView } from './components/views/ManualsView';
 import { WorkOrdersViewEnhanced } from './components/views/WorkOrdersViewEnhanced';
 import { RoutesView } from './components/views/RoutesView';
 import { QRCodesManagementView } from './components/views/QRCodesManagementView';
-import { CertificationsDashboard } from './components/views/CertificationsDashboard';
 import { PDFHistoryView } from './components/views/PDFHistoryView';
 import { StatisticsView } from './components/views/StatisticsView';
 import { AuditLogView } from './components/views/AuditLogView';
@@ -126,8 +125,6 @@ function AppContent() {
         return <StoppedElevators onBack={() => handleNavigate('dashboard')} />;
       case 'qr-codes-complete':
         return <QRCodesCompleteView />;
-      case 'certifications':
-        return <CertificationsDashboard />;
       case 'pdf-history':
         return <PDFHistoryView />;
       case 'statistics':
@@ -153,7 +150,7 @@ function AppContent() {
       case 'admin-permissions':
         return <AdminPermissionsPanel />;
       case 'maintenance-calendar':
-        return <MaintenanceCalendarView />;
+        return <MaintenanceCalendarView onNavigate={handleNavigate} />;
       case 'emergency-shifts':
         return <EmergencyShiftScheduler />;
       case 'technician-absences':

@@ -17,6 +17,18 @@ interface MaintenanceAssignment {
   assigned_technician_id?: string;
 }
 
+interface DayAbsence {
+  technicianId: string;
+  technicianName: string;
+  reasons: string[];
+}
+
+interface DayEmergencyShift {
+  shiftId: string;
+  assigneeName: string;
+  isPrimary: boolean;
+}
+
 interface CalendarDay {
   date: Date;
   day: number;
@@ -25,6 +37,8 @@ interface CalendarDay {
   isWeekend: boolean;
   isHoliday: boolean;
   assignments: MaintenanceAssignment[];
+  absences: DayAbsence[];
+  emergencyShifts: DayEmergencyShift[];
 }
 
 interface CalendarDayCellProps {
@@ -48,6 +62,8 @@ export function CalendarDayCell({ day, onDayClick, onAssignmentClick }: Calendar
     }
   };
 
+  const hasEmergencyShift = day.emergencyShifts.length > 0;
+
   const handleDayClick = (e: React.MouseEvent) => {
     // Solo hacer clic si no es en un assignment
     if ((e.target as HTMLElement).closest('.assignment-card')) {
@@ -70,6 +86,7 @@ export function CalendarDayCell({ day, onDayClick, onAssignmentClick }: Calendar
         ${day.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}
         ${day.isHoliday ? 'bg-purple-50' : ''}
         ${day.isWeekend && day.isCurrentMonth ? 'bg-slate-50' : ''}
+        ${hasEmergencyShift && day.isCurrentMonth ? 'bg-red-50 border-red-200' : ''}
       `}
     >
       {/* Encabezado del día */}
@@ -150,6 +167,57 @@ export function CalendarDayCell({ day, onDayClick, onAssignmentClick }: Calendar
           </div>
         )}
       </div>
+
+      {day.absences.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {day.absences.slice(0, 2).map((absence) => (
+            <div
+              key={absence.technicianId}
+              className="text-[11px] px-2 py-1 rounded border bg-amber-50 border-amber-200 text-amber-800"
+            >
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-semibold truncate">{absence.technicianName}</span>
+                <span className="text-[10px] font-semibold">Ausente</span>
+              </div>
+              <div className="text-[10px] truncate opacity-80">
+                {absence.reasons.join(', ')}
+              </div>
+            </div>
+          ))}
+          {day.absences.length > 2 && (
+            <div className="text-[10px] text-amber-700">
+              +{day.absences.length - 2} ausencias
+            </div>
+          )}
+        </div>
+      )}
+
+      {day.emergencyShifts.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {day.emergencyShifts.slice(0, 2).map((shift) => (
+            <div
+              key={shift.shiftId}
+              className={`text-[11px] px-2 py-1 rounded border ${
+                shift.isPrimary
+                  ? 'bg-red-100 border-red-300 text-red-800'
+                  : 'bg-orange-100 border-orange-300 text-orange-800'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-semibold truncate">{shift.assigneeName}</span>
+                <span className="text-[10px] font-semibold">
+                  {shift.isPrimary ? 'Emergencia' : 'Respaldo'}
+                </span>
+              </div>
+            </div>
+          ))}
+          {day.emergencyShifts.length > 2 && (
+            <div className="text-[10px] text-red-700">
+              +{day.emergencyShifts.length - 2} turnos
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Indicador de sin mantenimientos */}
       {day.assignments.length === 0 && day.isCurrentMonth && !day.isWeekend && !day.isHoliday && (

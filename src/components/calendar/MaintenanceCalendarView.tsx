@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, ChevronLeft, ChevronRight, Plus, Send, AlertCircle } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Send, AlertCircle, AlertTriangle } from 'lucide-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import { MaintenanceAssignmentModal } from './MaintenanceAssignmentModal';
 import { TechnicianAvailabilityPanel } from './TechnicianAvailabilityPanel';
 import { EmergencyShiftsMonthlyView } from './EmergencyShiftsMonthlyView';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface MaintenanceAssignment {
   id: string;
@@ -43,16 +44,37 @@ interface CalendarDay {
   isWeekend: boolean;
   isHoliday: boolean;
   assignments: MaintenanceAssignment[];
+  absences: TechnicianAbsenceDayInfo[];
+  emergencyShifts: EmergencyShiftDayInfo[];
 }
 
-export function MaintenanceCalendarView() {
+interface TechnicianAbsenceDayInfo {
+  technicianId: string;
+  technicianName: string;
+  reasons: string[];
+}
+
+interface EmergencyShiftDayInfo {
+  shiftId: string;
+  assigneeName: string;
+  isPrimary: boolean;
+}
+
+interface MaintenanceCalendarViewProps {
+  onNavigate?: (path: string) => void;
+}
+
+export function MaintenanceCalendarView({ onNavigate }: MaintenanceCalendarViewProps) {
+  const { profile } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedMonth, setSelectedMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [assignments, setAssignments] = useState<MaintenanceAssignment[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [technicianNameMap, setTechnicianNameMap] = useState<Map<string, string>>(new Map());
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   const [technicianAbsences, setTechnicianAbsences] = useState<Map<string, Map<string, string[]>>>(new Map()); // { date: { technicianId: [reasons] } }
+  const [emergencyShiftsByDate, setEmergencyShiftsByDate] = useState<Map<string, EmergencyShiftDayInfo[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
@@ -65,6 +87,10 @@ export function MaintenanceCalendarView() {
     loadCalendarStats();
   }, [currentDate, selectedMonth]);
 
+  useEffect(() => {
+    generateCalendarDays();
+  }, [assignments, holidays, technicianAbsences, technicianNameMap, emergencyShiftsByDate, currentDate]);
+
   const loadCalendarData = async () => {
     setLoading(true);
     try {
@@ -72,9 +98,9 @@ export function MaintenanceCalendarView() {
         loadAssignments(),
         loadTechnicians(),
         loadHolidays(),
-        loadTechnicianAbsences()
+        loadTechnicianAbsences(),
+        loadEmergencyShifts()
       ]);
-      generateCalendarDays();
     } catch (error) {
       console.error('Error loading calendar data:', error);
     } finally {
@@ -112,7 +138,15 @@ export function MaintenanceCalendarView() {
       return;
     }
 
-    setTechnicians(data || []);
+    const techniciansData = data || [];
+    setTechnicians(techniciansData);
+    const nameMap = new Map<string, string>();
+    techniciansData.forEach((tech) => {
+      if (tech.technician_id) {
+        nameMap.set(tech.technician_id, tech.full_name);
+      }
+    });
+    setTechnicianNameMap(nameMap);
   };
 
   const loadTechnicianAbsences = async () => {
@@ -147,6 +181,41 @@ export function MaintenanceCalendarView() {
       setTechnicianAbsences(absenceMap);
     } catch (error) {
       console.error('Error loading technician absences:', error);
+    }
+  };
+
+  const loadEmergencyShifts = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_monthly_emergency_shifts', {
+        target_month: selectedMonth
+      });
+
+      if (error) throw error;
+
+      const shiftMap = new Map<string, EmergencyShiftDayInfo[]>();
+
+      (data || []).forEach(shift => {
+        const assigneeName = shift.technician_name || shift.external_personnel_name || 'Sin asignar';
+        const start = new Date(shift.shift_start_date);
+        const end = new Date(shift.shift_end_date);
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          if (!shiftMap.has(dateStr)) {
+            shiftMap.set(dateStr, []);
+          }
+          shiftMap.get(dateStr)!.push({
+            shiftId: shift.id,
+            assigneeName,
+            isPrimary: !!shift.is_primary,
+          });
+        }
+      });
+
+      setEmergencyShiftsByDate(shiftMap);
+    } catch (error) {
+      console.error('Error loading emergency shifts:', error);
+      setEmergencyShiftsByDate(new Map());
     }
   };
 
@@ -214,6 +283,20 @@ export function MaintenanceCalendarView() {
     // Fin de semana: 0 (domingo) y 6 (sábado)
     const dayOfWeek = date.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    const absencesForDay: TechnicianAbsenceDayInfo[] = [];
+    const absencesByTechnician = technicianAbsences.get(dateStr);
+    if (absencesByTechnician) {
+      absencesByTechnician.forEach((reasons, technicianId) => {
+        absencesForDay.push({
+          technicianId,
+          technicianName: technicianNameMap.get(technicianId) || 'Técnico',
+          reasons,
+        });
+      });
+    }
+
+    const emergencyForDay = emergencyShiftsByDate.get(dateStr) || [];
     
     return {
       date,
@@ -222,7 +305,9 @@ export function MaintenanceCalendarView() {
       isToday: date.getTime() === today.getTime(),
       isWeekend,
       isHoliday: holidays.has(dateStr),
-      assignments: assignments.filter(a => a.scheduled_date === dateStr)
+      assignments: assignments.filter(a => a.scheduled_date === dateStr),
+      absences: absencesForDay,
+      emergencyShifts: emergencyForDay,
     };
   };
 
@@ -315,12 +400,12 @@ export function MaintenanceCalendarView() {
           <div className="flex items-center gap-4">
             <Calendar className="w-8 h-8 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Calendario de Mantenimientos</h1>
-              <p className="text-sm text-slate-600">Planificación y asignación de mantenimientos preventivos</p>
+              <h1 className="text-2xl font-bold text-slate-900">Calendario Operativo</h1>
+              <p className="text-sm text-slate-600">Gestión de mantenimientos, vacaciones, turnos y cobertura de emergencias</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <select
               value={selectedMonth}
               onChange={(e) => {
@@ -341,6 +426,25 @@ export function MaintenanceCalendarView() {
                 );
               })}
             </select>
+
+            {(profile?.role === 'developer' || profile?.role === 'admin') && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => onNavigate && onNavigate('technician-absences')}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded-lg hover:bg-slate-200"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Vacaciones y Permisos
+                </button>
+                <button
+                  onClick={() => onNavigate && onNavigate('emergency-shifts')}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Turnos de Emergencia
+                </button>
+              </div>
+            )}
 
             {calendarStats?.draft_count > 0 && (
               <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-full flex items-center gap-1">
@@ -395,6 +499,14 @@ export function MaintenanceCalendarView() {
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
               <span className="text-sm text-slate-600">Atrasado</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+              <span className="text-sm text-slate-600">Vacaciones / Permisos</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+              <span className="text-sm text-slate-600">Turno de Emergencia</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-purple-500"></div>
