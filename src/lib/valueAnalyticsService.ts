@@ -146,7 +146,7 @@ export async function getClientsAttention(): Promise<ClientAttention[]> {
       .select('id, client_id, location_name'),
     supabase
       .from('clients')
-      .select('id, business_name'),
+      .select('id, company_name'),
   ]);
 
   if (errEmergency) throw new Error(`Emergency orders query failed: ${errEmergency.message}`);
@@ -168,7 +168,7 @@ export async function getClientsAttention(): Promise<ClientAttention[]> {
   });
 
   const clientNames = new Map<string, string>();
-  (clients || []).forEach((c) => clientNames.set(c.id, c.business_name));
+  (clients || []).forEach((c) => clientNames.set(c.id, c.company_name));
 
   const result: ClientAttention[] = Array.from(clientAgg.entries())
     .filter(([_, v]) => v.repeats >= 3)
