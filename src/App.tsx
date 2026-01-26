@@ -97,7 +97,7 @@ function AppContent() {
       case 'manuals':
         return <ManualsView />;
       case 'emergencies':
-        return profile?.role === 'technician' ? <TechnicianEmergencyView /> : <EmergenciesDashboard />;
+        return <EmergenciesDashboard />;
       case 'client-emergencies':
         return <ClientEmergenciesView />;
       case 'client-maintenances':

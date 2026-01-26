@@ -16,7 +16,6 @@ import {
   Menu,
   X,
   Calendar,
-  Map,
   BookOpen,
   QrCode,
   BarChart3,
@@ -33,7 +32,6 @@ import {
   BadgeCheck,
   FileSearch,
   Building2,
-  Presentation,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -60,7 +58,6 @@ const navigation: NavItem[] = [
   { label: 'Solicitudes de Servicio', icon: FileText, path: 'service-requests', roles: ['developer', 'admin', 'technician'] },
   { label: 'Mis Solicitudes', icon: FileText, path: 'client-service-requests', roles: ['client'] },
   { label: 'Estadísticas', icon: TrendingUp, path: 'statistics', roles: ['developer', 'admin'] },
-  { label: 'Operaciones Masivas', icon: CalendarRange, path: 'bulk-operations', roles: ['developer', 'admin'] },
   { label: 'Registro de Auditoría', icon: FileSearch, path: 'audit-logs', roles: ['developer', 'admin'] },
   { label: 'Usuarios', icon: Users, path: 'users', roles: ['developer', 'admin'] },
   { label: 'Clientes', icon: Building, path: 'clients', roles: ['developer', 'admin'] },
@@ -68,15 +65,12 @@ const navigation: NavItem[] = [
   { label: 'Emergencias', icon: AlertTriangle, path: 'emergencies', roles: ['developer', 'admin', 'technician'] },
   { label: 'Mis Emergencias', icon: AlertTriangle, path: 'client-emergencies', roles: ['client'] },
   { label: 'Órdenes de Trabajo', icon: FileText, path: 'work-orders', roles: ['developer', 'admin', 'technician'] },
-  { label: 'Rutas', icon: Map, path: 'routes', roles: ['developer', 'admin', 'technician'] },
   { label: 'Carpeta Cero', icon: Folder, path: 'carpeta-cero', roles: ['developer', 'admin', 'client'] },
-  { label: 'Capacitaciones de Rescate', icon: Presentation, path: 'rescue-training-admin', roles: ['developer', 'admin'] },
   { label: 'Inducción de Rescate', icon: Award, path: 'rescue-training', roles: ['client'] },
   { label: 'Manuales Técnicos', icon: BookOpen, path: 'manuals', roles: ['developer', 'admin', 'technician'] },
   { label: 'Códigos QR', icon: QrCode, path: 'qr-codes-complete', roles: ['developer', 'admin'] },
   { label: 'Gestión de Permisos', icon: Shield, path: 'developer-permissions', roles: ['developer'] },
   { label: 'Permisos', icon: Shield, path: 'admin-permissions', roles: ['admin'] },
-  { label: 'Notificaciones', icon: Bell, path: 'notifications', roles: ['developer', 'admin', 'technician', 'client'] },
   { label: 'Configuración', icon: Settings, path: 'settings', roles: ['developer', 'admin'] },
 ];
 
