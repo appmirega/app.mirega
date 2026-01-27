@@ -21,6 +21,13 @@ import { ClientForm } from '../forms/ClientForm';
 import TechnicianForm from '../forms/TechnicianForm';
 import AdminForm from '../forms/AdminForm';
 import { CoordinationRequestsPanel } from '../calendar/CoordinationRequestsPanel';
+import {
+  EmergenciesPanel,
+  MaintenancesPanel,
+  ServiceRequestsPanel,
+  QuotationsPanel,
+  WorkOrdersPanel,
+} from './AdminDashboardPanels';
 
 type ViewMode = 'dashboard' | 'add-client' | 'add-technician' | 'add-admin' | 'settings';
 
@@ -384,6 +391,24 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
           <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pendingQuotations}</h3>
           <p className="text-sm text-slate-600">Cotizaciones Pendientes</p>
         </div>
+        </div>
+      )}
+
+      {/* Paneles Dinámicos */}
+      {viewSettings.showPerformance && (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-slate-900">Monitoreo Operacional</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <EmergenciesPanel />
+            <MaintenancesPanel />
+            <ServiceRequestsPanel />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <QuotationsPanel />
+            <WorkOrdersPanel />
+          </div>
         </div>
       )}
 
