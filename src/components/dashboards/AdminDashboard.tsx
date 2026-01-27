@@ -337,7 +337,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
             <Bell className="w-6 h-6 text-red-600" />
             Centro de Alertas y Notificaciones
           </h2>
-          <AlertDashboard />
+          <AlertDashboard onNavigate={onNavigate} />
         </div>
       )}
 

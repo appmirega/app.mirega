@@ -15,6 +15,10 @@ import {
   FileText,
 } from 'lucide-react';
 
+interface AlertDashboardProps {
+  onNavigate?: (path: string) => void;
+}
+
 interface AlertStats {
   activeEmergencies: number;
   pendingApprovals: number;
@@ -26,7 +30,7 @@ interface AlertStats {
   pendingQuotations: number;
 }
 
-export function AlertDashboard() {
+export function AlertDashboard({ onNavigate }: AlertDashboardProps = {}) {
   const [stats, setStats] = useState<AlertStats>({
     activeEmergencies: 0,
     pendingApprovals: 0,
@@ -38,6 +42,18 @@ export function AlertDashboard() {
     pendingQuotations: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Mapeo de acciones a rutas de navegación
+  const actionPaths: Record<string, string> = {
+    'Ver emergencias': 'emergencies',
+    'Revisar reportes': 'emergencies',
+    'Gestionar urgentes': 'work-orders',
+    'Aprobar órdenes': 'work-orders',
+    'Ver solicitudes': 'service-requests',
+    'Seguimiento': 'quotations',
+    'Ver equipo': 'users',
+    'Ver cronograma': 'maintenance-calendar',
+  };
 
   useEffect(() => {
     loadAlertData();
@@ -347,7 +363,15 @@ export function AlertDashboard() {
         </div>
 
         {/* Botón de acción */}
-        <button className={`w-full mt-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${badgeColor} hover:opacity-80`}>
+        <button 
+          onClick={() => {
+            const path = actionPaths[alert.action];
+            if (path && onNavigate) {
+              onNavigate(path);
+            }
+          }}
+          className={`w-full mt-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${badgeColor} hover:opacity-80 cursor-pointer`}
+        >
           {alert.action} →
         </button>
       </div>
