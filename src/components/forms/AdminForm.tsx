@@ -6,12 +6,19 @@ import { safeJson } from '../../lib/safeJson';
 export interface AdminFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  existingProfile?: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+  };
 }
 
-export default function AdminForm({ onSuccess, onCancel }: AdminFormProps) {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+export default function AdminForm({ onSuccess, onCancel, existingProfile }: AdminFormProps) {
+  const isEditing = !!existingProfile;
+  const [fullName, setFullName] = useState(existingProfile?.full_name || '');
+  const [email, setEmail] = useState(existingProfile?.email || '');
+  const [phone, setPhone] = useState(existingProfile?.phone || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,41 +29,75 @@ export default function AdminForm({ onSuccess, onCancel }: AdminFormProps) {
     e.preventDefault();
     if (loading) return;
 
-    if (password !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
-      return;
+    const wantsPasswordChange = password.length > 0 || confirmPassword.length > 0;
+    if (isEditing) {
+      if (wantsPasswordChange && password !== confirmPassword) {
+        setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
+        return;
+      }
+      if (wantsPasswordChange && password.length < 8) {
+        setMessage({ type: 'error', text: 'La contraseña debe tener al menos 8 caracteres' });
+        return;
+      }
+    } else {
+      if (password !== confirmPassword) {
+        setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
+        return;
+      }
+      if (password.length < 8) {
+        setMessage({ type: 'error', text: 'La contraseña debe tener al menos 8 caracteres' });
+        return;
+      }
     }
 
     setLoading(true);
     setMessage(null);
 
     try {
-      const res = await fetch('/api/users/create', {
+      const endpoint = isEditing ? '/api/users/update' : '/api/users/create';
+      const payload: Record<string, unknown> = {
+        full_name: fullName,
+        email,
+        phone,
+        role: 'admin',
+      };
+
+      if (isEditing && existingProfile?.id) {
+        payload.user_id = existingProfile.id;
+      }
+
+      if (!isEditing || wantsPasswordChange) {
+        payload.password = password;
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          full_name: fullName,
-          email,
-          phone,
-          password,
-          role: 'admin',
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await safeJson(res);
       if (!res.ok || !result?.ok) {
-        throw new Error(result?.error || 'No se pudo crear el administrador');
+        throw new Error(result?.error || 'No se pudo guardar el administrador');
       }
 
-      setMessage({ type: 'success', text: `Administrador ${fullName} creado exitosamente` });
-      setFullName('');
-      setEmail('');
-      setPhone('');
-      setPassword('');
-      setConfirmPassword('');
+      setMessage({
+        type: 'success',
+        text: isEditing
+          ? `Administrador ${fullName} actualizado exitosamente`
+          : `Administrador ${fullName} creado exitosamente`,
+      });
+
+      if (!isEditing) {
+        setFullName('');
+        setEmail('');
+        setPhone('');
+        setPassword('');
+        setConfirmPassword('');
+      }
       onSuccess?.();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err?.message || 'No se pudo crear el administrador' });
+      setMessage({ type: 'error', text: err?.message || 'No se pudo guardar el administrador' });
     } finally {
       setLoading(false);
     }
@@ -67,7 +108,7 @@ export default function AdminForm({ onSuccess, onCancel }: AdminFormProps) {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Shield className="w-5 h-5 text-blue-500" />
-          Nuevo Administrador
+          {isEditing ? 'Editar Administrador' : 'Nuevo Administrador'}
         </h2>
         {onCancel && (
           <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-600">
@@ -134,16 +175,15 @@ export default function AdminForm({ onSuccess, onCancel }: AdminFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Contraseña</label>
+        <label className="block text-sm font-medium">{isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}</label>
         <div className="flex items-center border rounded p-2">
           <Key className="w-4 h-4 mr-2 text-gray-400" />
           <input
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            required
             className="w-full outline-none bg-transparent"
-            placeholder="Contraseña segura"
+            placeholder={isEditing ? 'Déjalo vacío si no quieres cambiarla' : 'Contraseña segura'}
           />
           <button
             type="button"
@@ -156,16 +196,15 @@ export default function AdminForm({ onSuccess, onCancel }: AdminFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Confirmar Contraseña</label>
+        <label className="block text-sm font-medium">{isEditing ? 'Confirmar nueva contraseña (opcional)' : 'Confirmar Contraseña'}</label>
         <div className="flex items-center border rounded p-2">
           <Key className="w-4 h-4 mr-2 text-gray-400" />
           <input
             type={showPassword ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            required
             className="w-full outline-none bg-transparent"
-            placeholder="Repite la contraseña"
+            placeholder={isEditing ? 'Repite la nueva contraseña' : 'Repite la contraseña'}
           />
         </div>
       </div>
@@ -185,7 +224,7 @@ export default function AdminForm({ onSuccess, onCancel }: AdminFormProps) {
           disabled={loading}
           className={`px-4 py-2 text-white rounded ${loading ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'}`}
         >
-          {loading ? 'Creando...' : 'Crear Administrador'}
+          {loading ? (isEditing ? 'Actualizando...' : 'Creando...') : isEditing ? 'Actualizar Administrador' : 'Crear Administrador'}
         </button>
       </div>
     </form>
