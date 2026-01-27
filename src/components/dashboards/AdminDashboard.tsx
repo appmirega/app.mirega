@@ -21,6 +21,7 @@ import { ClientForm } from '../forms/ClientForm';
 import TechnicianForm from '../forms/TechnicianForm';
 import AdminForm from '../forms/AdminForm';
 import { CoordinationRequestsPanel } from '../calendar/CoordinationRequestsPanel';
+import { AlertDashboard } from './AlertDashboard';
 import {
   EmergenciesPanel,
   MaintenancesPanel,
@@ -331,66 +332,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps = {}) {
       </div>
 
       {viewSettings.showStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <Building2 className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.totalClients}</h3>
-          <p className="text-sm text-slate-600">Clientes Activos</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-slate-500 p-3 rounded-lg">
-              <Wrench className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.totalElevators}</h3>
-          <p className="text-sm text-slate-600">Ascensores en Servicio</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-green-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.activeTechnicians}</h3>
-          <p className="text-sm text-slate-600">Técnicos Activos</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-red-500 p-3 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.activeEmergencies}</h3>
-          <p className="text-sm text-slate-600">Emergencias Activas</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-purple-500 p-3 rounded-lg">
-              <Calendar className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.scheduledToday}</h3>
-          <p className="text-sm text-slate-600">Mantenimientos Hoy</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-orange-500 p-3 rounded-lg">
-              <FileText className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900 mb-1">{stats.pendingQuotations}</h3>
-          <p className="text-sm text-slate-600">Cotizaciones Pendientes</p>
-        </div>
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Bell className="w-6 h-6 text-red-600" />
+            Centro de Alertas y Notificaciones
+          </h2>
+          <AlertDashboard />
         </div>
       )}
 
