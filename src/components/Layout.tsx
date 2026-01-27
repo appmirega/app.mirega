@@ -30,6 +30,8 @@ import {
   Folder,
   FileSearch,
   Building2,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -107,6 +109,20 @@ export function Layout({ children, onNavigate }: LayoutProps) {
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    'Accesos Rápidos': true,
+    'Operaciones': true,
+    'Análisis & Reportes': false,
+    'Cliente': true,
+    'Configuración & Admin': false,
+  });
+
+  const toggleSection = (label: string) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }));
+  };
 
   const filteredSections = navSections
     .map((section) => ({
@@ -250,28 +266,42 @@ export function Layout({ children, onNavigate }: LayoutProps) {
           </div>
 
           {/* Menú principal */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-4">
+          <nav className="flex-1 overflow-y-auto p-4 space-y-2">
             {filteredSections.map((section) => (
               <div key={section.label} className="space-y-1">
-                <p className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">{section.label}</p>
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentView === item.path;
-                  return (
-                    <button
-                      key={item.path}
-                      onClick={() => handleNavigation(item.path)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
-                        isActive
-                          ? 'bg-red-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{item.label}</span>
-                    </button>
-                  );
-                })}
+                <button
+                  onClick={() => toggleSection(section.label)}
+                  className="w-full flex items-center justify-between px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <span className="uppercase tracking-wide">{section.label}</span>
+                  {expandedSections[section.label] ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                </button>
+                {expandedSections[section.label] && (
+                  <div className="space-y-1 pl-2">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = currentView === item.path;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => handleNavigation(item.path)}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm ${
+                            isActive
+                              ? 'bg-red-600 text-white'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="font-medium">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </nav>
