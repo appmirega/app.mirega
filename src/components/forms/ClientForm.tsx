@@ -104,6 +104,12 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Generar contraseña automática basada en año actual
+  const generateAutoPassword = () => {
+    const currentYear = new Date().getFullYear();
+    return `Mirega_${currentYear}@`;
+  };
+
   const [clientData, setClientData] = useState({
     company_name: client?.company_name || '',
     building_name: client?.building_name || '',
@@ -113,14 +119,14 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     contact_name: client?.contact_name || '',
     contact_email: client?.contact_email || '',
     contact_phone: client?.contact_phone || '',
-    // Bloque Administrador (obligatorio)
+    // Bloque Administrador (opcional)
     admin_name: '',
     admin_email: '',
     admin_phone: '',
     rut: '',
     address: client?.address || '',
-    password: '',
-    confirmPassword: '',
+    password: isEditMode ? '' : generateAutoPassword(),
+    confirmPassword: isEditMode ? '' : generateAutoPassword(),
   });
 
   const [generatedClientCode, setGeneratedClientCode] =
@@ -296,11 +302,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           !clientData.company_name ||
           !clientData.contact_name ||
           !clientData.contact_email ||
-          !clientData.contact_phone ||
           !clientData.address
         ) {
           return fail(
-            'Todos los campos del cliente son obligatorios'
+            'Completa los campos obligatorios (Empresa, Contacto, Email, Dirección)'
           );
         }
 
@@ -338,13 +343,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       !clientData.internal_alias ||
       !clientData.contact_name ||
       !clientData.contact_email ||
-      !clientData.contact_phone ||
-      !clientData.admin_name ||
-      !clientData.admin_email ||
-      !clientData.admin_phone ||
       !clientData.address
     ) {
-      return fail('Todos los campos del cliente son obligatorios');
+      return fail('Completa los campos obligatorios (Nombre de empresa, Edificio, Alias, Contacto, Email, Dirección)');
     }
 
     if (!identicalElevators && elevators.length !== totalEquipments) {
@@ -681,11 +682,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                 <Phone className="w-4 h-4" />
-                Teléfono *
+                Teléfono
               </label>
               <input
                 type="tel"
-                required
                 value={clientData.contact_phone}
                 onChange={(e) =>
                   setClientData((p) => ({
@@ -693,6 +693,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                     contact_phone: e.target.value,
                   }))
                 }
+                placeholder="Opcional - se puede agregar después"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -714,51 +715,56 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               />
             </div>
 
-            {/* Bloque Administrador */}
-            <div className="md:col-span-2 border rounded-lg p-4 bg-slate-50">
-              <p className="text-sm font-semibold text-slate-800 mb-3">
-                Contacto Administrador (obligatorio)
-              </p>
+            {/* Bloque Contacto Alterno (Opcional) */}
+            <div className="md:col-span-2 border rounded-lg p-4 bg-blue-50 border-blue-200">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-slate-800">
+                  Contacto Alterno (Opcional)
+                </p>
+                <p className="text-xs text-blue-600">
+                  Ej: Presidente de condominio, tesorero, etc. Estos datos se pueden completar después
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
-                    Nombre *
+                    Nombre
                   </label>
                   <input
                     type="text"
-                    required
                     value={clientData.admin_name}
                     onChange={(e) =>
                       setClientData((p) => ({ ...p, admin_name: e.target.value }))
                     }
+                    placeholder="Opcional"
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
-                    Email *
+                    Email
                   </label>
                   <input
                     type="email"
-                    required
                     value={clientData.admin_email}
                     onChange={(e) =>
                       setClientData((p) => ({ ...p, admin_email: e.target.value }))
                     }
+                    placeholder="Opcional"
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="text-sm text-slate-700 mb-1 block">
-                    Teléfono *
+                    Teléfono
                   </label>
                   <input
                     type="tel"
-                    required
                     value={clientData.admin_phone}
                     onChange={(e) =>
                       setClientData((p) => ({ ...p, admin_phone: e.target.value }))
                     }
+                    placeholder="Opcional"
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
@@ -773,25 +779,43 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
               Credenciales de Acceso
             </h3>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-green-800 mb-2">
+                <strong>✅ Contraseña autogenerada:</strong> La contraseña se genera automáticamente para facilitar el ingreso rápido.
+              </p>
+              <p className="text-sm text-green-700">
+                El cliente puede cambiarla una vez que inicie sesión.
+              </p>
+              <div className="mt-3 p-3 bg-white border border-green-300 rounded flex items-center justify-between">
+                <code className="text-lg font-bold text-green-700">{clientData.password}</code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(clientData.password);
+                    alert('Contraseña copiada al portapapeles');
+                  }}
+                  className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copiar
+                </button>
+              </div>
+              <p className="text-xs text-green-600 mt-2">
+                Patrón: Mirega_YYYY@ (donde YYYY es el año actual)
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                   <Key className="w-4 h-4" />
-                  Contraseña (mínimo 8 caracteres) *
+                  Contraseña (autogenerada)
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={8}
+                    disabled
                     value={clientData.password}
-                    onChange={(e) =>
-                      setClientData((p) => ({
-                        ...p,
-                        password: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -810,7 +834,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700 mb-1">
-                  Confirmar contraseña *
+                  Confirmar contraseña
                 </label>
                 <div className="relative">
                   <input
@@ -819,17 +843,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                         ? 'text'
                         : 'password'
                     }
-                    required
-                    minLength={8}
+                    disabled
                     value={clientData.confirmPassword}
-                    onChange={(e) =>
-                      setClientData((p) => ({
-                        ...p,
-                        confirmPassword:
-                          e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 cursor-not-allowed"
                   />
                   <button
                     type="button"
