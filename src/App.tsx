@@ -34,6 +34,7 @@ import { EmergenciesDashboard } from './components/views/EmergenciesDashboard';
 import { MaintenancesDashboard } from './components/views/MaintenancesDashboard';
 import { UsersView } from './components/views/UsersView';
 import { ClientsView } from './components/views/ClientsView';
+import { ClientProfileView } from './components/views/ClientProfileView';
 import { ElevatorsCompleteView } from './components/views/ElevatorsCompleteView';
 import { ClientTechnicalInfoView } from './components/views/ClientTechnicalInfoView';
 import { DeveloperPermissionsPanel } from './components/views/DeveloperPermissionsPanel';
@@ -77,9 +78,13 @@ function AppContent() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [showSplash, setShowSplash] = useState(true);
   const [viewKey, setViewKey] = useState(0); // Key para forzar re-render
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   
   // Función mejorada para navegación que fuerza re-render
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (path: string, clientId?: string) => {
+    if (clientId) {
+      setSelectedClientId(clientId);
+    }
     setCurrentView(path);
     setViewKey(prev => prev + 1); // Incrementar key para forzar re-render
   };
@@ -149,7 +154,17 @@ function AppContent() {
       case 'users':
         return <UsersView />;
       case 'clients':
-        return <ClientsView />;
+        return <ClientsView onNavigate={handleNavigate} />;
+      case 'client-profile':
+        return selectedClientId ? (
+          <ClientProfileView
+            clientId={selectedClientId}
+            onNavigate={handleNavigate}
+            onBack={() => handleNavigate('clients')}
+          />
+        ) : (
+          <ClientsView onNavigate={handleNavigate} />
+        );
       case 'elevators':
         return <ElevatorsCompleteView onNavigate={handleNavigate} />;
       case 'client-technical-info':

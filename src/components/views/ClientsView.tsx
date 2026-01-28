@@ -10,6 +10,7 @@ import {
   Trash2,
   Power,
   RefreshCw,
+  Eye,
 } from 'lucide-react';
 
 interface ClientRow {
@@ -27,7 +28,11 @@ interface ClientRow {
 
 type Mode = 'create' | 'edit' | null;
 
-export function ClientsView() {
+interface ClientsViewProps {
+  onNavigate?: (path: string, clientId?: string) => void;
+}
+
+export function ClientsView({ onNavigate }: ClientsViewProps) {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -312,7 +317,10 @@ export function ClientsView() {
               {filtered.map((c) => (
                 <tr
                   key={c.id}
-                  className="border-b border-slate-50 hover:bg-slate-50/70"
+                  className="border-b border-slate-50 hover:bg-blue-50/50 cursor-pointer transition"
+                  onClick={() =>
+                    onNavigate?.('client-profile', c.id)
+                  }
                 >
                   <td className="px-4 py-2 align-top">
                     <div className="font-semibold text-slate-900">
@@ -366,7 +374,22 @@ export function ClientsView() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => openEdit(c)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigate?.('client-profile', c.id);
+                        }}
+                        className="p-1.5 rounded-md hover:bg-purple-50 text-purple-600"
+                        title="Ver perfil del cliente"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(c);
+                        }}
                         className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600"
                         title="Editar cliente"
                       >
@@ -375,9 +398,10 @@ export function ClientsView() {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          toggleActive(c)
-                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleActive(c);
+                        }}
                         className="p-1.5 rounded-md hover:bg-slate-50 text-slate-700"
                         title={
                           c.is_active
@@ -393,9 +417,10 @@ export function ClientsView() {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          deleteClient(c)
-                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteClient(c);
+                        }}
                         className="p-1.5 rounded-md hover:bg-red-50 text-red-500"
                         title="Eliminar cliente"
                         disabled={
