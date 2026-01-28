@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { ClientForm } from '../forms/ClientForm';
 import {
   ArrowLeft,
   Building2,
@@ -53,7 +54,7 @@ interface ServiceRequest {
 
 interface ClientProfileViewProps {
   clientId: string;
-  onNavigate?: (path: string) => void;
+  onNavigate?: (path: string, clientId?: string) => void;
   onBack?: () => void;
 }
 
@@ -67,6 +68,7 @@ export function ClientProfileView({
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   useEffect(() => {
     loadClientData();
@@ -113,6 +115,11 @@ export function ClientProfileView({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFormSuccess = () => {
+    setShowEditForm(false);
+    loadClientData();
   };
 
   const getStatusColor = (status: string) => {
@@ -200,7 +207,10 @@ export function ClientProfileView({
           </div>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          <button
+            onClick={() => setShowEditForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
             <Edit2 className="w-4 h-4" />
             Editar
           </button>
@@ -451,6 +461,33 @@ export function ClientProfileView({
           </p>
         </div>
       </div>
+
+      {/* Modal Editar Cliente */}
+      {showEditForm && client && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* fondo */}
+          <div
+            className="flex-1 bg-black/20"
+            onClick={() => setShowEditForm(false)}
+          />
+          {/* panel */}
+          <div className="w-full max-w-3xl bg-white shadow-2xl h-full overflow-y-auto p-6">
+            <ClientForm
+              client={{
+                id: client.id,
+                company_name: client.company_name,
+                building_name: client.building_name,
+                contact_name: client.contact_name,
+                contact_email: client.contact_email,
+                contact_phone: client.contact_phone,
+                address: client.address,
+              }}
+              onSuccess={handleFormSuccess}
+              onCancel={() => setShowEditForm(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
