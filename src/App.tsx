@@ -150,7 +150,7 @@ function AppContent() {
       case 'notifications':
         return <NotificationsView />;
       case 'service-requests':
-        return <ServiceRequestsDashboard />;
+        return <ServiceRequestsDashboard onNavigate={handleNavigate} />;
       case 'users':
         return <UsersView />;
       case 'clients':
