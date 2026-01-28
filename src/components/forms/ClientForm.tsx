@@ -17,6 +17,7 @@ import QRCode from 'qrcode';
 import {
   validateEmail,
   validatePhone,
+  validatePhoneOptional,
   validateRUT,
   validateCompanyName,
   validateAddress,
@@ -376,7 +377,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       return fail(emailValidation.error!);
     }
 
-    const phoneValidation = validatePhone(clientData.contact_phone);
+    const phoneValidation = validatePhoneOptional(clientData.contact_phone);
     if (!phoneValidation.isValid) {
       return fail(phoneValidation.error!);
     }

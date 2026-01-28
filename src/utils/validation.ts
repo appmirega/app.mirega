@@ -31,7 +31,7 @@ export function validateEmail(email: string): ValidationResult {
 }
 
 /**
- * Valida formato de teléfono chileno
+ * Valida formato de teléfono chileno (REQUERIDO)
  * Acepta: +56912345678, 912345678, +56 9 1234 5678, etc.
  */
 export function validatePhone(phone: string): ValidationResult {
@@ -41,6 +41,35 @@ export function validatePhone(phone: string): ValidationResult {
 
   // Limpiar espacios, guiones y paréntesis
   const cleanPhone = phone.replace(/[\s\-()]/g, '');
+
+  // Validar formato chileno
+  const phoneRegex = /^(\+?56)?[2-9]\d{8}$/;
+  
+  if (!phoneRegex.test(cleanPhone)) {
+    return { 
+      isValid: false, 
+      error: 'Formato de teléfono inválido. Debe tener 9 dígitos (ej: 912345678 o +56912345678)' 
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Valida formato de teléfono chileno (OPCIONAL)
+ * Si está vacío, lo considera válido
+ * Si tiene valor, valida el formato
+ */
+export function validatePhoneOptional(phone: string): ValidationResult {
+  const trimmedPhone = phone.trim();
+  
+  // Si está vacío, es válido (es opcional)
+  if (!trimmedPhone) {
+    return { isValid: true };
+  }
+
+  // Limpiar espacios, guiones y paréntesis
+  const cleanPhone = trimmedPhone.replace(/[\s\-()]/g, '');
 
   // Validar formato chileno
   const phoneRegex = /^(\+?56)?[2-9]\d{8}$/;
