@@ -371,6 +371,21 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
 
     try {
+      // Verificar si el email ya existe ANTES de intentar crear el usuario
+      const { data: existingProfiles, error: checkError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', clientData.contact_email.toLowerCase().trim())
+        .limit(1);
+
+      if (checkError) {
+        console.error('Error al verificar email existente:', checkError);
+      }
+
+      if (existingProfiles && existingProfiles.length > 0) {
+        return fail('Ya existe un usuario registrado con este correo electrónico. Por favor, usa otro email.');
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -430,10 +445,20 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           response.status,
           raw
         );
-        throw new Error(
-          result?.error ||
-            `Error al crear el usuario del cliente (status ${response.status}).`
-        );
+        
+        // Traducir mensajes de error comunes del backend
+        let errorMessage = result?.error || `Error al crear el usuario del cliente (status ${response.status}).`;
+        
+        // Traducciones de errores comunes
+        if (errorMessage.includes('already been registered') || errorMessage.includes('already exists')) {
+          errorMessage = 'Ya existe un usuario registrado con este correo electrónico. Por favor, usa otro email.';
+        } else if (errorMessage.includes('invalid email')) {
+          errorMessage = 'El correo electrónico no es válido.';
+        } else if (errorMessage.includes('weak password')) {
+          errorMessage = 'La contraseña es demasiado débil. Debe tener al menos 6 caracteres.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const profile = result.user;
