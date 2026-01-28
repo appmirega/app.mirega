@@ -2,6 +2,11 @@
 import { useState } from 'react';
 import { Shield, User, Mail, Phone, Eye, EyeOff, Key, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { safeJson } from '../../lib/safeJson';
+import {
+  validateEmail,
+  validatePhone,
+  validatePassword,
+} from '../../utils/validation';
 
 export interface AdminFormProps {
   onSuccess?: () => void;
@@ -29,23 +34,43 @@ export default function AdminForm({ onSuccess, onCancel, existingProfile }: Admi
     e.preventDefault();
     if (loading) return;
 
+    // Validar email
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      setMessage({ type: 'error', text: emailValidation.error! });
+      return;
+    }
+
+    // Validar teléfono si se proporciona
+    if (phone) {
+      const phoneValidation = validatePhone(phone);
+      if (!phoneValidation.isValid) {
+        setMessage({ type: 'error', text: phoneValidation.error! });
+        return;
+      }
+    }
+
     const wantsPasswordChange = password.length > 0 || confirmPassword.length > 0;
     if (isEditing) {
       if (wantsPasswordChange && password !== confirmPassword) {
         setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
         return;
       }
-      if (wantsPasswordChange && password.length < 8) {
-        setMessage({ type: 'error', text: 'La contraseña debe tener al menos 8 caracteres' });
-        return;
+      if (wantsPasswordChange) {
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.isValid) {
+          setMessage({ type: 'error', text: passwordValidation.error! });
+          return;
+        }
       }
     } else {
       if (password !== confirmPassword) {
         setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
         return;
       }
-      if (password.length < 8) {
-        setMessage({ type: 'error', text: 'La contraseña debe tener al menos 8 caracteres' });
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        setMessage({ type: 'error', text: passwordValidation.error! });
         return;
       }
     }

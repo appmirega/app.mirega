@@ -14,6 +14,16 @@ import {
   Copy,
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import {
+  validateEmail,
+  validatePhone,
+  validateRUT,
+  validateCompanyName,
+  validateAddress,
+  validatePassword,
+  formatRUT,
+  formatPhone,
+} from '../../utils/validation';
 
 type ElevatorType = 'hydraulic' | 'electromechanical';
 
@@ -360,14 +370,43 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       );
     }
 
+    // Validaciones mejoradas
+    const emailValidation = validateEmail(clientData.contact_email);
+    if (!emailValidation.isValid) {
+      return fail(emailValidation.error!);
+    }
+
+    const phoneValidation = validatePhone(clientData.contact_phone);
+    if (!phoneValidation.isValid) {
+      return fail(phoneValidation.error!);
+    }
+
+    const companyValidation = validateCompanyName(clientData.company_name);
+    if (!companyValidation.isValid) {
+      return fail(companyValidation.error!);
+    }
+
+    const addressValidation = validateAddress(clientData.address);
+    if (!addressValidation.isValid) {
+      return fail(addressValidation.error!);
+    }
+
+    if (clientData.rut) {
+      const rutValidation = validateRUT(clientData.rut);
+      if (!rutValidation.isValid) {
+        return fail(rutValidation.error!);
+      }
+    }
+
     if (!validateElevators()) return;
 
     if (clientData.password !== clientData.confirmPassword) {
       return fail('Las contraseñas no coinciden');
     }
 
-    if (clientData.password.length < 8) {
-      return fail('La contraseña debe tener al menos 8 caracteres');
+    const passwordValidation = validatePassword(clientData.password);
+    if (!passwordValidation.isValid) {
+      return fail(passwordValidation.error!);
     }
 
     try {

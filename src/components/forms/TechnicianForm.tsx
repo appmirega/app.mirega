@@ -3,6 +3,11 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { UserPlus, Mail, Phone, Key, X } from 'lucide-react';
 import { safeJson } from '../../lib/safeJson';
+import {
+  validateEmail,
+  validatePhone,
+  validatePassword,
+} from '../../utils/validation';
 
 interface TechnicianFormProps {
   onSuccess?: () => void;
@@ -35,6 +40,24 @@ export default function TechnicianForm({ onSuccess, onCancel, existingProfile }:
     setLoading(true);
     setError(null);
 
+    // Validar email
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.isValid) {
+      setError(emailValidation.error!);
+      setLoading(false);
+      return;
+    }
+
+    // Validar teléfono si se proporciona
+    if (formData.phone) {
+      const phoneValidation = validatePhone(formData.phone);
+      if (!phoneValidation.isValid) {
+        setError(phoneValidation.error!);
+        setLoading(false);
+        return;
+      }
+    }
+
     const wantsPasswordChange = formData.password.length > 0 || formData.confirmPassword.length > 0;
     if (isEditing) {
       if (wantsPasswordChange && formData.password !== formData.confirmPassword) {
@@ -42,10 +65,13 @@ export default function TechnicianForm({ onSuccess, onCancel, existingProfile }:
         setLoading(false);
         return;
       }
-      if (wantsPasswordChange && formData.password.length < 8) {
-        setError('La contraseña debe tener al menos 8 caracteres');
-        setLoading(false);
-        return;
+      if (wantsPasswordChange) {
+        const passwordValidation = validatePassword(formData.password);
+        if (!passwordValidation.isValid) {
+          setError(passwordValidation.error!);
+          setLoading(false);
+          return;
+        }
       }
     } else {
       if (formData.password !== formData.confirmPassword) {
@@ -53,8 +79,9 @@ export default function TechnicianForm({ onSuccess, onCancel, existingProfile }:
         setLoading(false);
         return;
       }
-      if (formData.password.length < 8) {
-        setError('La contraseña debe tener al menos 8 caracteres');
+      const passwordValidation = validatePassword(formData.password);
+      if (!passwordValidation.isValid) {
+        setError(passwordValidation.error!);
         setLoading(false);
         return;
       }
