@@ -126,11 +126,17 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     building_name: client?.building_name || '',
     // Alias interno (Mirega)
     internal_alias: '',
-    // Contacto "legacy" (se mantiene)
+    // Contacto Principal (se mantiene)
     contact_name: client?.contact_name || '',
     contact_email: client?.contact_email || '',
     contact_phone: client?.contact_phone || '',
-    // Bloque Administrador (opcional)
+    // Contactos Alternos (hasta 3) - NUEVO
+    alternate_contacts: [
+      { name: '', email: '', phone: '', enabled: false },
+      { name: '', email: '', phone: '', enabled: false },
+      { name: '', email: '', phone: '', enabled: false },
+    ],
+    // Campos legacy (se mantienen para compatibilidad)
     admin_name: '',
     admin_email: '',
     admin_phone: '',
@@ -521,6 +527,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           admin_name: clientData.admin_name,
           admin_email: clientData.admin_email,
           admin_phone: clientData.admin_phone,
+          // Contactos alternos como JSON
+          alternate_contacts: clientData.alternate_contacts.filter(c => c.enabled) || null,
           rut: clientData.rut || null,
           address: clientData.address,
           is_active: true,
@@ -780,59 +788,117 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
               />
             </div>
 
-            {/* Bloque Contacto Alterno (Opcional) */}
+            {/* Bloque Contacto Alterno (Opcional) - Múltiples */}
             <div className="md:col-span-2 border rounded-lg p-4 bg-blue-50 border-blue-200">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-4">
                 <p className="text-sm font-semibold text-slate-800">
-                  Contacto Alterno (Opcional)
+                  Contactos Alternos (Opcionales)
                 </p>
                 <p className="text-xs text-blue-600">
-                  Ej: Presidente de condominio, tesorero, etc. Estos datos se pueden completar después
+                  Agrega hasta 3 contactos alternos. Activa/desactiva cada uno según sea necesario.
                 </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm text-slate-700 mb-1 block">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    value={clientData.admin_name}
-                    onChange={(e) =>
-                      setClientData((p) => ({ ...p, admin_name: e.target.value }))
-                    }
-                    placeholder="Opcional"
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-slate-700 mb-1 block">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={clientData.admin_email}
-                    onChange={(e) =>
-                      setClientData((p) => ({ ...p, admin_email: e.target.value }))
-                    }
-                    placeholder="Opcional"
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-slate-700 mb-1 block">
-                    Teléfono
-                  </label>
-                  <input
-                    type="tel"
-                    value={clientData.admin_phone}
-                    onChange={(e) =>
-                      setClientData((p) => ({ ...p, admin_phone: e.target.value }))
-                    }
-                    placeholder="Opcional"
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
+              
+              <div className="space-y-4">
+                {clientData.alternate_contacts.map((contact, index) => (
+                  <div 
+                    key={index}
+                    className={`border rounded-lg p-3 transition ${
+                      contact.enabled 
+                        ? 'bg-white border-blue-300' 
+                        : 'bg-gray-100 border-gray-300 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <input
+                        type="checkbox"
+                        id={`contact-${index}`}
+                        checked={contact.enabled}
+                        onChange={(e) => {
+                          setClientData((p) => {
+                            const updated = [...p.alternate_contacts];
+                            updated[index].enabled = e.target.checked;
+                            return { ...p, alternate_contacts: updated };
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                      />
+                      <label 
+                        htmlFor={`contact-${index}`}
+                        className="text-sm font-medium text-slate-700 cursor-pointer flex-1"
+                      >
+                        Contacto Alterno {index + 1}
+                      </label>
+                      {contact.enabled && (
+                        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                          Activo
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-600 mb-1 block font-medium">
+                          Nombre
+                        </label>
+                        <input
+                          type="text"
+                          disabled={!contact.enabled}
+                          value={contact.name}
+                          onChange={(e) => {
+                            setClientData((p) => {
+                              const updated = [...p.alternate_contacts];
+                              updated[index].name = e.target.value;
+                              return { ...p, alternate_contacts: updated };
+                            });
+                          }}
+                          placeholder="Ej: Presidente de condominio"
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-600 mb-1 block font-medium">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          disabled={!contact.enabled}
+                          value={contact.email}
+                          onChange={(e) => {
+                            setClientData((p) => {
+                              const updated = [...p.alternate_contacts];
+                              updated[index].email = e.target.value;
+                              return { ...p, alternate_contacts: updated };
+                            });
+                          }}
+                          placeholder="contacto@empresa.cl"
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-600 mb-1 block font-medium">
+                          Teléfono
+                        </label>
+                        <input
+                          type="tel"
+                          disabled={!contact.enabled}
+                          value={contact.phone}
+                          onChange={(e) => {
+                            setClientData((p) => {
+                              const updated = [...p.alternate_contacts];
+                              updated[index].phone = e.target.value;
+                              return { ...p, alternate_contacts: updated };
+                            });
+                          }}
+                          placeholder="+56 9 XXXX XXXX"
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

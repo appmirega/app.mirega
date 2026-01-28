@@ -5,12 +5,9 @@ import { supabase } from '../lib/supabase';
 import {
   LayoutDashboard,
   Users,
-  Wrench,
   FileText,
   AlertTriangle,
   ClipboardList,
-  Package,
-  Bell,
   Settings,
   LogOut,
   Menu,
@@ -21,10 +18,8 @@ import {
   Building,
   User as UserIcon,
   ShieldCheck,
-  FolderOpen,
   TrendingUp,
   Shield,
-  Activity,
   CalendarRange,
   Award,
   Folder,
@@ -111,16 +106,20 @@ export function Layout({ children, onNavigate }: LayoutProps) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'Accesos Rápidos': true,
-    'Operaciones': true,
+    'Operaciones': false,
     'Análisis & Reportes': false,
-    'Cliente': true,
+    'Cliente': false,
     'Configuración & Admin': false,
   });
 
+  // Acordeón: al abrir una sección, cierra las otras
   const toggleSection = (label: string) => {
     setExpandedSections((prev) => ({
-      ...prev,
-      [label]: !prev[label],
+      'Accesos Rápidos': label === 'Accesos Rápidos' ? !prev['Accesos Rápidos'] : false,
+      'Operaciones': label === 'Operaciones' ? !prev['Operaciones'] : false,
+      'Análisis & Reportes': label === 'Análisis & Reportes' ? !prev['Análisis & Reportes'] : false,
+      'Cliente': label === 'Cliente' ? !prev['Cliente'] : false,
+      'Configuración & Admin': label === 'Configuración & Admin' ? !prev['Configuración & Admin'] : false,
     }));
   };
 
@@ -242,7 +241,14 @@ export function Layout({ children, onNavigate }: LayoutProps) {
                   <p className="text-sm text-gray-600">Ascensores</p>
                 </div>
               </div>
-              <NotificationCenter onNavigate={handleNavigation} />
+              <div className="relative">
+                <NotificationCenter onNavigate={handleNavigation} />
+                {notificationCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -271,13 +277,13 @@ export function Layout({ children, onNavigate }: LayoutProps) {
               <div key={section.label} className="space-y-1">
                 <button
                   onClick={() => toggleSection(section.label)}
-                  className="w-full flex items-center justify-between px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                  className="w-full flex items-center justify-between px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition text-left"
                 >
-                  <span className="uppercase tracking-wide">{section.label}</span>
+                  <span className="uppercase tracking-wide text-left flex-1">{section.label}</span>
                   {expandedSections[section.label] ? (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-4 h-4 flex-shrink-0" />
                   ) : (
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" />
                   )}
                 </button>
                 {expandedSections[section.label] && (
@@ -289,13 +295,13 @@ export function Layout({ children, onNavigate }: LayoutProps) {
                         <button
                           key={item.path}
                           onClick={() => handleNavigation(item.path)}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm ${
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm text-left ${
                             isActive
                               ? 'bg-red-600 text-white'
                               : 'text-gray-700 hover:bg-gray-100'
                           }`}
                         >
-                          <Icon className="w-4 h-4" />
+                          <Icon className="w-4 h-4 flex-shrink-0" />
                           <span className="font-medium">{item.label}</span>
                         </button>
                       );
