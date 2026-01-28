@@ -16,6 +16,7 @@ import {
   Star,
   MessageSquare
 } from 'lucide-react';
+import SignaturePad from '../common/SignaturePad';
 
 interface WorkOrderClosureFormProps {
   workOrderId: string;
@@ -36,14 +37,12 @@ export const WorkOrderClosureForm: React.FC<WorkOrderClosureFormProps> = ({
   onCancel
 }) => {
   const { profile } = useAuth();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados del formulario
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [signatureData, setSignatureData] = useState<string>('');
+  const [signatureData, setSignatureData] = useState<string | null>(null);
   const [technicianNotes, setTechnicianNotes] = useState('');
   const [actualLaborCost, setActualLaborCost] = useState<number | ''>('');
   const [actualPartsCost, setActualPartsCost] = useState<number | ''>('');
@@ -124,82 +123,8 @@ export const WorkOrderClosureForm: React.FC<WorkOrderClosureFormProps> = ({
   };
 
   // Manejo de firma
-  const initializeSignatureCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Configurar canvas
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  };
-
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const stopDrawing = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.closePath();
-    setIsDrawing(false);
-
-    // Guardar como base64
-    setSignatureData(canvas.toDataURL('image/png'));
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    setSignatureData('');
+  const handleSignatureChange = (signature: string | null) => {
+    setSignatureData(signature);
   };
 
   // Upload de fotos a storage
@@ -467,54 +392,11 @@ export const WorkOrderClosureForm: React.FC<WorkOrderClosureFormProps> = ({
                   Firme en el recuadro para confirmar que el trabajo ha sido completado.
                 </p>
 
-                <div className="border-2 border-slate-300 rounded-lg overflow-hidden">
-                  <canvas
-                    ref={canvasRef}
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                    onTouchStart={(e) => {
-                      const touch = e.touches[0];
-                      startDrawing(touch as any);
-                    }}
-                    onTouchMove={(e) => {
-                      const touch = e.touches[0];
-                      draw(touch as any);
-                    }}
-                    onTouchEnd={stopDrawing}
-                    onTouchCancel={stopDrawing}
-                    onClick={() => initializeSignatureCanvas()}
-                    className="w-full h-48 cursor-crosshair bg-white block"
-                  />
-                </div>
-
-                <div className="flex gap-2 mt-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      initializeSignatureCanvas();
-                      clearSignature();
-                    }}
-                    className="flex-1 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition text-sm font-medium"
-                  >
-                    Limpiar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={initializeSignatureCanvas}
-                    className="flex-1 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition text-sm font-medium"
-                  >
-                    Reiniciar Canvas
-                  </button>
-                </div>
-
-                {signatureData && (
-                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-700">
-                    <Check className="w-4 h-4" />
-                    Firma capturada correctamente
-                  </div>
-                )}
+                <SignaturePad
+                  onSignatureChange={handleSignatureChange}
+                  height={200}
+                  disabled={loading}
+                />
               </div>
 
               {/* Notas del técnico */}
