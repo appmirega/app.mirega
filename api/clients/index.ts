@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { validateRUT, validateEmail } from '../utils/validation';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || '',
@@ -113,29 +114,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: error.message || 'Error interno del servidor' 
     });
   }
-}
-
-// Función para validar RUT chileno
-function validateRUT(rut: string): boolean {
-  // Eliminar puntos y guión
-  const cleanRUT = rut.replace(/\./g, '').replace(/-/g, '');
-  
-  if (cleanRUT.length < 2) return false;
-  
-  const body = cleanRUT.slice(0, -1);
-  const dv = cleanRUT.slice(-1).toUpperCase();
-  
-  // Calcular dígito verificador
-  let sum = 0;
-  let multiplier = 2;
-  
-  for (let i = body.length - 1; i >= 0; i--) {
-    sum += parseInt(body.charAt(i)) * multiplier;
-    multiplier = multiplier === 7 ? 2 : multiplier + 1;
-  }
-  
-  const calculatedDV = 11 - (sum % 11);
-  const expectedDV = calculatedDV === 11 ? '0' : calculatedDV === 10 ? 'K' : calculatedDV.toString();
-  
-  return dv === expectedDV;
 }

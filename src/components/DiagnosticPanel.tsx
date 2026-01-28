@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { supabaseConfig } from '../config/env';
 import { Database, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 export function DiagnosticPanel() {
@@ -17,8 +18,8 @@ export function DiagnosticPanel() {
   }, []);
 
   const runDiagnostics = async () => {
-    const supabaseUrl = import.meta.env.VITE_BOLT_DATABASE_URL || '';
-    const supabaseKey = import.meta.env.VITE_BOLT_DATABASE_ANON_KEY || '';
+    const supabaseUrl = supabaseConfig.url;
+    const supabaseKey = supabaseConfig.anonKey;
 
     setDiagnostics(prev => ({
       ...prev,

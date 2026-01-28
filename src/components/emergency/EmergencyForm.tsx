@@ -14,6 +14,7 @@ import {
 import SignatureCanvas from 'react-signature-canvas';
 import { ManualServiceRequestForm } from '../forms/ManualServiceRequestForm';
 import { generateEmergencyVisitPDF, EmergencyVisitPDFData } from '../../utils/emergencyVisitPDF';
+import { createContextLogger } from '../../utils/logger';
 
 interface EmergencyFormProps {
   clientId: string;
@@ -36,17 +37,16 @@ interface LastEmergency {
   days_since_last_emergency: number;
 }
 
+// Logger contextual para este componente
+const log = createContextLogger('EmergencyForm');
+
 export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, existingVisitId }: EmergencyFormProps) {
-  console.log('🚨 ========== EMERGENCYFORM MONTADO ==========');
-  console.log('📥 Props recibidas:', { clientId, elevatorIds: elevatorIds.length, existingVisitId });
-  console.log('🔑 existingVisitId tipo:', typeof existingVisitId, 'valor:', existingVisitId);
+  log.debug('Componente montado', { clientId, elevatorIds: elevatorIds.length, existingVisitId });
   
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [visitId, setVisitId] = useState<string | null>(existingVisitId || null);
-  
-  console.log('📍 visitId inicial (state):', visitId);
   
   // Datos del cliente y ascensores
   const [clientName, setClientName] = useState('');
@@ -92,7 +92,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   // Cargar datos iniciales SOLO UNA VEZ
   useEffect(() => {
     if (initialized) return;
-    console.log('🔄 useEffect loadInitialData ejecutándose...');
+    log.debug('useEffect loadInitialData ejecutándose');
     loadInitialData();
     setInitialized(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,14 +100,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
 
   // Función de auto-guardado (DEFINIDA ANTES DEL useEffect)
   const autoSave = useCallback(async () => {
-    console.log('🔍 autoSave LLAMADO - visitId:', visitId);
+    log.debug('autoSave llamado', { visitId });
     
     if (!visitId) {
-      console.warn('⚠️ autoSave: NO HAY visitId, abortando');
+      log.warn('autoSave: sin visitId, abortando');
       return;
     }
     
-    console.log('✅ autoSave: visitId válido, procediendo a guardar');
+    log.debug('autoSave: visitId válido, procediendo');
     
     try {
       const dataToSave = {
@@ -124,15 +124,11 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         last_autosave: new Date().toISOString()
       };
       
-      console.log('💾 Auto-guardando:', {
+      log.debug('Auto-guardando', {
         texto_descripcion: failureDescription?.length || 0,
         texto_resolucion: resolutionSummary?.length || 0,
-        estado_final: finalStatus,
-        causa: failureCause,
-        receptor: receiverName
+        estado_final: finalStatus
       });
-      
-      console.log('📤 Enviando a BD:', dataToSave);
       
       const { data, error } = await supabase
         .from('emergency_visits')
@@ -141,13 +137,13 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .select();
       
       if (error) {
-        console.error('❌ Error auto-guardado:', error);
+        log.error('Error auto-guardado', error);
       } else {
-        console.log('✅ Guardado OK - Respuesta BD:', data);
+        log.debug('Auto-guardado exitoso');
       }
       
     } catch (error) {
-      console.error('❌ Error:', error);
+      log.error('Error en autoSave', error);
     }
   }, [
     visitId, 
@@ -167,15 +163,15 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   useEffect(() => {
     if (!visitId) return;
     
-    console.log('⏰ Iniciando auto-guardado cada 30 segundos para visitId:', visitId);
+    log.debug('Iniciando auto-guardado cada 30 segundos', { visitId });
     
     const interval = setInterval(() => {
-      console.log('⏰ Ejecutando auto-guardado programado...');
+      log.debug('Ejecutando auto-guardado programado');
       autoSave();
     }, 30000);
     
     return () => {
-      console.log('⏹️ Deteniendo auto-guardado');
+      log.debug('Deteniendo auto-guardado');
       clearInterval(interval);
     };
   }, [visitId, autoSave]);
@@ -184,7 +180,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   useEffect(() => {
     return () => {
       if (visitId) {
-        console.log('🔄 Componente desmontándose - guardando...');
+        log.debug('Componente desmontándose, guardando');
         // Guardado síncrono usando fetch (más confiable en cleanup)
         const saveData = {
           failure_description: failureDescription || '',
@@ -223,7 +219,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     if (!visitId) return;
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      console.log('🚪 Cerrando ventana - guardando...');
+      log.debug('Cerrando ventana, guardando');
       autoSave();
       // No mostrar diálogo de confirmación
     };
@@ -236,12 +232,12 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
   }, [visitId, autoSave]);
 
   const loadInitialData = async () => {
-    console.log('📊 Cargando datos iniciales para emergencia...');
+    log.debug('Cargando datos iniciales');
     try {
       setLoading(true);
       
       // Cargar información del cliente
-      console.log('🔍 Buscando cliente:', clientId);
+      log.debug('Buscando cliente', { clientId });
       const { data: client } = await supabase
         .from('clients')
         .select('company_name')
@@ -284,17 +280,17 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         await createDraft();
       }
       
-      console.log('✅ Datos iniciales cargados correctamente');
+      log.info('Datos iniciales cargados');
       
     } catch (error) {
-      console.error('❌ Error loading initial data:', error);
+      log.error('Error cargando datos iniciales', error);
     } finally {
       setLoading(false);
     }
   };
 
   const createDraft = async () => {
-    console.log('📝 Creando borrador de visita...');
+    log.debug('Creando borrador de visita');
     try {
       const startTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
       setVisitStartTime(startTime);
@@ -310,11 +306,11 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .single();
       
       if (error) {
-        console.error('❌ Error creando borrador:', error);
+        log.error('Error creando borrador', error);
         throw error;
       }
       
-      console.log('✅ Borrador creado con ID:', data.id);
+      log.info('Borrador creado', { visitId: data.id });
       setVisitId(data.id);
       
       // Insertar ascensores afectados
@@ -329,21 +325,20 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .insert(elevatorInserts);
       
       if (elevatorsError) {
-        console.error('❌ Error insertando ascensores:', elevatorsError);
+        log.error('Error insertando ascensores', elevatorsError);
         throw elevatorsError;
       }
       
-      console.log('✅ Ascensores vinculados al borrador');
+      log.debug('Ascensores vinculados al borrador');
       
     } catch (error) {
-      console.error('❌ Error in createDraft:', error);
+      log.error('Error en createDraft', error);
       throw error;
     }
   };
 
   const loadDraftData = async (draftVisitId: string) => {
-    console.log('📂 ============ CARGANDO BORRADOR ============');
-    console.log('🔑 Visit ID:', draftVisitId);
+    log.debug('Cargando borrador', { visitId: draftVisitId });
     try {
       setVisitId(draftVisitId);
       
@@ -355,26 +350,14 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         .single();
       
       if (visitError) {
-        console.error('❌ Error al cargar de BD:', visitError);
+        log.error('Error al cargar de BD', visitError);
         throw visitError;
       }
       
-      console.log('💾 DATOS CRUDOS DE BD:', JSON.stringify(visitData, null, 2));
-      
-      console.log('💾 Valores específicos:', {
-        failure_description: visitData.failure_description,
-        failure_description_length: visitData.failure_description?.length || 0,
-        resolution_summary: visitData.resolution_summary,
-        resolution_summary_length: visitData.resolution_summary?.length || 0,
-        final_status: visitData.final_status,
-        failure_cause: visitData.failure_cause,
-        receiver_name: visitData.receiver_name,
-        fotos: {
-          f1: visitData.failure_photo_1_url,
-          f2: visitData.failure_photo_2_url,
-          r1: visitData.resolution_photo_1_url,
-          r2: visitData.resolution_photo_2_url
-        }
+      log.debug('Datos de visita cargados', {
+        hasDescription: !!visitData.failure_description,
+        hasSummary: !!visitData.resolution_summary,
+        finalStatus: visitData.final_status
       });
       
       // Capturar hora de creación
@@ -385,41 +368,26 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       }
       
       // Restaurar TODOS los estados del formulario (incluso si son strings vacíos)
-      console.log('\n📝 RESTAURANDO CAMPOS:');
+      log.debug('Restaurando campos del formulario');
       
       if (visitData.failure_description !== undefined && visitData.failure_description !== null) {
-        console.log('  ✅ Seteando failure_description:', visitData.failure_description.substring(0, 50));
         setFailureDescription(visitData.failure_description);
-      } else {
-        console.log('  ❌ failure_description es null/undefined');
       }
       
       if (visitData.resolution_summary !== undefined && visitData.resolution_summary !== null) {
-        console.log('  ✅ Seteando resolution_summary:', visitData.resolution_summary.substring(0, 50));
         setResolutionSummary(visitData.resolution_summary);
-      } else {
-        console.log('  ❌ resolution_summary es null/undefined');
       }
       
       if (visitData.final_status) {
-        console.log('  ✅ Seteando final_status:', visitData.final_status);
         setFinalStatus(visitData.final_status);
-      } else {
-        console.log('  ❌ final_status vacío');
       }
       
       if (visitData.failure_cause) {
-        console.log('  ✅ Seteando failure_cause:', visitData.failure_cause);
         setFailureCause(visitData.failure_cause);
-      } else {
-        console.log('  ❌ failure_cause vacío');
       }
       
       if (visitData.receiver_name !== undefined && visitData.receiver_name !== null) {
-        console.log('  ✅ Seteando receiver_name:', visitData.receiver_name);
         setReceiverName(visitData.receiver_name);
-      } else {
-        console.log('  ❌ receiver_name es null/undefined');
       }
       
       // Restaurar URLs de fotos
@@ -445,10 +413,10 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         setElevatorInitialStatus(statusMap);
       }
       
-      console.log('✅ Borrador cargado correctamente con todos los campos');
+      log.info('Borrador cargado correctamente');
       
     } catch (error) {
-      console.error('❌ Error cargando borrador:', error);
+      log.error('Error cargando borrador', error);
       throw error;
     }
   };
@@ -472,7 +440,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       return urlData.publicUrl;
       
     } catch (error) {
-      console.error('Error uploading photo:', error);
+      log.error('Error subiendo foto', error);
       return null;
     }
   };
@@ -525,7 +493,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       .eq('elevator_id', elevatorId);
     
     // Guardar después de actualizar estado de ascensor
-    console.log('💾 Estado de ascensor actualizado - guardando...');
+    log.debug('Estado de ascensor actualizado, guardando');
     await autoSave();
   };
 
@@ -540,7 +508,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
     }
     
     // Guardar después de cambiar estado final (con delay para que se actualice el estado)
-    console.log('💾 Estado final actualizado - guardando en 200ms...');
+    log.debug('Estado final actualizado, guardando en 200ms');
     setTimeout(() => autoSave(), 200);
   };
 
@@ -650,9 +618,9 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       };
 
       // Generar PDF
-      console.log('📄 Generando PDF de emergencia...');
+      log.debug('Generando PDF de emergencia');
       const pdfBlob = await generateEmergencyVisitPDF(pdfData);
-      console.log('✅ PDF generado, tamaño:', pdfBlob.size, 'bytes');
+      log.debug('PDF generado', { size: pdfBlob.size });
 
       // Subir PDF a Storage con nombre limpio
       const cleanClientName = clientName
@@ -665,7 +633,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       const fileName = `emergencia_${cleanClientName}_${timestamp}.pdf`;
       const filePath = `emergencias/${fileName}`;
       
-      console.log('📤 Subiendo PDF:', filePath);
+      log.debug('Subiendo PDF', { filePath });
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('emergency-pdfs')
@@ -675,7 +643,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         });
 
       if (uploadError) {
-        console.error('❌ Error subiendo PDF:', uploadError);
+        log.error('Error subiendo PDF', uploadError);
         throw new Error(`Error al subir PDF: ${uploadError.message}`);
       }
 
@@ -700,28 +668,28 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         throw new Error(`Error guardando URL del PDF: ${updateError.message}`);
       }
 
-      console.log('✅ PDF generado y guardado:', pdfUrl);
+      log.info('PDF generado y guardado', { pdfUrl });
 
     } catch (error) {
-      console.error('Error generando o subiendo PDF:', error);
+      log.error('Error generando o subiendo PDF', error);
       // No bloqueamos el flujo si falla el PDF
       alert('Advertencia: El PDF no pudo generarse, pero la emergencia se guardó correctamente.');
     }
   };
   const handleComplete = async () => {
     if (!canComplete) {
-      console.log('❌ Validación falló. Estado:', {
+      log.warn('Validación falló', {
         failureDescription: !!failureDescription,
         resolutionSummary: !!resolutionSummary,
         finalStatus,
         failureCause,
         receiverName,
-        signatureEmpty: signatureRef?.isEmpty()
+        hasSignature
       });
       return;
     }
     
-    console.log('✅ Iniciando completado de emergencia...');
+    log.info('Iniciando completado de emergencia');
     
     try {
       setSaving(true);
@@ -768,7 +736,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
         throw new Error(`Error actualizando visita: ${updateError.message}`);
       }
       
-      console.log('✅ Emergencia actualizada:', visitId, 'Status: completed, Time:', completedAt);
+      log.info('Emergencia actualizada', { visitId, status: 'completed', completedAt });
       
       // Actualizar estado final de ascensores
       for (const elevatorId of elevatorIds) {
@@ -782,13 +750,13 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
       // Generar PDF
       await generateAndUploadPDF(signatureUrl);
       
-      console.log('✅ Emergencia completada exitosamente');
+      log.info('Emergencia completada exitosamente');
       alert('Emergencia guardada correctamente con PDF generado');
       
       onComplete();
       
     } catch (error) {
-      console.error('❌ Error completing visit:', error);
+      log.error('Error completing visit', error);
       alert(`Error al completar emergencia: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
       setSaving(false);
@@ -805,12 +773,12 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
 
   // Función para salir del formulario (guarda antes de salir)
   const handleExit = async () => {
-    console.log('🚪 Saliendo del formulario - guardando cambios...');
+    log.debug('Saliendo del formulario, guardando cambios');
     if (visitId) {
       // Esperar 300ms para que se completen guardados pendientes de botones
       await new Promise(resolve => setTimeout(resolve, 300));
       await autoSave();
-      console.log('✅ Guardado completado antes de salir');
+      log.debug('Guardado completado antes de salir');
     }
     onCancel();
   };
@@ -903,7 +871,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
               }
             }}
             onBlur={() => {
-              console.log('💾 Campo failureDescription perdió foco - guardando...');
+              log.debug('Campo failureDescription perdió foco, guardando');
               autoSave();
             }}
             placeholder="Describe detalladamente la falla encontrada..."
@@ -1073,7 +1041,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
               }
             }}
             onBlur={() => {
-              console.log('💾 Campo resolutionSummary perdió foco - guardando...');
+              log.debug('Campo resolutionSummary perdió foco, guardando');
               autoSave();
             }}
             placeholder="Describe lo que se realizó para resolver la falla..."
@@ -1165,7 +1133,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
               type="button"
               onClick={() => {
                 setFailureCause('normal_use');
-                console.log('💾 Causa de falla seleccionada - guardando...');
+                log.debug('Causa seleccionada: normal_use, guardando');
                 setTimeout(() => autoSave(), 100);
               }}
               className={`p-4 rounded-lg border-2 transition-all text-left ${
@@ -1180,7 +1148,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
               type="button"
               onClick={() => {
                 setFailureCause('third_party');
-                console.log('💾 Causa de falla seleccionada - guardando...');
+                log.debug('Causa seleccionada: third_party, guardando');
                 setTimeout(() => autoSave(), 100);
               }}
               className={`p-4 rounded-lg border-2 transition-all text-left ${
@@ -1195,7 +1163,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
               type="button"
               onClick={() => {
                 setFailureCause('part_lifespan');
-                console.log('💾 Causa de falla seleccionada - guardando...');
+                log.debug('Causa seleccionada: part_lifespan, guardando');
                 setTimeout(() => autoSave(), 100);
               }}
               className={`p-4 rounded-lg border-2 transition-all text-left ${
@@ -1222,7 +1190,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
             value={receiverName}
             onChange={(e) => setReceiverName(e.target.value)}
             onBlur={() => {
-              console.log('💾 Campo receiverName perdió foco - guardando...');
+              log.debug('Campo receiverName perdió foco, guardando');
               autoSave();
             }}
             placeholder="Nombre completo"
@@ -1285,7 +1253,7 @@ export function EmergencyForm({ clientId, elevatorIds, onComplete, onCancel, exi
           onClose={() => setShowServiceRequestModal(false)}
           onSuccess={(requestId) => {
             if (requestId) {
-              console.log('✅ Solicitud creada con ID:', requestId);
+              log.info('Solicitud creada', { requestId });
               setServiceRequestId(requestId);
             }
             setShowServiceRequestModal(false);
