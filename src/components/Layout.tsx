@@ -82,7 +82,7 @@ const navSections: NavSection[] = [
       { label: 'Mis Solicitudes', icon: FileText, path: 'client-service-requests', roles: ['client'] },
       { label: 'Mis Emergencias', icon: AlertTriangle, path: 'client-emergencies', roles: ['client'] },
       { label: 'Inducción de Rescate', icon: Award, path: 'rescue-training', roles: ['client'] },
-      { label: 'Carpeta Cero', icon: Folder, path: 'carpeta-cero', roles: ['developer', 'admin', 'client'] },
+      { label: 'Carpeta Cero', icon: Folder, path: 'carpeta-cero', roles: ['client'] },
     ],
   },
   {

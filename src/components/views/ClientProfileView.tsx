@@ -188,6 +188,7 @@ export function ClientProfileView({
     );
   }
 
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -218,9 +219,9 @@ export function ClientProfileView({
       </div>
 
       {/* Información Principal */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
         {/* Contacto Principal */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 min-w-[280px] max-w-full md:max-w-[340px] flex-1">
           <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-600" />
             Contacto Principal
@@ -268,50 +269,43 @@ export function ClientProfileView({
           </div>
         </div>
 
-        {/* Contacto Alterno */}
-        {(client.admin_name || client.admin_email || client.admin_phone) && (
-          <div className="bg-blue-50 rounded-xl border border-blue-200 p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">
-              Contacto Alterno
-            </h2>
-            <div className="space-y-3">
-              {client.admin_name && (
-                <div>
-                  <p className="text-sm text-slate-600">Nombre</p>
-                  <p className="text-lg font-semibold text-slate-900">
-                    {client.admin_name}
-                  </p>
+        {/* Contactos Alternos (JSONB) */}
+        {Array.isArray(client.alternate_contacts) && client.alternate_contacts.length > 0 && (
+          <div className="flex flex-col md:flex-row gap-4 flex-1">
+            {client.alternate_contacts.filter(c => c.enabled && (c.name || c.email || c.phone || c.role)).map((contact, idx) => (
+              <div key={idx} className="bg-blue-50 rounded-xl border border-blue-200 p-6 min-w-[220px] max-w-full md:max-w-[260px] flex-1">
+                <h2 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  Contacto Alterno {idx + 1}
+                </h2>
+                <div className="space-y-2">
+                  {contact.name && (
+                    <div>
+                      <p className="text-xs text-slate-600">Nombre</p>
+                      <p className="text-base font-semibold text-slate-900">{contact.name}</p>
+                    </div>
+                  )}
+                  {contact.role && (
+                    <div>
+                      <p className="text-xs text-slate-600">Cargo / Rol</p>
+                      <p className="text-base text-slate-900">{contact.role}</p>
+                    </div>
+                  )}
+                  {contact.email && (
+                    <div>
+                      <p className="text-xs text-slate-600 flex items-center gap-2"><Mail className="w-4 h-4" />Email</p>
+                      <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline">{contact.email}</a>
+                    </div>
+                  )}
+                  {contact.phone && (
+                    <div>
+                      <p className="text-xs text-slate-600 flex items-center gap-2"><Phone className="w-4 h-4" />Teléfono</p>
+                      <a href={`tel:${contact.phone}`} className="text-blue-600 hover:underline">{contact.phone}</a>
+                    </div>
+                  )}
                 </div>
-              )}
-              {client.admin_email && (
-                <div>
-                  <p className="text-sm text-slate-600 flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    Email
-                  </p>
-                  <a
-                    href={`mailto:${client.admin_email}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    {client.admin_email}
-                  </a>
-                </div>
-              )}
-              {client.admin_phone && (
-                <div>
-                  <p className="text-sm text-slate-600 flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    Teléfono
-                  </p>
-                  <a
-                    href={`tel:${client.admin_phone}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    {client.admin_phone}
-                  </a>
-                </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

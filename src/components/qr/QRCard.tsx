@@ -1,9 +1,31 @@
+
+import { useMemo } from 'react';
+
 interface QRCardProps {
-  qrDataURL: string;
-  buildingName: string;
+  elevator: {
+    id: string;
+    internal_code: string;
+    brand: string;
+    model: string;
+    serial_number: string;
+    location_building: string;
+    location_floor: string;
+    location_specific?: string | null;
+    clients?: {
+      company_name?: string;
+      address?: string;
+    };
+  };
 }
 
-export function QRCard({ qrDataURL, buildingName }: QRCardProps) {
+export function QRCard({ elevator }: QRCardProps) {
+  // Generate QR URL and Data URL
+  const qrUrl = useMemo(() => `${window.location.origin}/elevator/${elevator.id}`, [elevator.id]);
+  const qrImgUrl = useMemo(() =>
+    `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrUrl)}&margin=1`,
+    [qrUrl]
+  );
+
   return (
     <div
       className="bg-white border-2 border-black rounded-2xl overflow-hidden"
@@ -23,8 +45,8 @@ export function QRCard({ qrDataURL, buildingName }: QRCardProps) {
         }}
       >
         <img
-          src={qrDataURL}
-          alt={`QR ${buildingName}`}
+          src={qrImgUrl}
+          alt={`QR ${elevator.location_building}`}
           style={{
             width: '100%',
             height: '100%',
@@ -44,11 +66,14 @@ export function QRCard({ qrDataURL, buildingName }: QRCardProps) {
           alignItems: 'center'
         }}
       >
-        <div style={{ fontSize: '12pt', color: '#000', fontWeight: 'normal', lineHeight: '1.2' }}>
-          Edificio:
+        <div style={{ fontSize: '10pt', color: '#000', fontWeight: 'normal', lineHeight: '1.2' }}>
+          {elevator.clients?.company_name || ''}
         </div>
-        <div style={{ fontSize: '21pt', color: '#DC2626', fontWeight: 'bold', lineHeight: '1.1', marginTop: '2px' }}>
-          {buildingName}
+        <div style={{ fontSize: '13pt', color: '#DC2626', fontWeight: 'bold', lineHeight: '1.1', marginTop: '2px' }}>
+          {elevator.location_building}
+        </div>
+        <div style={{ fontSize: '10pt', color: '#222', fontWeight: 'normal', lineHeight: '1.1', marginTop: '2px' }}>
+          {elevator.internal_code}
         </div>
       </div>
     </div>

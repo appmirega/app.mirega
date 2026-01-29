@@ -423,7 +423,7 @@ export function QRCodesCompleteView() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredElevators.map((elevator) => (
-                    <QRCard key={elevator.id} elevator={elevator as any} />
+                    <QRCard key={elevator.id} elevator={elevator} />
                   ))}
                 </div>
               )}
