@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { supabase } from '../../lib/supabase';
 import { QRCard } from '../qr/QRCard';
 import {
@@ -21,6 +22,10 @@ interface Elevator {
   location_building: string;
   location_floor: string;
   location_specific: string | null;
+  elevator_number?: number | string;
+  internal_name?: string;
+  nombre_interno?: string;
+  corto?: string;
   clients: {
     id: string;
     company_name: string;
@@ -71,10 +76,16 @@ export function QRCodesCompleteView() {
 
   const loadElevators = async () => {
     try {
+
+      // Incluir campos de número y nombre interno
       const { data, error } = await supabase
         .from('elevators')
         .select(`
           *,
+          elevator_number,
+          internal_name,
+          nombre_interno,
+          corto,
           clients (
             id,
             company_name,
@@ -290,6 +301,7 @@ export function QRCodesCompleteView() {
 
     const container = printWindow.document.getElementById('qr-container');
 
+
     for (const elevator of selectedElevatorsList) {
       const qrUrl = `${window.location.origin}/elevator/${elevator.id}`;
       const qrDataUrl = await QRCode.toDataURL(qrUrl, {
@@ -299,10 +311,16 @@ export function QRCodesCompleteView() {
         errorCorrectionLevel: 'M',
       });
 
+      // Nombre interno preferente: internal_name, nombre_interno, corto, sino vacío
+      const internalName = elevator.internal_name || elevator.nombre_interno || elevator.corto || '';
+      const elevatorNumber = elevator.elevator_number !== undefined && elevator.elevator_number !== null ? `N° ${elevator.elevator_number}` : '';
+
       const qrItem = printWindow.document.createElement('div');
       qrItem.className = 'qr-item';
       qrItem.innerHTML = `
         <div class="qr-item-header">${elevator.clients?.company_name || 'Cliente'}</div>
+        <div style="font-size:11px;font-weight:bold;color:#222;">${internalName}</div>
+        <div style="font-size:10px;font-weight:bold;color:#DC2626;">${elevatorNumber}</div>
         <div class="qr-item-code">
           <img src="${qrDataUrl}" alt="QR Code" />
         </div>
@@ -526,7 +544,7 @@ export function QRCodesCompleteView() {
                             )}&margin=1`}
                             alt="QR Code"
                             className="w-full h-full object-contain image-rendering: pixelated"
-                            onError={(e) => {
+                            onError={() => {
                               // Fallback si falla la generación
                               console.error('QR generation failed for elevator:', elevator.id);
                             }}
