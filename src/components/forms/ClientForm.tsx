@@ -130,11 +130,11 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     contact_name: client?.contact_name || '',
     contact_email: client?.contact_email || '',
     contact_phone: client?.contact_phone || '',
-    // Contactos Alternos (hasta 3) - NUEVO
+    // Contactos Alternos (hasta 3) - NUEVO, ahora con cargo/rol
     alternate_contacts: [
-      { name: '', email: '', phone: '', enabled: false },
-      { name: '', email: '', phone: '', enabled: false },
-      { name: '', email: '', phone: '', enabled: false },
+      { name: '', email: '', phone: '', role: '', enabled: false },
+      { name: '', email: '', phone: '', role: '', enabled: false },
+      { name: '', email: '', phone: '', role: '', enabled: false },
     ],
     // Campos legacy (se mantienen para compatibilidad)
     admin_name: '',
@@ -527,8 +527,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           admin_name: clientData.admin_name,
           admin_email: clientData.admin_email,
           admin_phone: clientData.admin_phone,
-          // Contactos alternos como JSON
-          alternate_contacts: clientData.alternate_contacts.filter(c => c.enabled) || null,
+          // Contactos alternos como JSON (incluye cargo/rol)
+          alternate_contacts: (clientData.alternate_contacts?.filter(c => c.enabled && (c.name || c.email || c.phone || c.role)) ?? null),
           rut: clientData.rut || null,
           address: clientData.address,
           is_active: true,
@@ -836,7 +836,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div>
                         <label className="text-xs text-slate-600 mb-1 block font-medium">
                           Nombre
@@ -893,6 +893,26 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
                             });
                           }}
                           placeholder="+56 9 XXXX XXXX"
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-600 mb-1 block font-medium">
+                          Cargo / Rol
+                        </label>
+                        <input
+                          type="text"
+                          disabled={!contact.enabled}
+                          value={contact.role}
+                          onChange={(e) => {
+                            setClientData((p) => {
+                              const updated = [...p.alternate_contacts];
+                              updated[index].role = e.target.value;
+                              return { ...p, alternate_contacts: updated };
+                            });
+                          }}
+                          placeholder="Ej: Presidente, Tesorero, etc."
                           className="w-full px-3 py-2 border border-slate-300 rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
